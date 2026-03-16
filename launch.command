@@ -4,6 +4,12 @@ cd "$(dirname "$0")/app"
 
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
+# Kill stale processes from previous session (laptop sleep/reboot recovery)
+lsof -ti:3001 | xargs kill -9 2>/dev/null
+lsof -ti:5173 | xargs kill -9 2>/dev/null
+pkill -f "cloudflared tunnel run atlas" 2>/dev/null
+sleep 1
+
 # Build production frontend if dist/ is missing or stale
 if [ ! -f dist/index.html ] || [ src/App.jsx -nt dist/index.html ]; then
   echo "Building frontend..."
@@ -11,16 +17,12 @@ if [ ! -f dist/index.html ] || [ src/App.jsx -nt dist/index.html ]; then
 fi
 
 # Start Express in production mode (serves API + built frontend)
-if ! lsof -ti:3001 >/dev/null 2>&1; then
-  NODE_ENV=production node server/index.js &
-  sleep 1
-fi
+NODE_ENV=production node server/index.js &
+sleep 1
 
 # Start Vite dev server for local development (hot reload)
-if ! lsof -ti:5173 >/dev/null 2>&1; then
-  npx vite --host 0.0.0.0 --port 5173 &
-  sleep 2
-fi
+npx vite --host 0.0.0.0 --port 5173 &
+sleep 2
 
 # Open local dev server in browser
 open http://localhost:5173

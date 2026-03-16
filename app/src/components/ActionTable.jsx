@@ -202,8 +202,11 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     <span className={`text-sm font-medium truncate block ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
                       {action.title}
                     </span>
-                    {tags.length > 0 && (
-                      <div className="flex gap-1 mt-0.5">
+                    {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none')) && (
+                      <div className="flex gap-1 mt-0.5 items-center">
+                        {action.recurrence && action.recurrence !== 'none' && (
+                          <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>↻ {action.recurrence}</span>
+                        )}
                         {tags.slice(0, 3).map(tag => (
                           <span key={tag} className="text-[10px] text-text-muted">#{tag}</span>
                         ))}

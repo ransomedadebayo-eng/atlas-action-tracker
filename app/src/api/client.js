@@ -2,8 +2,12 @@ const BASE_URL = '/api';
 
 async function request(path, options = {}) {
   const url = `${BASE_URL}${path}`;
+  const token = import.meta.env.VITE_ATLAS_API_TOKEN;
   const config = {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
     ...options,
   };
 

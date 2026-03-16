@@ -254,6 +254,11 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction }) {
                           )}
                         </div>
 
+                        {/* Recurrence indicator */}
+                        {action.recurrence && action.recurrence !== 'none' && (
+                          <span className="text-[10px] text-text-muted mt-0.5" title={`Repeats ${action.recurrence}`}>↻ {action.recurrence}</span>
+                        )}
+
                         {/* Bottom row: due date + owners */}
                         <div className="flex items-center justify-between mt-1">
                           {action.due_date ? (

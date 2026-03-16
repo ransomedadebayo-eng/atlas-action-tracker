@@ -72,6 +72,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_actions_business ON actions(business);
   CREATE INDEX IF NOT EXISTS idx_actions_priority ON actions(priority);
   CREATE INDEX IF NOT EXISTS idx_actions_due_date ON actions(due_date);
+`);
+
+// Migration: add recurrence column
+try {
+  db.exec(`ALTER TABLE actions ADD COLUMN recurrence TEXT DEFAULT 'none' CHECK (recurrence IN ('none','daily','weekly','biweekly','monthly'))`);
+  console.log('[db] Added recurrence column');
+} catch (e) {
+  // Column already exists — ignore
+}
+
+db.exec(`
 
   CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

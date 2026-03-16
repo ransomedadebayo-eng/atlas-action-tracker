@@ -3,7 +3,7 @@ import { X, Zap, ChevronDown } from 'lucide-react'
 import { useCreateAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import MemberSelector from './MemberSelector.jsx'
-import { PRIORITY_LIST, STATUS_LIST } from '../utils/constants.js'
+import { PRIORITY_LIST, STATUS_LIST, RECURRENCE_LIST } from '../utils/constants.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 
 const DEFAULT_FORM = {
@@ -14,6 +14,7 @@ const DEFAULT_FORM = {
   due_date: '',
   owners: [],
   description: '',
+  recurrence: 'none',
 }
 
 export default function QuickCapture({ onClose, selectedBusiness, prefilledDate }) {
@@ -199,6 +200,21 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
                 >
                   {STATUS_LIST.map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+              </div>
+
+              {/* Recurrence */}
+              <div className="relative">
+                <select
+                  className="input-field w-full appearance-none pr-8 text-sm"
+                  value={form.recurrence}
+                  onChange={e => patch('recurrence', e.target.value || 'none')}
+                >
+                  <option value="none">No recurrence</option>
+                  {RECURRENCE_LIST.map(r => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />

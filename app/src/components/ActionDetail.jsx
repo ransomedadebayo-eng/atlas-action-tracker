@@ -8,7 +8,7 @@ import { useMembers } from '../hooks/useMembers.js'
 import { useQuery } from '@tanstack/react-query'
 import { activityApi } from '../api/client.js'
 import MemberSelector from './MemberSelector.jsx'
-import { PRIORITIES, STATUS_LIST, PRIORITY_LIST } from '../utils/constants.js'
+import { PRIORITIES, STATUS_LIST, PRIORITY_LIST, RECURRENCE_LIST } from '../utils/constants.js'
 import { PRIORITY_COLORS } from '../utils/colors.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatTimestamp } from '../utils/dateUtils.js'
@@ -70,6 +70,7 @@ export default function ActionDetail({ actionId, onClose }) {
         tags: parseJsonArray(action.tags),
         notes: action.notes || '',
         source_label: action.source_label || '',
+        recurrence: action.recurrence || 'none',
       })
     }
   }, [action, dirty])
@@ -83,7 +84,12 @@ export default function ActionDetail({ actionId, onClose }) {
     if (!form || !dirty) return
     setSaving(true)
     try {
-      await updateAction.mutateAsync({ id: actionId, ...form })
+      const payload = { ...form }
+      // Convert empty strings to null for optional fields the server validates strictly
+      if (payload.due_date === '') payload.due_date = null
+      if (payload.source_label === '') payload.source_label = null
+      if (payload.business === '') payload.business = null
+      await updateAction.mutateAsync({ id: actionId, ...payload })
       setDirty(false)
     } finally {
       setSaving(false)
@@ -277,6 +283,16 @@ export default function ActionDetail({ actionId, onClose }) {
                 onChange={e => patch('due_date', e.target.value)}
               />
             </div>
+          </div>
+
+          {/* Recurrence */}
+          <div>
+            <Select
+              label="Recurrence"
+              value={form.recurrence}
+              onChange={val => patch('recurrence', val || 'none')}
+              options={RECURRENCE_LIST}
+            />
           </div>
 
           {/* Owners */}

@@ -9,8 +9,22 @@ const TEXT_FIELDS = ['title', 'description', 'notes', 'source_label'];
 // --- Validation helpers ---
 const VALID_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'done'];
 const VALID_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
+const VALID_RECURRENCES = ['none', 'daily', 'weekly', 'biweekly', 'monthly'];
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const BULK_MAX = 50;
+
+function computeNextDueDate(currentDueDate, recurrence) {
+  if (!currentDueDate || recurrence === 'none') return null;
+  const d = new Date(currentDueDate + 'T00:00:00');
+  switch (recurrence) {
+    case 'daily': d.setDate(d.getDate() + 1); break;
+    case 'weekly': d.setDate(d.getDate() + 7); break;
+    case 'biweekly': d.setDate(d.getDate() + 14); break;
+    case 'monthly': d.setMonth(d.getMonth() + 1); break;
+    default: return null;
+  }
+  return d.toISOString().split('T')[0];
+}
 
 function validateActionFields(body, isUpdate = false) {
   const errors = [];
@@ -42,6 +56,12 @@ function validateActionFields(body, isUpdate = false) {
   if (body.tags !== undefined) {
     if (!Array.isArray(body.tags) || !body.tags.every(t => typeof t === 'string')) {
       errors.push('tags must be an array of strings');
+    }
+  }
+
+  if (body.recurrence !== undefined) {
+    if (!VALID_RECURRENCES.includes(body.recurrence)) {
+      errors.push(`recurrence must be one of: ${VALID_RECURRENCES.join(', ')}`);
     }
   }
 
@@ -216,7 +236,7 @@ router.post('/', (req, res) => {
     const {
       title, description = '', status = 'not_started', business,
       priority = 'p2', due_date = null, owners = [], source_transcript_id = null,
-      source_label = null, tags = [], notes = ''
+      source_label = null, tags = [], notes = '', recurrence = 'none'
     } = body;
 
     if (!title || !business) {
@@ -236,11 +256,11 @@ router.post('/', (req, res) => {
     const now = new Date().toISOString().replace('T', ' ').split('.')[0];
 
     db.prepare(`
-      INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, title, description, status, business, priority, due_date,
       JSON.stringify(owners), source_transcript_id, source_label,
-      JSON.stringify(tags), notes, now, now);
+      JSON.stringify(tags), notes, recurrence, now, now);
 
     db.prepare(`
       INSERT INTO activity_log (action_id, event, new_value, actor) VALUES (?, 'created', ?, 'user')
@@ -283,8 +303,8 @@ router.post('/bulk', (req, res) => {
     }
 
     const insertStmt = db.prepare(`
-      INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const logStmt = db.prepare(`
       INSERT INTO activity_log (action_id, event, new_value, actor) VALUES (?, 'created', ?, 'user')
@@ -299,7 +319,8 @@ router.post('/bulk', (req, res) => {
           id, a.title, a.description || '', a.status || 'not_started',
           a.business, a.priority || 'p2', a.due_date || null,
           JSON.stringify(a.owners || []), a.source_transcript_id || null,
-          a.source_label || null, JSON.stringify(a.tags || []), a.notes || ''
+          a.source_label || null, JSON.stringify(a.tags || []), a.notes || '',
+          a.recurrence || 'none'
         );
         logStmt.run(id, a.title);
         created.push(id);
@@ -352,6 +373,7 @@ router.put('/bulk', (req, res) => {
         if (u.due_date !== undefined) { fields.push('due_date = ?'); vals.push(u.due_date); }
         if (u.owners !== undefined) { fields.push('owners = ?'); vals.push(JSON.stringify(u.owners)); }
         if (u.business !== undefined) { fields.push('business = ?'); vals.push(u.business); }
+        if (u.recurrence !== undefined) { fields.push('recurrence = ?'); vals.push(u.recurrence); }
 
         if (u.status === 'done') {
           fields.push('completed_at = ?');
@@ -391,7 +413,7 @@ router.put('/:id', (req, res) => {
     const {
       title, description, status, business, priority,
       due_date, owners, source_transcript_id, source_label,
-      tags, notes
+      tags, notes, recurrence
     } = req.body;
 
     const updates = {};
@@ -406,6 +428,7 @@ router.put('/:id', (req, res) => {
     if (source_label !== undefined) updates.source_label = source_label;
     if (tags !== undefined) updates.tags = JSON.stringify(tags);
     if (notes !== undefined) updates.notes = notes;
+    if (recurrence !== undefined) updates.recurrence = recurrence;
 
     if (status === 'done' && existing.status !== 'done') {
       updates.completed_at = now;
@@ -443,6 +466,31 @@ router.put('/:id', (req, res) => {
           INSERT INTO activity_log (action_id, event, new_value, actor)
           VALUES (?, 'updated', ?, 'user')
         `).run(req.params.id, JSON.stringify(Object.keys(req.body)));
+      }
+
+      // Spawn next occurrence for recurring tasks
+      const effectiveRecurrence = recurrence !== undefined ? recurrence : existing.recurrence;
+      if (status === 'done' && existing.status !== 'done' && effectiveRecurrence && effectiveRecurrence !== 'none') {
+        const nextDue = computeNextDueDate(existing.due_date, effectiveRecurrence);
+        if (nextDue) {
+          const nextId = uuidv4();
+          db.prepare(`
+            INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
+            VALUES (?, ?, ?, 'not_started', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(nextId, existing.title, existing.description || '', existing.business, existing.priority,
+            nextDue, existing.owners, existing.source_transcript_id, existing.source_label,
+            existing.tags, '', effectiveRecurrence, now, now);
+
+          db.prepare(`
+            INSERT INTO activity_log (action_id, event, new_value, actor)
+            VALUES (?, 'created', ?, 'system')
+          `).run(nextId, existing.title);
+
+          db.prepare(`
+            INSERT INTO activity_log (action_id, event, new_value, actor)
+            VALUES (?, 'recurrence_spawned', ?, 'system')
+          `).run(req.params.id, nextId);
+        }
       }
     });
     updateTx();

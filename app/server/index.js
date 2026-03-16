@@ -129,6 +129,18 @@ app.get('/api/config/businesses', (req, res) => {
   }
 });
 
+app.put('/api/config/businesses', (req, res) => {
+  try {
+    const businesses = req.body;
+    if (!Array.isArray(businesses)) return res.status(400).json({ error: 'Expected array' });
+    db.prepare("INSERT OR REPLACE INTO config (key, value) VALUES ('businesses', ?)").run(JSON.stringify(businesses));
+    res.json(businesses);
+  } catch (err) {
+    console.error(`[config] PUT businesses error: ${err.message}`);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

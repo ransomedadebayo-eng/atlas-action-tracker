@@ -38,6 +38,18 @@ export const BUSINESS_LIST = Object.entries(BUSINESSES).map(([id, val]) => ({
   ...val,
 }));
 
+export const RECURRENCES = {
+  none: { label: 'None' },
+  daily: { label: 'Daily' },
+  weekly: { label: 'Weekly' },
+  biweekly: { label: 'Biweekly' },
+  monthly: { label: 'Monthly' },
+};
+
+export const RECURRENCE_LIST = Object.entries(RECURRENCES)
+  .filter(([id]) => id !== 'none')
+  .map(([id, val]) => ({ id, ...val }));
+
 export const TRANSCRIPT_STATUSES = {
   pending: { label: 'Pending Review' },
   reviewed: { label: 'Reviewed' },
