@@ -4,6 +4,8 @@ export const BUSINESS_COLORS = {
   investments: '#a855f7',
   personal: '#f59e0b',
   fitness: '#ef4444',
+  learning_platform: '#06b6d4',
+  improvisr: '#ff9430',
 };
 
 export const PRIORITY_COLORS = {

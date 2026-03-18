@@ -2,76 +2,96 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
 import { validateStringLengths, sanitizeBody, parsePagination } from '../middleware/validate.js';
+import { getActor } from '../utils/actors.js';
+import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS } from '../utils/actionUtils.js';
+import { coerceJsonArray, serializeJsonArray, sqlJsonArray } from '../utils/json.js';
+import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData.js';
 
 const router = Router();
-const TEXT_FIELDS = ['title', 'description', 'notes', 'source_label'];
-
-// --- Validation helpers ---
-const VALID_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'done'];
-const VALID_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
-const VALID_RECURRENCES = ['none', 'daily', 'weekly', 'biweekly', 'monthly'];
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const BULK_MAX = 50;
+const OWNERS_JSON_SQL = sqlJsonArray('owners');
 
-function computeNextDueDate(currentDueDate, recurrence) {
-  if (!currentDueDate || recurrence === 'none') return null;
-  const d = new Date(currentDueDate + 'T00:00:00');
-  switch (recurrence) {
-    case 'daily': d.setDate(d.getDate() + 1); break;
-    case 'weekly': d.setDate(d.getDate() + 7); break;
-    case 'biweekly': d.setDate(d.getDate() + 14); break;
-    case 'monthly': d.setMonth(d.getMonth() + 1); break;
-    default: return null;
-  }
-  return d.toISOString().split('T')[0];
+function toActionResponse(action) {
+  return {
+    ...action,
+    owners: coerceJsonArray(action.owners),
+    tags: coerceJsonArray(action.tags),
+  };
 }
 
-function validateActionFields(body, isUpdate = false) {
+function parseBulkPayload(body, key) {
+  if (Array.isArray(body)) return body;
+  return body?.[key];
+}
+
+function validateActionReferences(action) {
   const errors = [];
-
-  if (body.status !== undefined) {
-    if (!VALID_STATUSES.includes(body.status)) {
-      errors.push(`status must be one of: ${VALID_STATUSES.join(', ')}`);
-    }
-  }
-
-  if (body.priority !== undefined) {
-    if (!VALID_PRIORITIES.includes(body.priority)) {
-      errors.push(`priority must be one of: ${VALID_PRIORITIES.join(', ')}`);
-    }
-  }
-
-  if (body.due_date !== undefined && body.due_date !== null) {
-    if (typeof body.due_date !== 'string' || !DATE_REGEX.test(body.due_date)) {
-      errors.push('due_date must be in YYYY-MM-DD format or null');
-    }
-  }
-
-  if (body.owners !== undefined) {
-    if (!Array.isArray(body.owners) || !body.owners.every(o => typeof o === 'string')) {
-      errors.push('owners must be an array of strings');
-    }
-  }
-
-  if (body.tags !== undefined) {
-    if (!Array.isArray(body.tags) || !body.tags.every(t => typeof t === 'string')) {
-      errors.push('tags must be an array of strings');
-    }
-  }
-
-  if (body.recurrence !== undefined) {
-    if (!VALID_RECURRENCES.includes(body.recurrence)) {
-      errors.push(`recurrence must be one of: ${VALID_RECURRENCES.join(', ')}`);
-    }
-  }
-
+  const businessError = validateKnownBusinessId(action.business);
+  if (businessError) errors.push(businessError);
+  errors.push(...validateKnownMemberIds(action.owners));
   return errors;
 }
 
-// GET /api/actions — List with filters
+function buildNextRecurringAction(existing, incoming, now) {
+  const recurrence = incoming.recurrence !== undefined ? incoming.recurrence : existing.recurrence;
+  if (incoming.status !== 'done' || existing.status === 'done' || !recurrence || recurrence === 'none') {
+    return null;
+  }
+
+  const baseDueDate = incoming.due_date !== undefined ? incoming.due_date : existing.due_date;
+  const nextDueDate = computeNextDueDate(baseDueDate, recurrence);
+  if (!nextDueDate) return null;
+
+  return {
+    id: uuidv4(),
+    title: incoming.title !== undefined ? incoming.title : existing.title,
+    description: incoming.description !== undefined ? incoming.description : (existing.description || ''),
+    business: incoming.business !== undefined ? incoming.business : existing.business,
+    priority: incoming.priority !== undefined ? incoming.priority : existing.priority,
+    due_date: nextDueDate,
+    owners: incoming.owners !== undefined ? incoming.owners : coerceJsonArray(existing.owners),
+    source_transcript_id: incoming.source_transcript_id !== undefined ? incoming.source_transcript_id : existing.source_transcript_id,
+    source_label: incoming.source_label !== undefined ? incoming.source_label : existing.source_label,
+    tags: incoming.tags !== undefined ? incoming.tags : coerceJsonArray(existing.tags),
+    notes: '',
+    recurrence,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function insertRecurringAction(action) {
+  db.prepare(`
+    INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
+    VALUES (?, ?, ?, 'not_started', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    action.id,
+    action.title,
+    action.description,
+    action.business,
+    action.priority,
+    action.due_date,
+    serializeJsonArray(action.owners),
+    action.source_transcript_id,
+    action.source_label,
+    serializeJsonArray(action.tags),
+    action.notes,
+    action.recurrence,
+    action.created_at,
+    action.updated_at,
+  );
+
+  db.prepare(`
+    INSERT INTO activity_log (action_id, event, new_value, actor)
+    VALUES (?, 'created', ?, 'system')
+  `).run(action.id, action.title);
+}
+
 router.get('/', (req, res) => {
   try {
-    const { status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir } = req.query;
+    const {
+      status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir,
+    } = req.query;
 
     let sql = 'SELECT * FROM actions WHERE 1=1';
     const params = [];
@@ -91,7 +111,7 @@ router.get('/', (req, res) => {
       params.push(...priorities);
     }
     if (owner_id) {
-      sql += ` AND EXISTS (SELECT 1 FROM json_each(owners) WHERE value = ?)`;
+      sql += ` AND EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)`;
       params.push(owner_id);
     }
     if (due_before) {
@@ -112,7 +132,6 @@ router.get('/', (req, res) => {
       params.push(source_id);
     }
 
-    // Sorting
     const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'created_at', 'updated_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
@@ -123,28 +142,18 @@ router.get('/', (req, res) => {
       sql += ` ORDER BY ${sortField} ${direction} NULLS LAST`;
     }
 
-    // Pagination
     const { limit, offset } = parsePagination(req.query);
     sql += ' LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const actions = db.prepare(sql).all(...params);
-
-    // Parse JSON fields
-    const parsed = actions.map(a => ({
-      ...a,
-      owners: JSON.parse(a.owners || '[]'),
-      tags: JSON.parse(a.tags || '[]'),
-    }));
-
-    res.json(parsed);
+    res.json(actions.map(toActionResponse));
   } catch (err) {
     console.error(`[actions] GET error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /api/actions/stats — Dashboard stats
 router.get('/stats', (req, res) => {
   try {
     const { business } = req.query;
@@ -155,25 +164,17 @@ router.get('/stats', (req, res) => {
       params.push(business);
     }
 
-    const byStatus = db.prepare(`SELECT status, COUNT(*) as count FROM actions${whereClause} GROUP BY status`).all(...params);
+    const byStatus = db.prepare(`SELECT status, COUNT(*) AS count FROM actions${whereClause} GROUP BY status`).all(...params);
 
-    const overdueParams = business ? [business] : [];
-    const overdueWhere = business ? ' AND business = ?' : '';
-    const overdue = db.prepare(`SELECT COUNT(*) as count FROM actions WHERE due_date < date('now') AND status NOT IN ('done','blocked')${overdueWhere}`).get(...overdueParams);
-
-    const completedThisWeek = db.prepare(`SELECT COUNT(*) as count FROM actions WHERE status = 'done' AND completed_at >= date('now', '-7 days')${overdueWhere}`).get(...overdueParams);
-
-    const pendingTranscripts = db.prepare(`SELECT COUNT(*) as count FROM transcripts WHERE status = 'pending'`).get();
-
-    const byBusiness = db.prepare(`SELECT business, COUNT(*) as count FROM actions WHERE status != 'done' GROUP BY business`).all();
-
-    const byPriority = db.prepare(`SELECT priority, COUNT(*) as count FROM actions WHERE status != 'done'${overdueWhere} GROUP BY priority`).all(...overdueParams);
-
-    // Total active
-    const totalActive = db.prepare(`SELECT COUNT(*) as count FROM actions WHERE status NOT IN ('done')${overdueWhere}`).get(...overdueParams);
-
-    // Blocked count
-    const blocked = db.prepare(`SELECT COUNT(*) as count FROM actions WHERE status = 'blocked'${overdueWhere}`).get(...overdueParams);
+    const filteredParams = business ? [business] : [];
+    const filteredWhere = business ? ' AND business = ?' : '';
+    const overdue = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE due_date < date('now') AND status NOT IN ('done','blocked')${filteredWhere}`).get(...filteredParams);
+    const completedThisWeek = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE status = 'done' AND completed_at >= date('now', '-7 days')${filteredWhere}`).get(...filteredParams);
+    const pendingTranscripts = db.prepare(`SELECT COUNT(*) AS count FROM transcripts WHERE status = 'pending'`).get();
+    const byBusiness = db.prepare(`SELECT business, COUNT(*) AS count FROM actions WHERE status != 'done' GROUP BY business`).all();
+    const byPriority = db.prepare(`SELECT priority, COUNT(*) AS count FROM actions WHERE status != 'done'${filteredWhere} GROUP BY priority`).all(...filteredParams);
+    const totalActive = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE status NOT IN ('done')${filteredWhere}`).get(...filteredParams);
+    const blocked = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE status = 'blocked'${filteredWhere}`).get(...filteredParams);
 
     res.json({
       totalActive: totalActive.count,
@@ -191,61 +192,59 @@ router.get('/stats', (req, res) => {
   }
 });
 
-// GET /api/actions/by-owner/:id — Actions for a specific owner
 router.get('/by-owner/:id', (req, res) => {
   try {
     const actions = db.prepare(`
       SELECT * FROM actions
-      WHERE EXISTS (SELECT 1 FROM json_each(owners) WHERE value = ?)
+      WHERE EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)
       ORDER BY CASE priority WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 ELSE 3 END, due_date ASC
     `).all(req.params.id);
 
-    const parsed = actions.map(a => ({
-      ...a,
-      owners: JSON.parse(a.owners || '[]'),
-      tags: JSON.parse(a.tags || '[]'),
-    }));
-
-    res.json(parsed);
+    res.json(actions.map(toActionResponse));
   } catch (err) {
     console.error(`[actions] by-owner error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /api/actions/:id — Single action
 router.get('/:id', (req, res) => {
   try {
     const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
     if (!action) return res.status(404).json({ error: 'Action not found' });
 
-    action.owners = JSON.parse(action.owners || '[]');
-    action.tags = JSON.parse(action.tags || '[]');
-
-    res.json(action);
+    res.json(toActionResponse(action));
   } catch (err) {
     console.error(`[actions] GET/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/actions — Create action
 router.post('/', (req, res) => {
   try {
-    const body = sanitizeBody(req.body, TEXT_FIELDS);
+    const body = sanitizeBody(req.body, ACTION_TEXT_FIELDS);
+    const actor = getActor(req);
     const {
-      title, description = '', status = 'not_started', business,
-      priority = 'p2', due_date = null, owners = [], source_transcript_id = null,
-      source_label = null, tags = [], notes = '', recurrence = 'none'
+      title,
+      description = '',
+      status = 'not_started',
+      business,
+      priority = 'p2',
+      due_date = null,
+      owners = [],
+      source_transcript_id = null,
+      source_label = null,
+      tags = [],
+      notes = '',
+      recurrence = 'none',
     } = body;
 
     if (!title || !business) {
       return res.status(400).json({ error: 'title and business are required' });
     }
 
-    // Validate fields
     const validationErrors = [
       ...validateActionFields(body),
+      ...validateActionReferences(body),
       ...validateStringLengths(body),
     ];
     if (validationErrors.length > 0) {
@@ -258,71 +257,94 @@ router.post('/', (req, res) => {
     db.prepare(`
       INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, title, description, status, business, priority, due_date,
-      JSON.stringify(owners), source_transcript_id, source_label,
-      JSON.stringify(tags), notes, recurrence, now, now);
+    `).run(
+      id,
+      title,
+      description,
+      status,
+      business,
+      priority,
+      due_date,
+      serializeJsonArray(owners),
+      source_transcript_id,
+      source_label,
+      serializeJsonArray(tags),
+      notes,
+      recurrence,
+      now,
+      now,
+    );
 
     db.prepare(`
-      INSERT INTO activity_log (action_id, event, new_value, actor) VALUES (?, 'created', ?, 'user')
-    `).run(id, title);
+      INSERT INTO activity_log (action_id, event, new_value, actor)
+      VALUES (?, 'created', ?, ?)
+    `).run(id, title, actor);
 
     const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(id);
-    action.owners = JSON.parse(action.owners || '[]');
-    action.tags = JSON.parse(action.tags || '[]');
-
-    res.status(201).json(action);
+    res.status(201).json(toActionResponse(action));
   } catch (err) {
     console.error(`[actions] POST error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// POST /api/actions/bulk — Bulk create
 router.post('/bulk', (req, res) => {
   try {
-    const { actions: actionsList } = req.body;
-    if (!Array.isArray(actionsList)) {
+    const rawActions = parseBulkPayload(req.body, 'actions');
+    if (!Array.isArray(rawActions)) {
       return res.status(400).json({ error: 'actions array required' });
     }
-
-    // Enforce array size limit
-    if (actionsList.length > BULK_MAX) {
+    if (rawActions.length > BULK_MAX) {
       return res.status(400).json({ error: `Bulk operations limited to ${BULK_MAX} items` });
     }
 
-    // Validate each item
-    for (let i = 0; i < actionsList.length; i++) {
-      const a = actionsList[i];
-      if (!a.title || !a.business) {
+    const actionsList = rawActions.map(item => sanitizeBody(item, ACTION_TEXT_FIELDS));
+    for (let i = 0; i < actionsList.length; i += 1) {
+      const action = actionsList[i];
+      if (!action.title || !action.business) {
         return res.status(400).json({ error: `Item ${i}: title and business are required` });
       }
-      const fieldErrors = validateActionFields(a);
+
+      const fieldErrors = [
+        ...validateActionFields(action),
+        ...validateActionReferences(action),
+        ...validateStringLengths(action),
+      ];
       if (fieldErrors.length > 0) {
         return res.status(400).json({ error: `Item ${i}: ${fieldErrors.join('; ')}` });
       }
     }
 
+    const actor = getActor(req);
     const insertStmt = db.prepare(`
       INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const logStmt = db.prepare(`
-      INSERT INTO activity_log (action_id, event, new_value, actor) VALUES (?, 'created', ?, 'user')
+      INSERT INTO activity_log (action_id, event, new_value, actor)
+      VALUES (?, 'created', ?, ?)
     `);
 
     const created = [];
     const bulkInsert = db.transaction(() => {
-      for (const a of actionsList) {
-        // Always generate server-side UUID; ignore any client-supplied id
+      for (const action of actionsList) {
         const id = uuidv4();
         insertStmt.run(
-          id, a.title, a.description || '', a.status || 'not_started',
-          a.business, a.priority || 'p2', a.due_date || null,
-          JSON.stringify(a.owners || []), a.source_transcript_id || null,
-          a.source_label || null, JSON.stringify(a.tags || []), a.notes || '',
-          a.recurrence || 'none'
+          id,
+          action.title,
+          action.description || '',
+          action.status || 'not_started',
+          action.business,
+          action.priority || 'p2',
+          action.due_date || null,
+          serializeJsonArray(action.owners),
+          action.source_transcript_id || null,
+          action.source_label || null,
+          serializeJsonArray(action.tags),
+          action.notes || '',
+          action.recurrence || 'none',
         );
-        logStmt.run(id, a.title);
+        logStmt.run(id, action.title, actor);
         created.push(id);
       }
     });
@@ -335,57 +357,105 @@ router.post('/bulk', (req, res) => {
   }
 });
 
-// PUT /api/actions/bulk — Bulk update
 router.put('/bulk', (req, res) => {
   try {
-    const { updates } = req.body;
-    if (!Array.isArray(updates)) {
+    const rawUpdates = parseBulkPayload(req.body, 'updates');
+    if (!Array.isArray(rawUpdates)) {
       return res.status(400).json({ error: 'updates array required' });
     }
-
-    // Enforce array size limit
-    if (updates.length > BULK_MAX) {
+    if (rawUpdates.length > BULK_MAX) {
       return res.status(400).json({ error: `Bulk operations limited to ${BULK_MAX} items` });
     }
 
-    // Validate each item
-    for (let i = 0; i < updates.length; i++) {
-      const fieldErrors = validateActionFields(updates[i], true);
+    const updates = rawUpdates.map(item => sanitizeBody(item, ACTION_TEXT_FIELDS));
+    for (let i = 0; i < updates.length; i += 1) {
+      const fieldErrors = [
+        ...validateActionFields(updates[i]),
+        ...validateActionReferences(updates[i]),
+        ...validateStringLengths(updates[i]),
+      ];
       if (fieldErrors.length > 0) {
         return res.status(400).json({ error: `Item ${i}: ${fieldErrors.join('; ')}` });
       }
+      if (updates[i].notes !== undefined && updates[i].append_note !== undefined) {
+        return res.status(400).json({ error: `Item ${i}: notes and append_note are mutually exclusive` });
+      }
     }
 
+    const actor = getActor(req);
     const now = new Date().toISOString().replace('T', ' ').split('.')[0];
     let updatedCount = 0;
 
     const bulkUpdate = db.transaction(() => {
-      for (const u of updates) {
-        const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(u.id);
+      for (const update of updates) {
+        const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(update.id);
         if (!existing) continue;
 
         const fields = [];
-        const vals = [];
+        const values = [];
+        const appendNote = update.append_note;
 
-        if (u.status !== undefined) { fields.push('status = ?'); vals.push(u.status); }
-        if (u.priority !== undefined) { fields.push('priority = ?'); vals.push(u.priority); }
-        if (u.title !== undefined) { fields.push('title = ?'); vals.push(u.title); }
-        if (u.due_date !== undefined) { fields.push('due_date = ?'); vals.push(u.due_date); }
-        if (u.owners !== undefined) { fields.push('owners = ?'); vals.push(JSON.stringify(u.owners)); }
-        if (u.business !== undefined) { fields.push('business = ?'); vals.push(u.business); }
-        if (u.recurrence !== undefined) { fields.push('recurrence = ?'); vals.push(u.recurrence); }
+        if (update.status !== undefined) { fields.push('status = ?'); values.push(update.status); }
+        if (update.priority !== undefined) { fields.push('priority = ?'); values.push(update.priority); }
+        if (update.title !== undefined) { fields.push('title = ?'); values.push(update.title); }
+        if (update.description !== undefined) { fields.push('description = ?'); values.push(update.description); }
+        if (update.due_date !== undefined) { fields.push('due_date = ?'); values.push(update.due_date); }
+        if (update.owners !== undefined) { fields.push('owners = ?'); values.push(serializeJsonArray(update.owners)); }
+        if (update.business !== undefined) { fields.push('business = ?'); values.push(update.business); }
+        if (update.source_transcript_id !== undefined) { fields.push('source_transcript_id = ?'); values.push(update.source_transcript_id); }
+        if (update.source_label !== undefined) { fields.push('source_label = ?'); values.push(update.source_label); }
+        if (update.tags !== undefined) { fields.push('tags = ?'); values.push(serializeJsonArray(update.tags)); }
+        if (update.notes !== undefined) { fields.push('notes = ?'); values.push(update.notes); }
+        if (appendNote !== undefined) {
+          fields.push('notes = ?');
+          values.push(existing.notes ? `${existing.notes}\n\n${appendNote}` : appendNote);
+        }
+        if (update.recurrence !== undefined) { fields.push('recurrence = ?'); values.push(update.recurrence); }
 
-        if (u.status === 'done') {
+        if (fields.length === 0) continue;
+
+        if (update.status === 'done' && existing.status !== 'done') {
           fields.push('completed_at = ?');
-          vals.push(now);
+          values.push(now);
+        } else if (update.status !== undefined && update.status !== 'done' && existing.status === 'done') {
+          fields.push('completed_at = ?');
+          values.push(null);
         }
 
         fields.push('updated_at = ?');
-        vals.push(now);
-        vals.push(u.id);
+        values.push(now, update.id);
 
-        db.prepare(`UPDATE actions SET ${fields.join(', ')} WHERE id = ?`).run(...vals);
-        updatedCount++;
+        db.prepare(`UPDATE actions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+        if (update.status !== undefined && update.status !== existing.status) {
+          db.prepare(`
+            INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
+            VALUES (?, 'status_changed', ?, ?, ?)
+          `).run(update.id, existing.status, update.status, actor);
+        }
+        if (update.priority !== undefined && update.priority !== existing.priority) {
+          db.prepare(`
+            INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
+            VALUES (?, 'priority_changed', ?, ?, ?)
+          `).run(update.id, existing.priority, update.priority, actor);
+        }
+        if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined) {
+          db.prepare(`
+            INSERT INTO activity_log (action_id, event, new_value, actor)
+            VALUES (?, 'updated', ?, ?)
+          `).run(update.id, JSON.stringify(Object.keys(update).filter(key => key !== 'id')), actor);
+        }
+
+        const recurringAction = buildNextRecurringAction(existing, update, now);
+        if (recurringAction) {
+          insertRecurringAction(recurringAction);
+          db.prepare(`
+            INSERT INTO activity_log (action_id, event, new_value, actor)
+            VALUES (?, 'recurrence_spawned', ?, 'system')
+          `).run(update.id, recurringAction.id);
+        }
+
+        updatedCount += 1;
       }
     });
     bulkUpdate();
@@ -397,24 +467,32 @@ router.put('/bulk', (req, res) => {
   }
 });
 
-// PUT /api/actions/:id — Update action
 router.put('/:id', (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Action not found' });
 
-    // Validate fields
-    const validationErrors = validateActionFields(req.body, true);
+    const body = sanitizeBody(req.body, ACTION_TEXT_FIELDS);
+    const validationErrors = [
+      ...validateActionFields(body),
+      ...validateActionReferences(body),
+      ...validateStringLengths(body),
+    ];
     if (validationErrors.length > 0) {
       return res.status(400).json({ error: validationErrors.join('; ') });
     }
 
     const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+    const actor = getActor(req);
     const {
       title, description, status, business, priority,
       due_date, owners, source_transcript_id, source_label,
-      tags, notes, recurrence
-    } = req.body;
+      tags, notes, append_note, recurrence,
+    } = body;
+
+    if (notes !== undefined && append_note !== undefined) {
+      return res.status(400).json({ error: 'notes and append_note are mutually exclusive' });
+    }
 
     const updates = {};
     if (title !== undefined) updates.title = title;
@@ -423,12 +501,18 @@ router.put('/:id', (req, res) => {
     if (business !== undefined) updates.business = business;
     if (priority !== undefined) updates.priority = priority;
     if (due_date !== undefined) updates.due_date = due_date;
-    if (owners !== undefined) updates.owners = JSON.stringify(owners);
+    if (owners !== undefined) updates.owners = serializeJsonArray(owners);
     if (source_transcript_id !== undefined) updates.source_transcript_id = source_transcript_id;
     if (source_label !== undefined) updates.source_label = source_label;
-    if (tags !== undefined) updates.tags = JSON.stringify(tags);
+    if (tags !== undefined) updates.tags = serializeJsonArray(tags);
     if (notes !== undefined) updates.notes = notes;
+    if (append_note !== undefined) updates.notes = existing.notes ? `${existing.notes}\n\n${append_note}` : append_note;
     if (recurrence !== undefined) updates.recurrence = recurrence;
+
+    const mutableKeys = Object.keys(updates);
+    if (mutableKeys.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
 
     if (status === 'done' && existing.status !== 'done') {
       updates.completed_at = now;
@@ -439,74 +523,52 @@ router.put('/:id', (req, res) => {
 
     updates.updated_at = now;
 
-    const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-    const vals = Object.values(updates);
-    vals.push(req.params.id);
+    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+    const values = [...Object.values(updates), req.params.id];
 
     const updateTx = db.transaction(() => {
-      db.prepare(`UPDATE actions SET ${fields} WHERE id = ?`).run(...vals);
+      db.prepare(`UPDATE actions SET ${fields} WHERE id = ?`).run(...values);
 
-      // Log status changes
-      if (status && status !== existing.status) {
+      if (status !== undefined && status !== existing.status) {
         db.prepare(`
           INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
-          VALUES (?, 'status_changed', ?, ?, 'user')
-        `).run(req.params.id, existing.status, status);
+          VALUES (?, 'status_changed', ?, ?, ?)
+        `).run(req.params.id, existing.status, status, actor);
       }
-      // Log priority changes
-      if (priority && priority !== existing.priority) {
+
+      if (priority !== undefined && priority !== existing.priority) {
         db.prepare(`
           INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
-          VALUES (?, 'priority_changed', ?, ?, 'user')
-        `).run(req.params.id, existing.priority, priority);
+          VALUES (?, 'priority_changed', ?, ?, ?)
+        `).run(req.params.id, existing.priority, priority, actor);
       }
-      // Log general update
-      if (!status && !priority) {
+
+      if ((status === undefined || status === existing.status) && (priority === undefined || priority === existing.priority)) {
         db.prepare(`
           INSERT INTO activity_log (action_id, event, new_value, actor)
-          VALUES (?, 'updated', ?, 'user')
-        `).run(req.params.id, JSON.stringify(Object.keys(req.body)));
+          VALUES (?, 'updated', ?, ?)
+        `).run(req.params.id, JSON.stringify(mutableKeys), actor);
       }
 
-      // Spawn next occurrence for recurring tasks
-      const effectiveRecurrence = recurrence !== undefined ? recurrence : existing.recurrence;
-      if (status === 'done' && existing.status !== 'done' && effectiveRecurrence && effectiveRecurrence !== 'none') {
-        const nextDue = computeNextDueDate(existing.due_date, effectiveRecurrence);
-        if (nextDue) {
-          const nextId = uuidv4();
-          db.prepare(`
-            INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
-            VALUES (?, ?, ?, 'not_started', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(nextId, existing.title, existing.description || '', existing.business, existing.priority,
-            nextDue, existing.owners, existing.source_transcript_id, existing.source_label,
-            existing.tags, '', effectiveRecurrence, now, now);
-
-          db.prepare(`
-            INSERT INTO activity_log (action_id, event, new_value, actor)
-            VALUES (?, 'created', ?, 'system')
-          `).run(nextId, existing.title);
-
-          db.prepare(`
-            INSERT INTO activity_log (action_id, event, new_value, actor)
-            VALUES (?, 'recurrence_spawned', ?, 'system')
-          `).run(req.params.id, nextId);
-        }
+      const recurringAction = buildNextRecurringAction(existing, body, now);
+      if (recurringAction) {
+        insertRecurringAction(recurringAction);
+        db.prepare(`
+          INSERT INTO activity_log (action_id, event, new_value, actor)
+          VALUES (?, 'recurrence_spawned', ?, 'system')
+        `).run(req.params.id, recurringAction.id);
       }
     });
     updateTx();
 
     const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
-    action.owners = JSON.parse(action.owners || '[]');
-    action.tags = JSON.parse(action.tags || '[]');
-
-    res.json(action);
+    res.json(toActionResponse(action));
   } catch (err) {
     console.error(`[actions] PUT/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// DELETE /api/actions/:id — Delete action
 router.delete('/:id', (req, res) => {
   try {
     const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);

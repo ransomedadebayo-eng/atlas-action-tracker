@@ -4,6 +4,20 @@
  */
 export function parseJsonArray(value) {
   if (Array.isArray(value)) return value
-  if (value) return JSON.parse(value)
+  if (value) {
+    try {
+      return JSON.parse(value)
+    } catch {
+      const trimmed = String(value).trim()
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        const inner = trimmed.slice(1, -1).trim()
+        if (!inner) return []
+        return inner
+          .split(',')
+          .map(part => part.trim().replace(/^['"]|['"]$/g, ''))
+          .filter(Boolean)
+      }
+    }
+  }
   return []
 }

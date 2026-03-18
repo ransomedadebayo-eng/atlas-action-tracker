@@ -1,9 +1,9 @@
 import React from 'react'
-import { X, SlidersHorizontal } from 'lucide-react'
+import { X, SlidersHorizontal, EyeOff, Eye } from 'lucide-react'
 import { STATUSES, PRIORITIES } from '../utils/constants.js'
 import { STATUS_COLORS, PRIORITY_COLORS } from '../utils/colors.js'
 
-export default function FilterBar({ filters, onFilterChange, members = [] }) {
+export default function FilterBar({ filters, onFilterChange, members = [], hideDone = true, onToggleHideDone }) {
   const hasFilters = filters.status || filters.priority || filters.owner_id || filters.search
 
   function clearAll() {
@@ -61,6 +61,28 @@ export default function FilterBar({ filters, onFilterChange, members = [] }) {
           <option key={m.id} value={m.id}>{m.name}</option>
         ))}
       </select>
+
+      {/* Hide Done Toggle */}
+      {onToggleHideDone && (
+        <button
+          type="button"
+          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] md:text-xs font-medium transition-colors flex-shrink-0 ${
+            hideDone
+              ? 'bg-bg-elevated text-text-primary'
+              : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated'
+          }`}
+          onClick={() => onToggleHideDone(!hideDone)}
+          aria-label={hideDone ? 'Show completed tasks' : 'Hide completed tasks'}
+          aria-pressed={hideDone}
+        >
+          {hideDone ? (
+            <EyeOff className="w-3 h-3" />
+          ) : (
+            <Eye className="w-3 h-3" />
+          )}
+          <span className="hidden sm:inline">{hideDone ? 'Done hidden' : 'Showing done'}</span>
+        </button>
+      )}
 
       {/* Active Filter Chips */}
       {hasFilters && (

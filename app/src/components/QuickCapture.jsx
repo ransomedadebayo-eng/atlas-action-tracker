@@ -81,7 +81,11 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
     }
     setSaving(true)
     try {
-      await createAction.mutateAsync(form)
+      const payload = {
+        ...form,
+        due_date: form.due_date || null,
+      }
+      await createAction.mutateAsync(payload)
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to create action')

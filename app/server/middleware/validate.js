@@ -4,6 +4,7 @@ const MAX_LENGTHS = {
   title: 500,
   description: 5000,
   notes: 10000,
+  append_note: 10000,
   raw_text: 500000,
   summary: 10000,
   name: 200,

@@ -18,11 +18,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
 
 const app = express();
+const HOST = process.env.HOST || '127.0.0.1';
 const PORT = process.env.PORT || 3001;
 const TUNNEL_DOMAIN = process.env.TUNNEL_DOMAIN || '';
+const extraOrigins = (process.env.ATLAS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+function isLoopbackAddress(value) {
+  return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(value);
+}
+
+function isLocalRequest(req) {
+  const hasProxyHeaders = Boolean(req.headers['cf-connecting-ip'] || req.headers['x-forwarded-for']);
+  return !hasProxyHeaders && isLoopbackAddress(req.socket.remoteAddress);
+}
+
+function isLoopbackProxy(req) {
+  return isLoopbackAddress(req.socket.remoteAddress);
+}
 
 // --- Trust proxy (Cloudflare Tunnel) ---
-app.set('trust proxy', 1);
+app.set('trust proxy', 'loopback');
+
+app.use(logger);
 
 // --- Security Middleware ---
 
@@ -44,12 +64,13 @@ app.use(helmet({
 }));
 
 // --- CORS ---
-const allowedOriginPattern = /^http:\/\/(localhost|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?$/;
+const allowedOriginPattern = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
     if (allowedOriginPattern.test(origin)) return callback(null, true);
     if (TUNNEL_DOMAIN && origin === `https://${TUNNEL_DOMAIN}`) return callback(null, true);
+    if (extraOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('CORS: origin not allowed'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
@@ -64,12 +85,18 @@ app.use((req, res, next) => {
   next();
 });
 
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // --- Rate Limiting (keyed on real IP behind tunnel) ---
 const keyGenerator = (req) => {
-  // Cloudflare sets cf-connecting-ip to the real client IP
   const cfIp = req.headers['cf-connecting-ip'];
-  if (cfIp) return cfIp;
-  // Fallback to Express req.ip (respects trust proxy)
+  if (cfIp && isLoopbackProxy(req)) return cfIp;
   return req.ip;
 };
 
@@ -97,19 +124,22 @@ const mutationLimiter = rateLimit({
 });
 
 app.use('/api', (req, res, next) => {
+  if (isLocalRequest(req)) return next();
   if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
     return mutationLimiter(req, res, next);
   }
   next();
 });
-app.use('/api', generalLimiter);
+app.use('/api', (req, res, next) => {
+  if (isLocalRequest(req)) return next();
+  return generalLimiter(req, res, next);
+});
 
 // --- Authentication ---
 app.use('/api', authMiddleware);
 
 // --- Body Parsing ---
 app.use(express.json({ limit: '1mb' }));
-app.use(logger);
 
 // --- Routes ---
 app.use('/api/actions', actionsRouter);
@@ -122,7 +152,14 @@ app.use('/api/activity', activityRouter);
 app.get('/api/config/businesses', (req, res) => {
   try {
     const row = db.prepare("SELECT value FROM config WHERE key = 'businesses'").get();
-    res.json(row ? JSON.parse(row.value) : []);
+    if (!row) return res.json([]);
+
+    try {
+      const parsed = JSON.parse(row.value);
+      return res.json(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return res.json([]);
+    }
   } catch (err) {
     console.error(`[config] GET businesses error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
@@ -141,11 +178,6 @@ app.put('/api/config/businesses', (req, res) => {
   }
 });
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
 // --- Static Frontend (production) ---
 if (isProduction) {
   app.use(express.static(path.join(__dirname, '..', 'dist')));
@@ -155,9 +187,22 @@ if (isProduction) {
   });
 }
 
-app.listen(PORT, () => {
+app.use((err, req, res, next) => {
+  if (err?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'Invalid JSON body' });
+  }
+
+  if (typeof err?.message === 'string' && err.message.startsWith('CORS:')) {
+    return res.status(403).json({ error: err.message });
+  }
+
+  console.error(`[server] Unhandled error: ${err?.message || err}`);
+  return res.status(500).json({ error: 'Internal server error' });
+});
+
+app.listen(PORT, HOST, () => {
   console.log(`\n  ATLAS Action Tracker API`);
-  console.log(`  http://localhost:${PORT}`);
+  console.log(`  http://${HOST}:${PORT}`);
   if (TUNNEL_DOMAIN) console.log(`  Tunnel: https://${TUNNEL_DOMAIN}`);
   console.log();
 });

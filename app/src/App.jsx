@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import Layout from './components/Layout.jsx'
 import ActionTable from './components/ActionTable.jsx'
@@ -19,6 +19,15 @@ export default function App() {
   const [quickCaptureDate, setQuickCaptureDate] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [hideDone, setHideDone] = useState(() => {
+    const stored = localStorage.getItem('atlas_hideDone')
+    return stored === null ? true : stored === 'true'
+  })
+
+  const toggleHideDone = useCallback((value) => {
+    setHideDone(value)
+    localStorage.setItem('atlas_hideDone', String(value))
+  }, [])
 
   const queryClient = useQueryClient()
 
@@ -71,6 +80,8 @@ export default function App() {
             selectedBusiness={selectedBusiness}
             onSelectAction={setSelectedActionId}
             searchQuery={searchQuery}
+            hideDone={hideDone}
+            onToggleHideDone={toggleHideDone}
           />
         )
       case 'kanban':
@@ -78,6 +89,8 @@ export default function App() {
           <KanbanBoard
             selectedBusiness={selectedBusiness}
             onSelectAction={setSelectedActionId}
+            hideDone={hideDone}
+            onToggleHideDone={toggleHideDone}
           />
         )
       case 'calendar':

@@ -55,6 +55,7 @@ export default function ActionDetail({ actionId, onClose }) {
   const [saving, setSaving] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const panelRef = useRef(null)
 
   useEffect(() => {
@@ -97,8 +98,13 @@ export default function ActionDetail({ actionId, onClose }) {
   }
 
   async function handleDelete() {
-    await deleteAction.mutateAsync(actionId)
-    onClose()
+    setDeleteError('')
+    try {
+      await deleteAction.mutateAsync(actionId)
+      onClose()
+    } catch (err) {
+      setDeleteError(err.message || 'Failed to delete action')
+    }
   }
 
   function handleTagAdd(e) {
@@ -426,6 +432,9 @@ export default function ActionDetail({ actionId, onClose }) {
                 <p className="font-semibold text-sm">Delete this action?</p>
               </div>
               <p className="text-text-muted text-xs">This cannot be undone.</p>
+              {deleteError && (
+                <p className="text-red-400 text-xs">{deleteError}</p>
+              )}
               <div className="flex gap-2">
                 <button
                   className="btn-ghost flex-1 text-sm"

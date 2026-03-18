@@ -12,7 +12,9 @@ import { parseJsonArray } from '../utils/parseUtils.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
-export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery }) {
+const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked'
+
+export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone }) {
   const { BUSINESS_LIST } = useBusinessContext()
   const [filters, setFilters] = useState({})
   const [sort, setSort] = useState({ by: 'priority', dir: 'asc' })
@@ -20,9 +22,15 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
   const effectiveBusiness = selectedBusiness || (businessTab !== 'all' ? businessTab : undefined)
 
+  const statusFilter = filters.status
+    ? filters.status
+    : hideDone
+      ? NON_DONE_STATUSES
+      : undefined
+
   const queryFilters = {
     ...(effectiveBusiness ? { business: effectiveBusiness } : {}),
-    ...(filters.status ? { status: filters.status } : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
     ...(searchQuery && searchQuery.length >= 2 ? { search: searchQuery } : {}),
@@ -135,6 +143,8 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           setFilters(rest)
         }}
         members={members}
+        hideDone={hideDone}
+        onToggleHideDone={onToggleHideDone}
       />
 
       {/* Desktop Table */}

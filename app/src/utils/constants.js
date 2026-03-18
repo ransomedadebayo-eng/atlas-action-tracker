@@ -31,6 +31,8 @@ export const BUSINESSES = {
   investments: { label: 'Investments', shortLabel: 'INV' },
   personal: { label: 'Personal', shortLabel: 'PER' },
   fitness: { label: 'Fitness', shortLabel: 'FIT' },
+  learning_platform: { label: 'Learning Platform', shortLabel: 'LP' },
+  improvisr: { label: 'Improvisr', shortLabel: 'IMP' },
 };
 
 export const BUSINESS_LIST = Object.entries(BUSINESSES).map(([id, val]) => ({

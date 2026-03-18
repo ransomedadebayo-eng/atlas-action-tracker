@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { GripVertical, Users, Building2, Columns } from 'lucide-react'
+import { GripVertical, Users, Building2, Columns, EyeOff, Eye } from 'lucide-react'
 import { useActions, useUpdateAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { PriorityBadge, BusinessBadge } from './StatusBadge.jsx'
@@ -16,19 +16,27 @@ const GROUP_MODES = [
   { id: 'owner', label: 'Owner', Icon: Users },
 ]
 
-export default function KanbanBoard({ selectedBusiness, onSelectAction }) {
+const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked'
+
+export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone = true, onToggleHideDone }) {
   const { BUSINESSES, BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
   const [groupBy, setGroupBy] = useState('status')
   const [dragState, setDragState] = useState({ actionId: null, overColumn: null })
 
-  const queryFilters = selectedBusiness ? { business: selectedBusiness } : {}
+  const queryFilters = {
+    ...(selectedBusiness ? { business: selectedBusiness } : {}),
+    ...(hideDone ? { status: NON_DONE_STATUSES } : {}),
+  }
   const { data: actions = [], isLoading } = useActions(queryFilters)
   const { data: members = [] } = useMembers()
   const updateAction = useUpdateAction()
 
   const columns = useMemo(() => {
     if (groupBy === 'status') {
-      return KANBAN_COLUMNS.map(status => ({
+      const visibleColumns = hideDone
+        ? KANBAN_COLUMNS.filter(s => s !== 'done')
+        : KANBAN_COLUMNS
+      return visibleColumns.map(status => ({
         id: status,
         label: STATUSES[status]?.label || status,
         color: STATUS_COLORS[status],
@@ -77,7 +85,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction }) {
     }
 
     return []
-  }, [actions, groupBy, selectedBusiness, members])
+  }, [actions, groupBy, selectedBusiness, members, hideDone])
 
   function handleDragStart(e, actionId) {
     e.dataTransfer.effectAllowed = 'move'
@@ -156,9 +164,31 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction }) {
             {mode.label}
           </button>
         ))}
-        <span className="ml-auto text-text-muted text-xs font-mono">
-          {actions.length} action{actions.length !== 1 ? 's' : ''}
-        </span>
+        <div className="ml-auto flex items-center gap-3">
+          {onToggleHideDone && (
+            <button
+              type="button"
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] md:text-xs font-medium transition-colors flex-shrink-0 ${
+                hideDone
+                  ? 'bg-bg-elevated text-text-primary'
+                  : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated'
+              }`}
+              onClick={() => onToggleHideDone(!hideDone)}
+              aria-label={hideDone ? 'Show completed tasks' : 'Hide completed tasks'}
+              aria-pressed={hideDone}
+            >
+              {hideDone ? (
+                <EyeOff className="w-3 h-3" />
+              ) : (
+                <Eye className="w-3 h-3" />
+              )}
+              <span className="hidden sm:inline">{hideDone ? 'Done hidden' : 'Showing done'}</span>
+            </button>
+          )}
+          <span className="text-text-muted text-xs font-mono">
+            {actions.length} action{actions.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {/* Columns */}

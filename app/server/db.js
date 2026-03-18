@@ -4,110 +4,323 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', 'tracker.db');
+const WORKSPACE_DB_PATH = path.join(__dirname, '..', 'tracker.db');
+const DB_PATH = process.env.ATLAS_DB_PATH || WORKSPACE_DB_PATH;
 
 const db = new Database(DB_PATH);
 
-// Enable WAL mode for concurrent access
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Initialize schema
-db.exec(`
-  CREATE TABLE IF NOT EXISTS config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
+function createSchema() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
 
-  CREATE TABLE IF NOT EXISTS members (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    full_name TEXT,
-    email TEXT,
-    businesses TEXT NOT NULL,
-    role TEXT,
-    aliases TEXT DEFAULT '[]',
-    is_active INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+    CREATE TABLE IF NOT EXISTS members (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      full_name TEXT,
+      email TEXT,
+      businesses TEXT NOT NULL,
+      role TEXT,
+      aliases TEXT DEFAULT '[]',
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
 
-  CREATE TABLE IF NOT EXISTS transcripts (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    date TEXT,
-    business TEXT,
-    participants TEXT DEFAULT '[]',
-    raw_text TEXT,
-    summary TEXT,
-    decisions TEXT DEFAULT '[]',
-    open_questions TEXT DEFAULT '[]',
-    action_count INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'pending'
-      CHECK (status IN ('pending','reviewed','archived')),
-    summary_file TEXT,
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+    CREATE TABLE IF NOT EXISTS transcripts (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      date TEXT,
+      business TEXT,
+      participants TEXT DEFAULT '[]',
+      raw_text TEXT,
+      summary TEXT,
+      decisions TEXT DEFAULT '[]',
+      open_questions TEXT DEFAULT '[]',
+      action_count INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'pending'
+        CHECK (status IN ('pending','reviewed','archived')),
+      summary_file TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
 
-  CREATE TABLE IF NOT EXISTS actions (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT DEFAULT 'not_started'
-      CHECK (status IN ('not_started','in_progress','waiting','blocked','done')),
-    business TEXT NOT NULL,
-    priority TEXT DEFAULT 'p2'
-      CHECK (priority IN ('p0','p1','p2','p3')),
-    due_date TEXT,
-    owners TEXT NOT NULL DEFAULT '[]',
-    source_transcript_id TEXT REFERENCES transcripts(id),
-    source_label TEXT,
-    tags TEXT DEFAULT '[]',
-    notes TEXT DEFAULT '',
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    completed_at TEXT
-  );
+    CREATE TABLE IF NOT EXISTS actions (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'not_started'
+        CHECK (status IN ('not_started','in_progress','waiting','blocked','done')),
+      business TEXT NOT NULL,
+      priority TEXT DEFAULT 'p2'
+        CHECK (priority IN ('p0','p1','p2','p3')),
+      due_date TEXT,
+      owners TEXT NOT NULL DEFAULT '[]',
+      source_transcript_id TEXT REFERENCES transcripts(id),
+      source_label TEXT,
+      tags TEXT DEFAULT '[]',
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      recurrence TEXT DEFAULT 'none'
+        CHECK (recurrence IN ('none','daily','weekly','biweekly','monthly'))
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
-  CREATE INDEX IF NOT EXISTS idx_actions_business ON actions(business);
-  CREATE INDEX IF NOT EXISTS idx_actions_priority ON actions(priority);
-  CREATE INDEX IF NOT EXISTS idx_actions_due_date ON actions(due_date);
-`);
+    CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
+    CREATE INDEX IF NOT EXISTS idx_actions_business ON actions(business);
+    CREATE INDEX IF NOT EXISTS idx_actions_priority ON actions(priority);
+    CREATE INDEX IF NOT EXISTS idx_actions_due_date ON actions(due_date);
 
-// Migration: add recurrence column
-try {
-  db.exec(`ALTER TABLE actions ADD COLUMN recurrence TEXT DEFAULT 'none' CHECK (recurrence IN ('none','daily','weekly','biweekly','monthly'))`);
-  console.log('[db] Added recurrence column');
-} catch (e) {
-  // Column already exists — ignore
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action_id TEXT REFERENCES actions(id),
+      event TEXT NOT NULL,
+      old_value TEXT,
+      new_value TEXT,
+      actor TEXT DEFAULT 'system',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS saved_views (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      filters TEXT NOT NULL DEFAULT '{}',
+      sort_by TEXT DEFAULT 'priority',
+      sort_dir TEXT DEFAULT 'asc',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 }
 
-db.exec(`
+function tableHasColumn(tableName, columnName) {
+  return db.prepare(`PRAGMA table_info(${tableName})`).all().some(column => column.name === columnName);
+}
 
-  CREATE TABLE IF NOT EXISTS activity_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    action_id TEXT REFERENCES actions(id),
-    event TEXT NOT NULL,
-    old_value TEXT,
-    new_value TEXT,
-    actor TEXT DEFAULT 'system',
-    created_at TEXT DEFAULT (datetime('now'))
-  );
+function createJsonValidationTriggers() {
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS validate_actions_json_insert
+    BEFORE INSERT ON actions
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.owners, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.owners, '[]')) THEN json_type(COALESCE(NEW.owners, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.tags, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.tags, '[]')) THEN json_type(COALESCE(NEW.tags, '[]')) != 'array' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'actions owners and tags must be valid JSON arrays');
+    END;
 
-  CREATE TABLE IF NOT EXISTS saved_views (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    filters TEXT NOT NULL DEFAULT '{}',
-    sort_by TEXT DEFAULT 'priority',
-    sort_dir TEXT DEFAULT 'asc',
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-`);
+    CREATE TRIGGER IF NOT EXISTS validate_actions_json_update
+    BEFORE UPDATE OF owners, tags ON actions
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.owners, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.owners, '[]')) THEN json_type(COALESCE(NEW.owners, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.tags, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.tags, '[]')) THEN json_type(COALESCE(NEW.tags, '[]')) != 'array' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'actions owners and tags must be valid JSON arrays');
+    END;
 
-// Seed data function
+    CREATE TRIGGER IF NOT EXISTS validate_members_json_insert
+    BEFORE INSERT ON members
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.businesses, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.businesses, '[]')) THEN json_type(COALESCE(NEW.businesses, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.aliases, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.aliases, '[]')) THEN json_type(COALESCE(NEW.aliases, '[]')) != 'array' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'members businesses and aliases must be valid JSON arrays');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_members_json_update
+    BEFORE UPDATE OF businesses, aliases ON members
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.businesses, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.businesses, '[]')) THEN json_type(COALESCE(NEW.businesses, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.aliases, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.aliases, '[]')) THEN json_type(COALESCE(NEW.aliases, '[]')) != 'array' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'members businesses and aliases must be valid JSON arrays');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_transcripts_json_insert
+    BEFORE INSERT ON transcripts
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.participants, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.participants, '[]')) THEN json_type(COALESCE(NEW.participants, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.decisions, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.decisions, '[]')) THEN json_type(COALESCE(NEW.decisions, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.open_questions, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.open_questions, '[]')) THEN json_type(COALESCE(NEW.open_questions, '[]')) != 'array' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'transcript JSON fields must be valid JSON arrays');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_transcripts_json_update
+    BEFORE UPDATE OF participants, decisions, open_questions ON transcripts
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.participants, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.participants, '[]')) THEN json_type(COALESCE(NEW.participants, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.decisions, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.decisions, '[]')) THEN json_type(COALESCE(NEW.decisions, '[]')) != 'array' ELSE 1 END OR
+      json_valid(COALESCE(NEW.open_questions, '[]')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.open_questions, '[]')) THEN json_type(COALESCE(NEW.open_questions, '[]')) != 'array' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'transcript JSON fields must be valid JSON arrays');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_saved_views_filters_insert
+    BEFORE INSERT ON saved_views
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.filters, '{}')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.filters, '{}')) THEN json_type(COALESCE(NEW.filters, '{}')) != 'object' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'saved view filters must be a valid JSON object');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_saved_views_filters_update
+    BEFORE UPDATE OF filters ON saved_views
+    FOR EACH ROW
+    WHEN (
+      json_valid(COALESCE(NEW.filters, '{}')) = 0 OR
+      CASE WHEN json_valid(COALESCE(NEW.filters, '{}')) THEN json_type(COALESCE(NEW.filters, '{}')) != 'object' ELSE 1 END
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'saved view filters must be a valid JSON object');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_businesses_config_insert
+    BEFORE INSERT ON config
+    FOR EACH ROW
+    WHEN (
+      NEW.key = 'businesses' AND (
+        json_valid(COALESCE(NEW.value, '[]')) = 0 OR
+        CASE WHEN json_valid(COALESCE(NEW.value, '[]')) THEN json_type(COALESCE(NEW.value, '[]')) != 'array' ELSE 1 END
+      )
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'config businesses must be a valid JSON array');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS validate_businesses_config_update
+    BEFORE UPDATE OF value ON config
+    FOR EACH ROW
+    WHEN (
+      NEW.key = 'businesses' AND (
+        json_valid(COALESCE(NEW.value, '[]')) = 0 OR
+        CASE WHEN json_valid(COALESCE(NEW.value, '[]')) THEN json_type(COALESCE(NEW.value, '[]')) != 'array' ELSE 1 END
+      )
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'config businesses must be a valid JSON array');
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS sync_transcript_action_count_after_insert
+    AFTER INSERT ON actions
+    FOR EACH ROW
+    WHEN NEW.source_transcript_id IS NOT NULL
+    BEGIN
+      UPDATE transcripts
+      SET action_count = (
+        SELECT COUNT(*) FROM actions WHERE source_transcript_id = NEW.source_transcript_id
+      )
+      WHERE id = NEW.source_transcript_id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS sync_transcript_action_count_after_update_new
+    AFTER UPDATE OF source_transcript_id ON actions
+    FOR EACH ROW
+    WHEN NEW.source_transcript_id IS NOT NULL
+    BEGIN
+      UPDATE transcripts
+      SET action_count = (
+        SELECT COUNT(*) FROM actions WHERE source_transcript_id = NEW.source_transcript_id
+      )
+      WHERE id = NEW.source_transcript_id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS sync_transcript_action_count_after_update_old
+    AFTER UPDATE OF source_transcript_id ON actions
+    FOR EACH ROW
+    WHEN OLD.source_transcript_id IS NOT NULL
+      AND (NEW.source_transcript_id IS NULL OR NEW.source_transcript_id != OLD.source_transcript_id)
+    BEGIN
+      UPDATE transcripts
+      SET action_count = (
+        SELECT COUNT(*) FROM actions WHERE source_transcript_id = OLD.source_transcript_id
+      )
+      WHERE id = OLD.source_transcript_id;
+    END;
+
+    CREATE TRIGGER IF NOT EXISTS sync_transcript_action_count_after_delete
+    AFTER DELETE ON actions
+    FOR EACH ROW
+    WHEN OLD.source_transcript_id IS NOT NULL
+    BEGIN
+      UPDATE transcripts
+      SET action_count = (
+        SELECT COUNT(*) FROM actions WHERE source_transcript_id = OLD.source_transcript_id
+      )
+      WHERE id = OLD.source_transcript_id;
+    END;
+  `);
+}
+
+function syncTranscriptActionCounts() {
+  db.exec(`
+    UPDATE transcripts
+    SET action_count = (
+      SELECT COUNT(*)
+      FROM actions
+      WHERE source_transcript_id = transcripts.id
+    )
+  `);
+}
+
+function applyMigrations() {
+  createSchema();
+
+  const currentVersion = db.pragma('user_version', { simple: true });
+  let nextVersion = currentVersion;
+
+  if (!tableHasColumn('actions', 'recurrence')) {
+    db.exec(`
+      ALTER TABLE actions
+      ADD COLUMN recurrence TEXT DEFAULT 'none'
+        CHECK (recurrence IN ('none','daily','weekly','biweekly','monthly'))
+    `);
+  }
+  nextVersion = Math.max(nextVersion, 1);
+
+  createJsonValidationTriggers();
+  syncTranscriptActionCounts();
+  nextVersion = Math.max(nextVersion, 2);
+
+  if (nextVersion !== currentVersion) {
+    db.pragma(`user_version = ${nextVersion}`);
+  }
+}
+
 function seedData() {
-  const memberCount = db.prepare('SELECT COUNT(*) as count FROM members').get();
+  const memberCount = db.prepare('SELECT COUNT(*) AS count FROM members').get();
   if (memberCount.count > 0) return;
 
   console.log('[db] Seeding initial data...');
@@ -118,22 +331,22 @@ function seedData() {
   `);
 
   const members = [
-    ['ransomed', 'Ransomed', 'Ransomed Adebayo', null, '["riddim_exchange","real_estate","investments","personal","fitness"]', 'Owner / Leader', '["ransom","rans"]', 1],
+    ['ransomed', 'Ransomed', 'Ransomed Adebayo', null, '["riddim_exchange","real_estate","investments","personal","fitness","learning_platform","improvisr"]', 'Owner / Leader', '["ransom","rans"]', 1],
     ['ola', 'Ola', null, null, '["riddim_exchange"]', 'Music Director', '[]', 1],
     ['kolade', 'Kolade', null, null, '["riddim_exchange"]', 'Producer', '[]', 1],
     ['nicole', 'Nicole', null, null, '["personal","real_estate"]', 'Family / Co-investor', '[]', 1],
     ['edem', 'Edem', null, null, '["riddim_exchange"]', 'Sync Licensing Partner', '["adam"]', 1],
-    ['claude', 'Claude', 'Claude (AI Assistant)', null, '["riddim_exchange","real_estate","investments","personal","fitness","learning_platform"]', 'AI Assistant', '["ai","assistant","bot"]', 1],
+    ['claude', 'Claude', 'Claude (AI Assistant)', null, '["riddim_exchange","real_estate","investments","personal","fitness","learning_platform","improvisr"]', 'AI Assistant', '["ai","assistant","bot"]', 1],
+    ['codex', 'Codex', 'Codex (OpenAI Assistant)', null, '["riddim_exchange","real_estate","investments","personal","fitness","learning_platform","improvisr"]', 'AI Engineer / Reviewer', '["openai","gpt","assistant","reviewer"]', 1],
   ];
 
   const insertMembers = db.transaction(() => {
-    for (const m of members) {
-      insertMember.run(...m);
+    for (const member of members) {
+      insertMember.run(...member);
     }
   });
   insertMembers();
 
-  // Seed businesses config
   const insertConfig = db.prepare('INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)');
   insertConfig.run('businesses', JSON.stringify([
     { id: 'riddim_exchange', name: 'Riddim Exchange', color: '#22c55e' },
@@ -141,9 +354,10 @@ function seedData() {
     { id: 'investments', name: 'Investments', color: '#a855f7' },
     { id: 'personal', name: 'Personal', color: '#f59e0b' },
     { id: 'fitness', name: 'Fitness', color: '#ef4444' },
+    { id: 'learning_platform', name: 'Learning Platform', color: '#14b8a6' },
+    { id: 'improvisr', name: 'Improvisr', color: '#f97316' },
   ]));
 
-  // Seed 10 actions
   const insertAction = db.prepare(`
     INSERT OR IGNORE INTO actions (id, title, description, status, business, priority, due_date, owners, source_label, tags, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -163,23 +377,26 @@ function seedData() {
   ];
 
   const insertActions = db.transaction(() => {
-    for (const a of actions) {
-      insertAction.run(...a);
+    for (const action of actions) {
+      insertAction.run(...action);
     }
-    // Log creation activity for each action
+
     const logStmt = db.prepare(`
       INSERT INTO activity_log (action_id, event, new_value, actor)
       VALUES (?, 'created', ?, 'system')
     `);
-    for (const a of actions) {
-      logStmt.run(a[0], a[1]);
+    for (const action of actions) {
+      logStmt.run(action[0], action[1]);
     }
   });
   insertActions();
 
-  console.log('[db] Seed data inserted: 5 members, 5 businesses, 10 actions');
+  console.log('[db] Seed data inserted: 7 members, 7 businesses, 10 actions');
 }
 
+applyMigrations();
 seedData();
+
+console.log(`[db] Using ${DB_PATH}`);
 
 export default db;
