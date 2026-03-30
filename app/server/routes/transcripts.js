@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../db.js';
+import supabase from '../db.js';
 import {
   validateStringLengths,
   sanitizeBody,
@@ -9,7 +9,7 @@ import {
 } from '../middleware/validate.js';
 import { getActor } from '../utils/actors.js';
 import { ACTION_TEXT_FIELDS, validateActionFields } from '../utils/actionUtils.js';
-import { coerceJsonArray, serializeJsonArray } from '../utils/json.js';
+import { serializeJsonArray } from '../utils/json.js';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData.js';
 
 const router = Router();
@@ -46,85 +46,73 @@ function validateTranscriptArrays(body) {
   return errors;
 }
 
-function validateTranscriptReferences(body) {
+async function validateTranscriptReferences(body) {
   const errors = [];
 
-  const businessError = validateKnownBusinessId(body.business);
+  const businessError = await validateKnownBusinessId(body.business);
   if (businessError) errors.push(businessError);
 
-  errors.push(...validateKnownMemberIds(body.participants, 'participants'));
+  errors.push(...(await validateKnownMemberIds(body.participants, 'participants')));
 
   return errors;
 }
 
-function toTranscriptResponse(transcript) {
-  return {
-    ...transcript,
-    participants: coerceJsonArray(transcript.participants),
-    decisions: coerceJsonArray(transcript.decisions),
-    open_questions: coerceJsonArray(transcript.open_questions),
-  };
-}
-
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { status, business, search } = req.query;
-    let sql = 'SELECT id, title, date, business, participants, summary, decisions, open_questions, action_count, status, summary_file, created_at FROM transcripts WHERE 1=1';
-    const params = [];
+    let query = supabase
+      .from('atlas_transcripts')
+      .select('id, title, date, business, participants, summary, decisions, open_questions, action_count, status, summary_file, created_at');
 
     if (status) {
-      sql += ' AND status = ?';
-      params.push(status);
+      query = query.eq('status', status);
     }
     if (business) {
-      sql += ' AND business = ?';
-      params.push(business);
+      query = query.eq('business', business);
     }
     if (search) {
-      sql += ' AND (title LIKE ? OR summary LIKE ?)';
       const term = `%${search}%`;
-      params.push(term, term);
+      query = query.or(`title.ilike.${term},summary.ilike.${term}`);
     }
 
-    sql += ' ORDER BY created_at DESC';
+    query = query.order('created_at', { ascending: false });
 
     const { limit, offset } = parsePagination(req.query);
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    query = query.range(offset, offset + limit - 1);
 
-    const transcripts = db.prepare(sql).all(...params);
-    res.json(transcripts.map(toTranscriptResponse));
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json(data || []);
   } catch (err) {
     console.error(`[transcripts] GET error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const transcript = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(req.params.id);
-    if (!transcript) return res.status(404).json({ error: 'Transcript not found' });
+    const { data: transcript, error } = await supabase
+      .from('atlas_transcripts')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !transcript) return res.status(404).json({ error: 'Transcript not found' });
 
-    const actions = db.prepare(`
-      SELECT id, title, status, priority, owners, business, due_date
-      FROM actions
-      WHERE source_transcript_id = ?
-    `).all(req.params.id);
+    const { data: actions } = await supabase
+      .from('atlas_actions')
+      .select('id, title, status, priority, owners, business, due_date')
+      .eq('source_transcript_id', req.params.id);
 
-    const response = toTranscriptResponse(transcript);
-    response.actions = actions.map(action => ({
-      ...action,
-      owners: coerceJsonArray(action.owners),
-    }));
-
-    res.json(response);
+    transcript.actions = actions || [];
+    res.json(transcript);
   } catch (err) {
     console.error(`[transcripts] GET/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const id = `t-${uuidv4().split('-')[0]}`;
     const body = sanitizeBody(req.body, TRANSCRIPT_TEXT_FIELDS);
@@ -145,46 +133,56 @@ router.post('/', (req, res) => {
 
     const validationErrors = [
       ...validateTranscriptArrays(body),
-      ...validateTranscriptReferences(body),
+      ...(await validateTranscriptReferences(body)),
       ...validateStringLengths(body),
     ];
     if (validationErrors.length > 0) {
       return res.status(400).json({ error: validationErrors.join('; ') });
     }
 
-    db.prepare(`
-      INSERT INTO transcripts (id, title, date, business, participants, raw_text, summary, decisions, open_questions, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-    `).run(
-      id,
-      title,
-      date,
-      business,
-      serializeJsonArray(participants),
-      raw_text,
-      summary,
-      serializeJsonArray(decisions),
-      serializeJsonArray(open_questions),
-    );
+    const { data: transcript, error } = await supabase
+      .from('atlas_transcripts')
+      .insert({
+        id,
+        title,
+        date,
+        business,
+        participants: serializeJsonArray(participants),
+        raw_text,
+        summary,
+        decisions: serializeJsonArray(decisions),
+        open_questions: serializeJsonArray(open_questions),
+        status: 'pending',
+      })
+      .select()
+      .single();
 
-    const transcript = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(id);
-    res.status(201).json(toTranscriptResponse(transcript));
+    if (error) throw error;
+
+    res.status(201).json(transcript);
   } catch (err) {
     console.error(`[transcripts] POST error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/:id/commit', (req, res) => {
+router.post('/:id/commit', async (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Transcript not found' });
+    const { data: existing, error: fetchErr } = await supabase
+      .from('atlas_transcripts')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr || !existing) return res.status(404).json({ error: 'Transcript not found' });
 
     if (existing.status !== 'pending') {
       return res.status(409).json({ error: 'Transcript is not pending' });
     }
 
-    const linkedActionCount = db.prepare('SELECT COUNT(*) AS count FROM actions WHERE source_transcript_id = ?').get(req.params.id).count;
+    const { count: linkedActionCount } = await supabase
+      .from('atlas_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('source_transcript_id', req.params.id);
     if (linkedActionCount > 0) {
       return res.status(409).json({ error: 'Transcript already has committed actions' });
     }
@@ -220,8 +218,8 @@ router.post('/:id/commit', (req, res) => {
 
       const fieldErrors = [
         ...validateActionFields(action),
-        ...validateKnownMemberIds(action.owners),
-        ...(validateKnownBusinessId(action.business, `Action ${i} business`) ? [validateKnownBusinessId(action.business, `Action ${i} business`)] : []),
+        ...(await validateKnownMemberIds(action.owners)),
+        ...((await validateKnownBusinessId(action.business, `Action ${i} business`)) ? [await validateKnownBusinessId(action.business, `Action ${i} business`)] : []),
         ...validateStringLengths(action),
       ];
       if (fieldErrors.length > 0) {
@@ -231,7 +229,7 @@ router.post('/:id/commit', (req, res) => {
 
     const transcriptValidationErrors = [
       ...validateTranscriptArrays(body),
-      ...validateTranscriptReferences(body),
+      ...(await validateTranscriptReferences(body)),
       ...validateStringLengths(body),
     ];
     if (transcriptValidationErrors.length > 0) {
@@ -248,71 +246,79 @@ router.post('/:id/commit', (req, res) => {
     const actor = getActor(req, 'claude');
     const createdActionIds = [];
 
-    const commitTx = db.transaction(() => {
-      const insertAction = db.prepare(`
-        INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      const logAction = db.prepare(`
-        INSERT INTO activity_log (action_id, event, new_value, actor)
-        VALUES (?, 'created', ?, ?)
-      `);
-
-      for (const action of actions) {
-        const id = uuidv4();
-        insertAction.run(
-          id,
-          action.title,
-          action.description || '',
-          action.status || 'not_started',
-          action.business,
-          action.priority || 'p2',
-          action.due_date || null,
-          serializeJsonArray(action.owners),
-          req.params.id,
-          action.source_label,
-          serializeJsonArray(action.tags),
-          action.notes || '',
-          action.recurrence || 'none',
-        );
-        logAction.run(id, `Parsed from transcript ${req.params.id}`, actor);
-        createdActionIds.push(id);
-      }
-
-      const updates = {
-        action_count: createdActionIds.length,
-        status: nextStatus,
+    // Insert actions
+    const actionRows = actions.map(action => {
+      const id = uuidv4();
+      createdActionIds.push(id);
+      return {
+        id,
+        title: action.title,
+        description: action.description || '',
+        status: action.status || 'not_started',
+        business: action.business,
+        priority: action.priority || 'p2',
+        due_date: action.due_date || null,
+        owners: serializeJsonArray(action.owners),
+        source_transcript_id: req.params.id,
+        source_label: action.source_label,
+        tags: serializeJsonArray(action.tags),
+        notes: action.notes || '',
+        recurrence: action.recurrence || 'none',
       };
-      if (body.title !== undefined) updates.title = body.title;
-      if (body.date !== undefined) updates.date = body.date;
-      if (body.business !== undefined) updates.business = body.business;
-      if (body.participants !== undefined) updates.participants = serializeJsonArray(body.participants);
-      if (body.raw_text !== undefined) updates.raw_text = body.raw_text;
-      if (body.clear_raw_text === true) updates.raw_text = null;
-      if (body.summary !== undefined) updates.summary = body.summary;
-      if (body.decisions !== undefined) updates.decisions = serializeJsonArray(body.decisions);
-      if (body.open_questions !== undefined) updates.open_questions = serializeJsonArray(body.open_questions);
-      if (body.summary_file !== undefined) updates.summary_file = body.summary_file;
-
-      const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-      db.prepare(`UPDATE transcripts SET ${fields} WHERE id = ?`).run(...Object.values(updates), req.params.id);
     });
-    commitTx();
 
-    const transcript = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(req.params.id);
-    const response = toTranscriptResponse(transcript);
-    response.created_action_ids = createdActionIds;
-    res.json(response);
+    const { error: insertErr } = await supabase.from('atlas_actions').insert(actionRows);
+    if (insertErr) throw insertErr;
+
+    // Log action creation
+    const logRows = actionRows.map(row => ({
+      action_id: row.id,
+      event: 'created',
+      new_value: `Parsed from transcript ${req.params.id}`,
+      actor,
+    }));
+    await supabase.from('atlas_activity_log').insert(logRows);
+
+    // Update transcript
+    const transcriptUpdates = {
+      action_count: createdActionIds.length,
+      status: nextStatus,
+    };
+    if (body.title !== undefined) transcriptUpdates.title = body.title;
+    if (body.date !== undefined) transcriptUpdates.date = body.date;
+    if (body.business !== undefined) transcriptUpdates.business = body.business;
+    if (body.participants !== undefined) transcriptUpdates.participants = serializeJsonArray(body.participants);
+    if (body.raw_text !== undefined) transcriptUpdates.raw_text = body.raw_text;
+    if (body.clear_raw_text === true) transcriptUpdates.raw_text = null;
+    if (body.summary !== undefined) transcriptUpdates.summary = body.summary;
+    if (body.decisions !== undefined) transcriptUpdates.decisions = serializeJsonArray(body.decisions);
+    if (body.open_questions !== undefined) transcriptUpdates.open_questions = serializeJsonArray(body.open_questions);
+    if (body.summary_file !== undefined) transcriptUpdates.summary_file = body.summary_file;
+
+    const { data: transcript, error: updateErr } = await supabase
+      .from('atlas_transcripts')
+      .update(transcriptUpdates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    transcript.created_action_ids = createdActionIds;
+    res.json(transcript);
   } catch (err) {
     console.error(`[transcripts] POST/:id/commit error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Transcript not found' });
+    const { data: existing, error: fetchErr } = await supabase
+      .from('atlas_transcripts')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr || !existing) return res.status(404).json({ error: 'Transcript not found' });
 
     const body = sanitizeBody(req.body, TRANSCRIPT_TEXT_FIELDS);
     const {
@@ -324,7 +330,7 @@ router.put('/:id', (req, res) => {
 
     const validationErrors = [
       ...validateTranscriptArrays(body),
-      ...validateTranscriptReferences(body),
+      ...(await validateTranscriptReferences(body)),
       ...validateStringLengths(body),
     ];
     if (validationErrors.length > 0) {
@@ -348,11 +354,15 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    db.prepare(`UPDATE transcripts SET ${fields} WHERE id = ?`).run(...Object.values(updates), req.params.id);
+    const { data: transcript, error } = await supabase
+      .from('atlas_transcripts')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
 
-    const transcript = db.prepare('SELECT * FROM transcripts WHERE id = ?').get(req.params.id);
-    res.json(toTranscriptResponse(transcript));
+    res.json(transcript);
   } catch (err) {
     console.error(`[transcripts] PUT/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });

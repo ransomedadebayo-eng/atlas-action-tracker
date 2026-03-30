@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
-    "better-sqlite3": "^11.7.0",
+    "@supabase/supabase-js": "^2.49.1",
     "concurrently": "^9.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",

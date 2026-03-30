@@ -1,16 +1,16 @@
 import { Router } from 'express';
-import db from '../db.js';
+import supabase from '../db.js';
 import {
   validateStringLengths,
   sanitizeBody,
   validateMemberId,
 } from '../middleware/validate.js';
-import { coerceJsonArray, serializeJsonArray, sqlJsonArray } from '../utils/json.js';
+import { coerceJsonArray, serializeJsonArray } from '../utils/json.js';
 
 const router = Router();
 const TEXT_FIELDS = ['name', 'full_name', 'email', 'role'];
-const BUSINESSES_JSON_SQL = sqlJsonArray('businesses');
-const OWNERS_JSON_SQL = sqlJsonArray('owners');
+
+const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 };
 
 function validateMemberArrays(body) {
   const errors = [];
@@ -30,140 +30,100 @@ function validateMemberArrays(body) {
   return errors;
 }
 
-function toMemberResponse(member) {
-  return {
-    ...member,
-    businesses: coerceJsonArray(member.businesses),
-    aliases: coerceJsonArray(member.aliases),
-  };
-}
-
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { business, is_active } = req.query;
-    let sql = 'SELECT * FROM members WHERE 1=1';
-    const params = [];
+    let query = supabase.from('atlas_members').select('*');
 
     if (business) {
-      sql += ` AND EXISTS (SELECT 1 FROM json_each(${BUSINESSES_JSON_SQL}) WHERE value = ?)`;
-      params.push(business);
+      query = query.contains('businesses', [business]);
     }
     if (is_active !== undefined) {
-      sql += ' AND is_active = ?';
-      params.push(parseInt(is_active, 10));
+      query = query.eq('is_active', parseInt(is_active, 10) === 1);
     }
 
-    sql += ' ORDER BY name ASC';
+    query = query.order('name', { ascending: true });
 
-    const members = db.prepare(sql).all(...params);
-    res.json(members.map(toMemberResponse));
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json(data || []);
   } catch (err) {
     console.error(`[members] GET error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
-    const workload = db.prepare(`
-      SELECT j.value AS member_id,
-             SUM(CASE WHEN status = 'not_started' THEN 1 ELSE 0 END) AS not_started,
-             SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) AS in_progress,
-             SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) AS waiting,
-             SUM(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END) AS blocked,
-             SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done,
-             COUNT(*) AS total
-      FROM actions, json_each(${OWNERS_JSON_SQL}) j
-      GROUP BY j.value
-      ORDER BY total DESC
-    `).all();
-
-    const overdue = db.prepare(`
-      SELECT j.value AS member_id, COUNT(*) AS count
-      FROM actions, json_each(${OWNERS_JSON_SQL}) j
-      WHERE due_date < date('now') AND status NOT IN ('done','blocked')
-      GROUP BY j.value
-    `).all();
-
-    const overdueMap = {};
-    for (const row of overdue) {
-      overdueMap[row.member_id] = row.count;
-    }
-
-    const enriched = workload.map(row => ({
-      ...row,
-      overdue: overdueMap[row.member_id] || 0,
-      active: row.not_started + row.in_progress + row.waiting,
-    }));
-
-    res.json(enriched);
+    const { data, error } = await supabase.rpc('atlas_member_stats');
+    if (error) throw error;
+    res.json(data || []);
   } catch (err) {
     console.error(`[members] stats error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const member = db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id);
-    if (!member) return res.status(404).json({ error: 'Member not found' });
+    const { data: member, error } = await supabase
+      .from('atlas_members')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !member) return res.status(404).json({ error: 'Member not found' });
 
-    const stats = db.prepare(`
-      SELECT status, COUNT(*) AS count
-      FROM actions
-      WHERE EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)
-      GROUP BY status
-    `).all(req.params.id);
+    const { data: statsData, error: statsErr } = await supabase.rpc('atlas_member_detail_stats', {
+      member_id_param: req.params.id,
+    });
+    if (statsErr) throw statsErr;
 
-    const overdue = db.prepare(`
-      SELECT COUNT(*) AS count
-      FROM actions
-      WHERE EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)
-        AND due_date < date('now')
-        AND status NOT IN ('done','blocked')
-    `).get(req.params.id);
+    member.actionStats = statsData?.actionStats || [];
+    member.overdueCount = statsData?.overdueCount || 0;
 
-    const response = toMemberResponse(member);
-    response.actionStats = stats;
-    response.overdueCount = overdue.count;
-
-    res.json(response);
+    res.json(member);
   } catch (err) {
     console.error(`[members] GET/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/:id/actions', (req, res) => {
+router.get('/:id/actions', async (req, res) => {
   try {
     const { status } = req.query;
-    let sql = `
-      SELECT * FROM actions
-      WHERE EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)
-    `;
-    const params = [req.params.id];
+    let query = supabase
+      .from('atlas_actions')
+      .select('*')
+      .contains('owners', [req.params.id]);
 
     if (status) {
       const statuses = status.split(',');
-      sql += ` AND status IN (${statuses.map(() => '?').join(',')})`;
-      params.push(...statuses);
+      query = query.in('status', statuses);
     }
 
-    sql += ' ORDER BY CASE priority WHEN \'p0\' THEN 0 WHEN \'p1\' THEN 1 WHEN \'p2\' THEN 2 ELSE 3 END, due_date ASC';
+    const { data, error } = await query;
+    if (error) throw error;
 
-    const actions = db.prepare(sql).all(...params);
-    res.json(actions.map(action => ({
-      ...action,
-      owners: coerceJsonArray(action.owners),
-      tags: coerceJsonArray(action.tags),
-    })));
+    // Sort by priority then due_date in app
+    const sorted = (data || []).sort((a, b) => {
+      const pa = PRIORITY_ORDER[a.priority] ?? 3;
+      const pb = PRIORITY_ORDER[b.priority] ?? 3;
+      if (pa !== pb) return pa - pb;
+      if (a.due_date === b.due_date) return 0;
+      if (a.due_date === null) return 1;
+      if (b.due_date === null) return -1;
+      return a.due_date < b.due_date ? -1 : 1;
+    });
+
+    res.json(sorted);
   } catch (err) {
     console.error(`[members] /:id/actions error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const body = sanitizeBody(req.body, TEXT_FIELDS);
     const {
@@ -191,28 +151,46 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: validationErrors.join('; ') });
     }
 
-    const existing = db.prepare('SELECT id FROM members WHERE id = ?').get(id);
-    if (existing) {
+    const { data: existingMember } = await supabase
+      .from('atlas_members')
+      .select('id')
+      .eq('id', id)
+      .single();
+    if (existingMember) {
       return res.status(409).json({ error: 'Member ID already exists' });
     }
 
-    db.prepare(`
-      INSERT INTO members (id, name, full_name, email, businesses, role, aliases)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, name, full_name, email, serializeJsonArray(businesses), role, serializeJsonArray(aliases));
+    const { data: member, error } = await supabase
+      .from('atlas_members')
+      .insert({
+        id,
+        name,
+        full_name,
+        email,
+        businesses: serializeJsonArray(businesses),
+        role,
+        aliases: serializeJsonArray(aliases),
+      })
+      .select()
+      .single();
 
-    const member = db.prepare('SELECT * FROM members WHERE id = ?').get(id);
-    res.status(201).json(toMemberResponse(member));
+    if (error) throw error;
+
+    res.status(201).json(member);
   } catch (err) {
     console.error(`[members] POST error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Member not found' });
+    const { data: existing, error: fetchErr } = await supabase
+      .from('atlas_members')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr || !existing) return res.status(404).json({ error: 'Member not found' });
 
     const body = sanitizeBody(req.body, TEXT_FIELDS);
     const {
@@ -240,11 +218,15 @@ router.put('/:id', (req, res) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    db.prepare(`UPDATE members SET ${fields} WHERE id = ?`).run(...Object.values(updates), req.params.id);
+    const { data: member, error } = await supabase
+      .from('atlas_members')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (error) throw error;
 
-    const member = db.prepare('SELECT * FROM members WHERE id = ?').get(req.params.id);
-    res.json(toMemberResponse(member));
+    res.json(member);
   } catch (err) {
     console.error(`[members] PUT/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
