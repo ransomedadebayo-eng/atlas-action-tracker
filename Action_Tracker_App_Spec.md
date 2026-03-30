@@ -1,29 +1,28 @@
-# ATLAS Action Tracker — Local App Spec
+# ATLAS Action Tracker — App Spec
 
-**For the agent building this:** You are building a multi-surface system with 4 consumers sharing one SQLite database. Read the "System Architecture" section before writing any code — it explains how the web app, menu bar widget, Claude (via Desktop Commander), and Claude Code (via skill) all interact through `~/action-tracker/tracker.db`. The SQLite schema is defined in `~/.claude/skills/transcript-parser/references/data-schemas.md` — read that file before implementing any database logic.
+**For the agent building this:** You are building a cloud-hosted action tracker powered by Supabase (PostgreSQL). The Express API connects to Supabase via `@supabase/supabase-js`. The database schema uses `atlas_`-prefixed tables in the Supabase project `mnfovwxgmhacfljcpkio`. All consumers interact through the Express REST API — never directly with the database.
 
 ## Overview
 
-A self-hosted, local-first action tracker with 4 access surfaces:
+A cloud-hosted action tracker with multiple access surfaces:
 
-1. **Web app** (React + Express) — full UI for managing actions, team, transcripts
-2. **macOS menu bar widget** (Swift or Electron) — always-on, shows next 5 actions + overdue badge
-3. **Claude via Desktop Commander** (Claude.ai conversations) — parses transcripts, queries tracker, updates actions through natural conversation
-4. **Claude Code** (transcript-parser skill) — same parsing intelligence from the terminal
+1. **Web app** (React + Express) — full UI for managing actions, team, transcripts, deployed on Cloudflare
+2. **Claude** (any conversation) — parses transcripts, queries tracker, updates actions via the Express API from anywhere
+3. **Claude Code** — same capabilities from the terminal via API calls
 
-All 4 surfaces read and write the same SQLite database at `~/action-tracker/tracker.db` (WAL mode for safe concurrent access). The transcript-parser Claude skill is already installed at `~/.claude/skills/transcript-parser/` and the database is initialized with 5 businesses and 17 team members.
+All surfaces read and write through the Express API, which connects to Supabase PostgreSQL (`atlas_actions`, `atlas_members`, `atlas_config`, `atlas_transcripts`, `atlas_activity_log`, `atlas_saved_views` tables). The database is initialized with 7 businesses and 7 team members.
 
 ---
 
 ## Why Local vs. Notion/SaaS
 
-| Factor | Local App | Notion/SaaS |
+| Factor | ATLAS (Cloud-Hosted) | Notion/SaaS |
 |--------|-----------|-------------|
-| Claude can edit code & data directly | ✅ Yes, via Desktop Commander | ❌ Limited to MCP view tools |
-| Data ownership | ✅ 100% on your machine | ⚠️ Third-party servers |
-| Offline access | ✅ Always available | ❌ Requires internet |
+| Claude can edit data directly | ✅ Yes, via Express API from anywhere | ❌ Limited to MCP view tools |
+| Data ownership | ✅ Your Supabase project | ⚠️ Third-party servers |
+| Access from anywhere | ✅ Cloud-hosted, always available | ✅ Also cloud |
 | Custom features | ✅ Unlimited — I build what you need | ⚠️ Constrained by platform |
-| Cost | ✅ Free forever | ⚠️ Subscription tiers |
+| Cost | ✅ Free (Supabase free tier) | ⚠️ Subscription tiers |
 | Update cycle | ✅ Instant — just ask me | ⚠️ Feature requests to vendor |
 
 ---
@@ -34,31 +33,12 @@ All 4 surfaces read and write the same SQLite database at `~/action-tracker/trac
 |-------|------------|-----|
 | Frontend | React 18 + Vite | Fast dev, hot reload, component-based |
 | Styling | Tailwind CSS | Utility-first, rapid iteration, no CSS files to manage |
-| Backend | Node.js + Express | Lightweight API server, runs anywhere |
-| Database | SQLite via better-sqlite3 (WAL mode) | ACID-compliant, crash-safe, single-file, shared across all 4 consumers |
-| AI Layer | Claude (Desktop Commander / Claude Code) | YOU are the parser — no API key needed |
+| Backend | Node.js + Express | Lightweight API server, deployed on Cloudflare |
+| Database | Supabase (PostgreSQL) via @supabase/supabase-js | Cloud-hosted, ACID-compliant, native JSONB, accessible from anywhere |
+| AI Layer | Claude (any conversation / Claude Code) | YOU are the parser — no API key needed |
 | State | React Query (TanStack Query) | Server state sync, caching, optimistic updates |
-| Menu Bar | SwiftUI + GRDB.swift | Native macOS, ~5MB, reads same SQLite file via GRDB |
 | Icons | Lucide React | Clean, consistent icon set |
-| Runtime | Node.js 18+ | Already on your Mac |
-
-### Why SQLite Over JSON Flat Files (Research-Backed)
-
-The original spec used JSON flat files. Industry research and local-first architecture best practices strongly recommend SQLite instead:
-
-| Factor | JSON Flat Files | SQLite (WAL Mode) |
-|--------|----------------|-------------------|
-| Atomic writes | Manual (write-to-temp, rename). Crash mid-write = data loss | Native transactions. Crash-safe by default |
-| Concurrent readers | File locking issues when 4 consumers access simultaneously | WAL mode allows unlimited concurrent reads + one writer |
-| Query performance | Read entire file, filter in-memory. Degrades past ~1MB | Indexed queries. Handles 100MB+ efficiently |
-| Data integrity | No constraints. Bad data silently accepted | Schema constraints, foreign keys, type checking |
-| Reactivity / file watching | chokidar watches file changes but fires on every write | Same file-watch approach works, plus GRDB.swift has native observation |
-| Claude CLI access | `python3` → `json.load` → filter → `json.dump` | `sqlite3 tracker.db "SELECT * FROM actions WHERE status != 'done'"` — simpler, faster |
-| Migration path | Manual schema versioning | Built-in `user_version` pragma + migration scripts |
-
-**Key config:** Always enable WAL mode (`PRAGMA journal_mode=WAL;`) on first connection. This allows the web app, menu bar widget, and Claude to read simultaneously without blocking each other.
-
-**Single file:** All data lives in `~/action-tracker/tracker.db`. One file to back up, one file all consumers share.
+| Runtime | Node.js 18+ | Deployed on Cloudflare |
 
 ### Competitive Landscape
 
@@ -66,13 +46,12 @@ Researched competitors in the meeting-to-actions space. None combine all our cap
 
 | Product | Approach | What They Lack |
 |---------|----------|---------------|
-| Hyprnote/Char | Local-first AI meeting notes, open source, SQLite storage | No multi-business tracking, no action tracker, no menu bar widget |
-| Meetily | Privacy-first transcription + summarization | No task management, no CLI integration, cloud-optional |
-| MeetGeek | Cloud-based conversation intelligence + analytics | Not local-first, no privacy, no multi-business |
-| Fathom | One-tap recording with summaries + action items | Mobile-only, cloud-based, no custom business context |
-| iWeaver | AI meeting action tracker with Zoom/Teams integration | Cloud-based, no local storage, no CLI/AI-assistant integration |
+| Meetily | Privacy-first transcription + summarization | No task management, no CLI integration |
+| MeetGeek | Cloud-based conversation intelligence + analytics | No multi-business tracking |
+| Fathom | One-tap recording with summaries + action items | Mobile-only, no custom business context |
+| iWeaver | AI meeting action tracker with Zoom/Teams integration | No CLI/AI-assistant integration |
 
-**Our unique position:** Local-first + multi-business team tracking + Claude as the intelligence layer (no API cost) + macOS menu bar widget + multi-consumer architecture (web app + menu bar + Claude chat + Claude Code all share one SQLite file). No competitor does this.
+**Our unique position:** Cloud-hosted + multi-business team tracking + Claude as the intelligence layer (no API cost) + Claude can update tasks from any conversation anywhere via the Express API. No competitor does this.
 
 **Single command to start:** `npm run dev` → serves frontend on `:5173`, API on `:3001`
 
@@ -80,264 +59,159 @@ Researched competitors in the meeting-to-actions space. None combine all our cap
 
 ## System Architecture — How It All Works Together
 
-**Read this section first.** It explains how every component in this system interacts. You are building a multi-surface application where 4 consumers share one data layer.
+**Read this section first.** It explains how every component in this system interacts.
 
 ### The System Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    DATA LAYER (Source of Truth)                      │
-│              ~/action-tracker/tracker.db  (SQLite, WAL mode)        │
+│        Supabase PostgreSQL (project: mnfovwxgmhacfljcpkio)          │
 │                                                                     │
-│  Tables: actions | members | config | transcripts | activity_log    │
-│  PRAGMA journal_mode=WAL  →  concurrent reads safe                  │
+│  Tables: atlas_actions | atlas_members | atlas_config |             │
+│          atlas_transcripts | atlas_activity_log | atlas_saved_views  │
+│  JSONB columns for arrays (owners, tags, businesses, etc.)          │
+│  RPC functions: atlas_action_stats, atlas_member_stats, etc.        │
 │                                                                     │
-└────────┬──────────────┬──────────────────┬──────────────┬───────────┘
-         │              │                  │              │
-    ┌────▼────┐   ┌────▼───────┐   ┌─────▼────────┐ ┌──▼──────────────┐
-    │ WEB APP │   │ MENU BAR   │   │ CLAUDE       │ │ CLAUDE CODE     │
-    │ React + │   │ WIDGET     │   │ (chat/DC)    │ │ (skill)         │
-    │ Express │   │ SwiftUI +  │   │              │ │                 │
-    │         │   │ GRDB.swift │   │ Parses       │ │ Same parsing    │
-    │ Full UI │   │            │   │ transcripts, │ │ skill, same     │
-    │ CRUD,   │   │ Shows      │   │ queries,     │ │ SQLite file,    │
-    │ kanban, │   │ next 5     │   │ updates      │ │ used from       │
-    │ calendar│   │ actions    │   │ via sqlite3  │ │ terminal        │
-    │ filters │   │ overdue    │   │ CLI or       │ │                 │
-    │         │   │ badge      │   │ python3      │ │                 │
-    └─────────┘   └────────────┘   └──────────────┘ └─────────────────┘
-    better-sqlite3  GRDB.swift      sqlite3 CLI       sqlite3 CLI
-    (Node.js)       (native Swift)  (shell)           (shell)
-    localhost        macOS tray      Claude.ai +       Claude Code CLI
-    :5173/:3001     always-on       Desktop Cmdr      on-demand
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  EXPRESS API    │
+                    │  (Cloudflare)   │
+                    │  /api/*         │
+                    └──┬─────────┬────┘
+                       │         │
+              ┌────────▼──┐  ┌──▼──────────────┐
+              │ WEB APP   │  │ CLAUDE           │
+              │ React SPA │  │ (any session)    │
+              │           │  │                  │
+              │ Full UI   │  │ Parses           │
+              │ CRUD,     │  │ transcripts,     │
+              │ kanban,   │  │ queries,         │
+              │ calendar  │  │ updates          │
+              │ filters   │  │ via API calls    │
+              └───────────┘  └─────────────────┘
+              Cloudflare      Claude.ai / Code
 ```
 
-### The 4 Consumers — What Each Does
+### The Consumers — What Each Does
 
-**1. Web App (React + Express) — what you're building**
-The primary UI. Users interact with actions through the browser: create, edit, filter, view kanban boards, calendar, team workload. The Express API uses `better-sqlite3` for synchronous, high-performance SQLite access. React Query keeps the UI fresh.
+**1. Web App (React + Express)**
+The primary UI. Users interact with actions through the browser: create, edit, filter, view kanban boards, calendar, team workload. The Express API uses `@supabase/supabase-js` to query Supabase PostgreSQL. React Query keeps the UI fresh.
 
-- **Reads from:** tracker.db (actions, members, config, transcripts tables)
-- **Writes to:** tracker.db (CRUD operations wrapped in transactions)
-- **Connection:** `better-sqlite3` with WAL mode enabled on first connection
-- **Serves on:** `http://localhost:5173` (frontend), `http://localhost:3001` (API)
+- **Reads from:** Supabase via Express API (`atlas_actions`, `atlas_members`, `atlas_config`, `atlas_transcripts` tables)
+- **Writes to:** Supabase via Express API (CRUD operations)
+- **Connection:** `@supabase/supabase-js` client with service role key
+- **Deployed on:** Cloudflare
 
-**2. macOS Menu Bar Widget — persistent glanceable status**
-A lightweight always-on widget in the macOS menu bar. Shows the next 5 actions sorted by urgency, a badge for overdue count, and quick actions (mark done, open tracker). Uses **GRDB.swift** to read the same SQLite file with native observation support.
+**2. Claude (any conversation — Claude.ai, Claude Code, etc.)**
+The intelligence layer. In any Claude conversation, the user can paste a transcript, ask about overdue items, reassign tasks, run weekly digests, etc. Claude reads/writes via the Express REST API from anywhere.
 
-- **Reads from:** tracker.db via GRDB.swift (Swift-native SQLite wrapper with built-in change observation)
-- **Writes to:** tracker.db (only for quick actions: mark done, snooze)
-- **Change detection:** GRDB's `DatabaseRegionObservation` detects writes from any consumer automatically + `DispatchSource.makeFileSystemObjectSource` as fallback for external changes
-- **Runs as:** macOS login item (`LSUIElement=1`), always visible in menu bar
+- **Reads from:** Express API (e.g., `GET /api/actions?status=not_started`)
+- **Writes to:** Express API (e.g., `POST /api/actions`, `PUT /api/actions/:id`)
+- **Parsing workflow:** User pastes transcript → Claude extracts actions → presents table for review → user confirms → Claude writes via API
+- **Management workflow:** "What's overdue?" → Claude calls API, presents results
 
-**3. Claude via Desktop Commander (Claude.ai conversations)**
-The intelligence layer. In any Claude.ai conversation, the user can paste a transcript, ask about overdue items, reassign tasks, run weekly digests, etc. Claude reads/writes the SQLite file directly via `sqlite3` CLI commands.
+### Critical: The Express API Is the Interface
 
-- **Reads from:** `sqlite3 ~/action-tracker/tracker.db "SELECT ..."`
-- **Writes to:** `sqlite3 ~/action-tracker/tracker.db "INSERT/UPDATE ..."` (WAL mode makes this safe even while app is running)
-- **Parsing workflow:** User pastes transcript → Claude extracts actions → presents table for review → user confirms → Claude writes via sqlite3 CLI
-- **Management workflow:** "What's overdue?" → Claude runs SQL query, presents results
+All consumers go through the Express REST API. No direct database access. This means:
 
-**4. Claude Code (transcript-parser skill)**
-Same parsing intelligence, accessed from the terminal via Claude Code CLI. Uses the `transcript-parser` skill installed at `~/.claude/skills/transcript-parser/`. Same SQLite file, same `sqlite3` CLI access.
-
-- **Reads from:** Same tracker.db, same SQL queries
-- **Writes to:** Same tracker.db via `sqlite3` CLI or Python `sqlite3` module
-- **Skill location:** `~/.claude/skills/transcript-parser/SKILL.md`
-
-### Critical: The SQLite File Is the API
-
-There is no database server. No REST API between consumers (except the web app's internal Express API which queries the same SQLite file). The `tracker.db` file IS the shared state. This means:
-
-1. **Any consumer can read at any time** — WAL mode allows unlimited concurrent readers. The web app, menu bar, and Claude can all query simultaneously.
-2. **One writer at a time** — SQLite serializes writes automatically. With WAL mode, writes don't block readers. Short write transactions (INSERT/UPDATE) complete in <1ms.
-3. **The web app should re-read on focus** — when the browser tab regains focus, re-fetch data from the Express API (which re-queries SQLite) to pick up changes made by Claude or the menu bar widget. Use `document.visibilityState` change event.
-4. **The menu bar widget uses GRDB observation** — GRDB.swift has built-in `DatabaseRegionObservation` that detects when any process writes to the SQLite file. Falls back to `DispatchSource` file watching for non-GRDB writers.
-5. **WAL mode is mandatory** — Set `PRAGMA journal_mode=WAL;` on every first connection from every consumer. This is what makes multi-consumer safe. Without it, readers block writers.
-6. **Claude uses sqlite3 CLI** — Direct SQL queries. No ORM, no driver installation. Every Mac has sqlite3 built in.
+1. **Any consumer can read/write from anywhere** — the API is cloud-hosted on Cloudflare
+2. **Claude can update tasks from any session** — no need to be on the same machine
+3. **The web app re-reads on focus** — refetches queries when `document.visibilityState` changes to "visible"
+4. **Authentication** — Cloudflare Access JWT for tunnel traffic, Bearer token for API clients (Claude, scripts)
 
 ### Data Flow Examples
 
 **Example A: User parses a transcript via Claude chat**
 ```
 1. User pastes transcript in Claude.ai conversation
-2. Claude runs: sqlite3 ~/action-tracker/tracker.db "SELECT id, name, aliases FROM members"
+2. Claude calls: GET /api/members → gets team roster with aliases
 3. Claude extracts 8 actions, presents for review in chat
 4. User confirms: "commit all"
-5. Claude runs: sqlite3 ~/action-tracker/tracker.db "BEGIN; INSERT INTO actions ...; INSERT INTO ...; COMMIT;"
-6. Menu bar widget's GRDB observation detects DB change → re-queries → shows new top 5
-7. User opens web app → Express re-queries tracker.db → UI shows all 8 new actions
+5. Claude calls: POST /api/actions/bulk with the 8 actions
+6. User opens web app → UI shows all 8 new actions
 ```
 
 **Example B: User marks an action done in the web app**
 ```
 1. User clicks "Done" on an action in the React UI
 2. React calls PUT /api/actions/:id with status: "done"
-3. Express runs: db.prepare("UPDATE actions SET status='done', completed_at=? WHERE id=?").run(now, id)
-4. Menu bar widget detects change → action disappears from top 5
-5. Next Claude conversation: "What's overdue?" → Claude queries tracker.db → action is gone
+3. Express updates Supabase → returns updated action
+4. Next Claude conversation: "What's overdue?" → Claude calls GET /api/actions/stats → action is gone
 ```
 
-**Example C: User creates an action via menu bar quick-add**
-```
-1. User clicks "Quick Add" in menu bar dropdown
-2. Types: "Book studio for April 15" + selects Riddim Exchange + P1
-3. SwiftUI writes via GRDB: try db.write { db in try Action(...).insert(db) }
-4. Web app auto-refreshes on next focus → new action appears
-5. Claude sees it next time it queries the DB
-```
-
-**Example D: User uploads a transcript in the web app for later parsing**
+**Example C: User uploads a transcript in the web app for later parsing**
 ```
 1. User drags a .txt file into the web app's transcript upload area
-2. Express inserts transcript row with status='pending' and raw_text into transcripts table
-3. Later, user tells Claude: "Any pending transcripts?"
-4. Claude: sqlite3 tracker.db "SELECT id, title, date FROM transcripts WHERE status='pending'"
+2. Express inserts transcript via Supabase with status='pending' and raw_text
+3. Later, user tells Claude: "Parse my pending transcripts"
+4. Claude calls: GET /api/transcripts?status=pending
 5. Claude reads raw_text, parses, presents actions, user confirms
-6. Claude: sqlite3 tracker.db "BEGIN; INSERT INTO actions ...; UPDATE transcripts SET status='reviewed' ...; COMMIT;"
+6. Claude calls: POST /api/transcripts/:id/commit with actions array
 ```
 
 ### What the Web App Must Implement
 
-The Express API should provide these capabilities over the SQLite database:
+The Express API provides these capabilities over Supabase PostgreSQL:
 
 | Feature | How it works |
 |---------|-------------|
-| Database connection | `const db = require('better-sqlite3')('~/action-tracker/tracker.db'); db.pragma('journal_mode = WAL');` |
-| List actions with filters | Parameterized SQL queries with WHERE clauses (status, business, priority, owner, search text, date range) |
-| Create/update/complete actions | Prepared statements wrapped in transactions for multi-table writes |
-| List/add/edit team members | CRUD on members table |
-| Upload pending transcripts | INSERT into transcripts with status='pending' + raw_text |
-| View transcript history | SELECT from transcripts (exclude raw_text for list views via column selection) |
-| Dashboard stats | `SELECT status, COUNT(*) FROM actions GROUP BY status` + overdue count + per-owner breakdown |
-| Action detail with source | JOIN actions with transcripts on source_transcript_id for decisions/summary |
-| Re-read on focus | Frontend refetches queries when `document.visibilityState` changes to "visible" — picks up changes from Claude or menu bar |
-
-### What the Menu Bar Widget Must Implement
-
-| Feature | How it works |
-|---------|-------------|
-| Database connection | GRDB.swift `DatabaseQueue(path: "~/action-tracker/tracker.db")` with WAL mode |
-| Watch for changes | GRDB's `DatabaseRegionObservation` for automatic change detection + `DispatchSource.makeFileSystemObjectSource` fallback |
-| Sort and display top 5 | SQL query: `SELECT * FROM actions WHERE status NOT IN ('done','blocked') ORDER BY CASE WHEN due_date < date('now') THEN 0 ELSE 1 END, priority, due_date LIMIT 5` |
-| Overdue badge | `SELECT COUNT(*) FROM actions WHERE due_date < date('now') AND status NOT IN ('done','blocked')` → show as red badge |
-| Quick mark done | `UPDATE actions SET status='done', completed_at=datetime('now') WHERE id=?` |
-| Open in browser | Shell open `http://localhost:5173/action/:id` |
-| Read config for colors | `SELECT * FROM config WHERE key='businesses'` → parse JSON for color mapping |
-| Resolve owner names | `SELECT id, name FROM members` → cache locally, refresh on DB change |
+| Database connection | `@supabase/supabase-js` client with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env vars |
+| List actions with filters | Supabase query builder: `.from('atlas_actions').select().eq().contains().ilike()` |
+| Create/update/complete actions | `.insert()`, `.update()`, `.delete()` with activity log entries |
+| List/add/edit team members | CRUD on `atlas_members` table |
+| Upload pending transcripts | `.insert()` into `atlas_transcripts` with status='pending' + raw_text |
+| View transcript history | `.select()` from `atlas_transcripts` (column selection for list views) |
+| Dashboard stats | RPC function `atlas_action_stats()` — counts by status, business, priority, overdue |
+| Member workload | RPC function `atlas_member_stats()` — action counts per owner |
+| Re-read on focus | Frontend refetches queries when `document.visibilityState` changes to "visible" |
 
 ### Database Schema
 
-The full SQLite schema with CREATE TABLE statements, indexes, and seed data is defined in:
-```
-~/.claude/skills/transcript-parser/references/data-schemas.md
-```
-
-**The web app and menu bar widget MUST use the same schema.** Read that file before implementing any database logic. Key constraints:
+The schema lives in Supabase project `mnfovwxgmhacfljcpkio` (us-east-1). All tables are prefixed with `atlas_`. Key constraints:
 - Action IDs are UUID v4 strings (TEXT PRIMARY KEY)
-- `owners` is stored as JSON array in a TEXT column (e.g., `'["ransomed","ola"]'`). Parse with `json_each()` for queries.
-- `business` must match a business `id` from the config table
+- `owners` is stored as JSONB array (e.g., `["ransomed","ola"]`). Query with `@>` operator via `.contains()`
+- `business` must match a business `id` from the `atlas_config` table
 - `priority` is "p0", "p1", "p2", or "p3"
 - `status` is one of: "not_started", "in_progress", "waiting", "blocked", "done"
-- Always enable WAL mode: `PRAGMA journal_mode=WAL;`
-- Use transactions for multi-statement writes: `BEGIN; ... COMMIT;`
+- PostgreSQL triggers auto-sync `action_count` on transcripts when actions change
 
 ---
 
 ## Data Model
 
-All data lives in a single SQLite file: `~/action-tracker/tracker.db`. Enable WAL mode on first connection. Full schema details in `~/.claude/skills/transcript-parser/references/data-schemas.md`.
+All data lives in Supabase PostgreSQL. Tables are prefixed with `atlas_` to avoid collisions with other projects.
 
 ### Schema Overview
 
-```sql
--- Business config (key-value store for settings)
-CREATE TABLE IF NOT EXISTS config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL  -- JSON for complex values
-);
+**Tables:**
+- `atlas_config` — key TEXT PK, value JSONB
+- `atlas_members` — id TEXT PK, name, full_name, email, businesses JSONB, role, aliases JSONB, is_active BOOLEAN, created_at TIMESTAMPTZ
+- `atlas_actions` — id TEXT PK, title, description, status TEXT (CHECK), business, priority TEXT (CHECK), due_date TEXT, owners JSONB, source_transcript_id FK, source_label, tags JSONB, notes, recurrence TEXT (CHECK), created_at/updated_at TIMESTAMPTZ, completed_at TIMESTAMPTZ
+- `atlas_transcripts` — id TEXT PK, title, date, business, participants JSONB, raw_text, summary, decisions JSONB, open_questions JSONB, action_count INT, status TEXT (CHECK), summary_file, created_at TIMESTAMPTZ
+- `atlas_activity_log` — id SERIAL PK, action_id FK, event, old_value, new_value, actor, created_at TIMESTAMPTZ
+- `atlas_saved_views` — id TEXT PK, name, filters JSONB, sort_by, sort_dir, created_at/updated_at TIMESTAMPTZ
 
--- Team members across all businesses
-CREATE TABLE IF NOT EXISTS members (
-    id TEXT PRIMARY KEY,           -- lowercase slug, e.g. "ransomed"
-    name TEXT NOT NULL,            -- display name
-    full_name TEXT,
-    email TEXT,
-    businesses TEXT NOT NULL,      -- JSON array: '["riddim_exchange","real_estate"]'
-    role TEXT,
-    aliases TEXT DEFAULT '[]',     -- JSON array for fuzzy transcript matching
-    is_active INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT (datetime('now'))
-);
+**Indexes:** status, business, priority, due_date on `atlas_actions`
 
--- Core action items
-CREATE TABLE IF NOT EXISTS actions (
-    id TEXT PRIMARY KEY,           -- UUID v4
-    title TEXT NOT NULL,           -- verb-first, e.g. "Complete PRO registration"
-    description TEXT,
-    status TEXT DEFAULT 'not_started'
-        CHECK (status IN ('not_started','in_progress','waiting','blocked','done')),
-    business TEXT NOT NULL,        -- must match config businesses
-    priority TEXT DEFAULT 'p2'
-        CHECK (priority IN ('p0','p1','p2','p3')),
-    due_date TEXT,                 -- ISO date YYYY-MM-DD or NULL
-    owners TEXT NOT NULL DEFAULT '[]',  -- JSON array of member IDs
-    source_transcript_id TEXT REFERENCES transcripts(id),
-    source_label TEXT,             -- "Edem Sync Call - Mar 13"
-    tags TEXT DEFAULT '[]',        -- JSON array
-    notes TEXT DEFAULT '',
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now')),
-    completed_at TEXT              -- set when status → done
-);
-CREATE INDEX IF NOT EXISTS idx_actions_status ON actions(status);
-CREATE INDEX IF NOT EXISTS idx_actions_business ON actions(business);
-CREATE INDEX IF NOT EXISTS idx_actions_priority ON actions(priority);
-CREATE INDEX IF NOT EXISTS idx_actions_due_date ON actions(due_date);
+**RPC Functions:**
+- `atlas_action_stats(business_filter)` — dashboard stats (counts by status, business, priority, overdue)
+- `atlas_member_stats()` — workload per member (action counts by status)
+- `atlas_member_detail_stats(member_id_param)` — single member action stats + overdue count
 
--- Parsed transcript log
-CREATE TABLE IF NOT EXISTS transcripts (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    date TEXT,                     -- ISO date of meeting
-    business TEXT,
-    participants TEXT DEFAULT '[]', -- JSON array of member IDs
-    raw_text TEXT,                 -- full transcript (removed after review to save space)
-    summary TEXT,
-    decisions TEXT DEFAULT '[]',   -- JSON array of decision strings
-    open_questions TEXT DEFAULT '[]',
-    action_count INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'pending'
-        CHECK (status IN ('pending','reviewed','archived')),
-    summary_file TEXT,             -- path to generated summary markdown
-    created_at TEXT DEFAULT (datetime('now'))
-);
+**Triggers:** Auto-sync `action_count` on `atlas_transcripts` when actions are inserted/updated/deleted
 
--- Activity log (audit trail)
-CREATE TABLE IF NOT EXISTS activity_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    action_id TEXT REFERENCES actions(id),
-    event TEXT NOT NULL,           -- created, updated, status_changed, completed, parsed_from_transcript
-    old_value TEXT,
-    new_value TEXT,
-    actor TEXT DEFAULT 'system',   -- member_id, "claude", or "system"
-    created_at TEXT DEFAULT (datetime('now'))
-);
-```
+Pre-seeded with 7 members and 7 businesses (Riddim Exchange, Real Estate, Investments, Personal, Fitness, Learning Platform, Improvisr).
 
-Pre-seeded with 17 members (full Riddim Exchange roster + Nicole + Edem with aliases) and 5 businesses (Riddim Exchange, Real Estate, Investments, Personal, Fitness).
+**JSONB pattern:** Fields like `owners`, `businesses`, `aliases`, `tags`, `decisions` are native JSONB arrays. Query with Supabase `.contains()` operator:
 
-**JSON-in-SQLite pattern:** Fields like `owners`, `businesses`, `aliases`, `tags`, `decisions` store JSON arrays in TEXT columns. Query with SQLite's built-in `json_each()`:
+```js
+// Find all actions owned by 'ransomed'
+supabase.from('atlas_actions').select('*').contains('owners', ['ransomed']);
 
-```sql
--- Find all actions owned by 'ransomed'
-SELECT * FROM actions WHERE EXISTS (
-    SELECT 1 FROM json_each(owners) WHERE value = 'ransomed'
-);
-
--- Count actions per owner
-SELECT j.value AS owner, COUNT(*) FROM actions, json_each(owners) j
-WHERE status != 'done' GROUP BY j.value;
+// Stats per member via RPC
+supabase.rpc('atlas_member_stats');
 ```
 
 ---
@@ -397,95 +271,81 @@ There is no separate AI service. Claude is the parser. The app is a UI + JSON da
 **Workflow A: In-Conversation Parsing (Primary — 90% of use)**
 ```
 1. User pastes transcript into Claude chat (or uploads a file)
-2. Claude runs: sqlite3 ~/action-tracker/tracker.db "SELECT id, name, aliases FROM members WHERE is_active=1"
+2. Claude calls: GET /api/members → gets team roster with aliases
 3. Claude extracts actions, presents structured table for review
 4. User reviews: "Looks good, drop #4, change #6 to P1"
-5. Claude runs: sqlite3 ~/action-tracker/tracker.db "BEGIN; INSERT INTO actions ...; COMMIT;"
-6. Menu bar widget's GRDB observation detects DB change → refreshes top 5
-7. Web app shows new actions on next load/focus.
+5. Claude calls: POST /api/actions/bulk with the confirmed actions
+6. Web app shows new actions on next load/focus.
 ```
 
 **Workflow B: App Upload → Claude Review (Secondary)**
 ```
 1. User uploads transcript in the web app UI
-2. Express INSERTs into transcripts table with status='pending' and raw_text
+2. Express inserts into atlas_transcripts via Supabase with status='pending'
 3. Next Claude conversation: "Parse my pending transcripts"
-4. Claude: sqlite3 tracker.db "SELECT id, title, raw_text FROM transcripts WHERE status='pending'"
+4. Claude calls: GET /api/transcripts?status=pending
 5. Claude parses, presents for review, user confirms
-6. Claude: sqlite3 tracker.db "BEGIN; INSERT INTO actions ...; UPDATE transcripts SET status='reviewed' ...; COMMIT;"
+6. Claude calls: POST /api/transcripts/:id/commit with actions array
 ```
 
 ### What Claude Does During Parsing
 
-1. **Read team roster** — `sqlite3 ~/action-tracker/tracker.db "SELECT id, name, aliases FROM members WHERE is_active=1"`
+1. **Read team roster** — `GET /api/members` → gets names, aliases, businesses
 2. **Identify participants** — Match transcript names against members (including aliases). Ask about unknowns.
 3. **Extract actions** — Find commitments, implied tasks, and decisions
 4. **Assign owners** — Map speakers to member IDs. Ask when ambiguous.
 5. **Infer priority** — Based on urgency language, dependencies, context
-6. **Detect business** — Tag each action with the right business entity from config table
+6. **Detect business** — Tag each action with the right business entity from config
 7. **Suggest due dates** — From explicit mentions or inference
 8. **Present for review** — Structured table in chat, all fields adjustable
-9. **Write to database** — SQL transaction: INSERT actions + UPDATE transcripts in one COMMIT
-10. **Log activity** — INSERT into activity_log with actor = "claude"
+9. **Write to database** — `POST /api/actions/bulk` or `POST /api/transcripts/:id/commit`
+10. **Log activity** — Automatic via Express API with actor = "claude" (via `x-atlas-actor` header)
 
-### Desktop Commander Commands Claude Uses
+### API Calls Claude Uses
 
 ```bash
 # Read team members for name matching
-sqlite3 ~/action-tracker/tracker.db "SELECT id, name, aliases FROM members WHERE is_active=1"
+curl -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  https://your-domain/api/members
 
 # Read business definitions
-sqlite3 ~/action-tracker/tracker.db "SELECT value FROM config WHERE key='businesses'"
+curl -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  https://your-domain/api/config/businesses
 
 # Check for pending transcripts
-sqlite3 ~/action-tracker/tracker.db \
-  "SELECT id, title, date FROM transcripts WHERE status='pending'"
+curl -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  "https://your-domain/api/transcripts?status=pending"
 
-# Read a pending transcript
-sqlite3 ~/action-tracker/tracker.db \
-  "SELECT raw_text FROM transcripts WHERE id='xxx'"
+# Create actions in bulk
+curl -X POST -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "x-atlas-actor: claude" \
+  -d '{"actions": [{"title": "Action title", "business": "riddim_exchange", "priority": "p1", "owners": ["ransomed","ola"]}]}' \
+  https://your-domain/api/actions/bulk
 
-# Write confirmed actions (transaction for atomicity)
-sqlite3 ~/action-tracker/tracker.db << 'SQL'
-BEGIN;
-INSERT INTO actions (id, title, description, status, business, priority, due_date,
-  owners, source_transcript_id, source_label, tags)
-VALUES ('uuid-here', 'Action title', 'Description', 'not_started', 'riddim_exchange',
-  'p1', '2026-03-27', '["ransomed","ola"]', 't-abc', 'Edem Call - Mar 13', '["sync"]');
--- repeat for each action
-UPDATE transcripts SET status='reviewed', action_count=8,
-  summary='Executive summary text' WHERE id='t-abc';
-COMMIT;
-SQL
+# Get dashboard stats
+curl -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  https://your-domain/api/actions/stats
 
-# Quick status check
-sqlite3 -column -header ~/action-tracker/tracker.db \
-  "SELECT business, status, COUNT(*) as count FROM actions GROUP BY business, status"
+# Get overdue actions
+curl -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  "https://your-domain/api/actions?status=not_started,in_progress,waiting&due_before=$(date +%Y-%m-%d)&sort_by=priority"
 
-# Overdue actions
-sqlite3 -column -header ~/action-tracker/tracker.db \
-  "SELECT title, priority, due_date, owners FROM actions
-   WHERE due_date < date('now') AND status NOT IN ('done','blocked')
-   ORDER BY priority, due_date"
-
-# Workload per owner
-sqlite3 -column -header ~/action-tracker/tracker.db \
-  "SELECT j.value as owner, COUNT(*) as active_actions
-   FROM actions, json_each(owners) j
-   WHERE status NOT IN ('done','blocked')
-   GROUP BY j.value ORDER BY active_actions DESC"
+# Get workload per member
+curl -H "Authorization: Bearer $ATLAS_API_TOKEN" \
+  https://your-domain/api/members/stats
 ```
 
 ### Beyond Transcripts — Claude as Ongoing Tracker Manager
 
-Since Claude has direct file access, it's not just a parser — it's the tracker's brain:
+Since Claude has API access from anywhere, it's not just a parser — it's the tracker's brain:
 
-- **"What's overdue?"** → `SELECT title, due_date, owners FROM actions WHERE due_date < date('now') AND status NOT IN ('done','blocked')`
-- **"Reassign Ola's P1s to Kolade"** → `UPDATE actions SET owners=... WHERE priority='p1' AND EXISTS(SELECT 1 FROM json_each(owners) WHERE value='ola')`
-- **"Add action: book studio, P1, assign Ola"** → `INSERT INTO actions (...) VALUES (...)`
-- **"Mark everything from the Edem call as done"** → `UPDATE actions SET status='done', completed_at=datetime('now') WHERE source_transcript_id='t-abc'`
-- **"Weekly digest"** → Query completed/overdue/upcoming/blocked counts from actions table
-- **"Who's overloaded?"** → `SELECT j.value, COUNT(*) FROM actions, json_each(owners) j WHERE status NOT IN ('done','blocked') GROUP BY j.value`
+- **"What's overdue?"** → `GET /api/actions?status=not_started,in_progress,waiting&due_before=2026-03-30`
+- **"Reassign Ola's P1s to Kolade"** → `GET /api/actions/by-owner/ola` then `PUT /api/actions/bulk` with updated owners
+- **"Add action: book studio, P1, assign Ola"** → `POST /api/actions` with JSON body
+- **"Mark everything from the Edem call as done"** → `PUT /api/actions/bulk` with status: "done"
+- **"Weekly digest"** → `GET /api/actions/stats` → present summary
+- **"Who's overloaded?"** → `GET /api/members/stats` → present workload table
 
 ---
 
@@ -587,7 +447,7 @@ Since Claude has direct file access, it's not just a parser — it's the tracker
 ├── postcss.config.js
 ├── server/
 │   ├── index.js                  Express server entry
-│   ├── db.js                     SQLite connection (better-sqlite3, WAL mode) + migrations
+│   ├── db.js                     Supabase client (@supabase/supabase-js)
 │   ├── routes/
 │   │   ├── actions.js            CRUD routes
 │   │   ├── transcripts.js        Store/retrieve transcripts (Claude writes actions directly)
@@ -632,9 +492,7 @@ Since Claude has direct file access, it's not just a parser — it's the tracker
 │       ├── colors.js             Color mappings (business, priority, member)
 │       ├── dateUtils.js          Date formatting helpers
 │       └── memberUtils.js        Avatar generation, name formatting
-├── data/
-│   └── tracker.db                SQLite database (auto-created, WAL mode)
-├── summaries/                    Generated meeting summary markdown files
+├── .env.example                  Required environment variables
 └── README.md
 ```
 
@@ -644,16 +502,16 @@ Since Claude has direct file access, it's not just a parser — it's the tracker
 
 This is the key differentiator. The app is designed so I can modify it in future conversations:
 
-### What Claude can do via Desktop Commander:
-1. **Parse transcripts** — Read transcripts, extract actions, write results to JSON files
-2. **Add/update/complete actions** — Full CRUD on the actions table via SQL
+### What Claude can do via the Express API (from anywhere):
+1. **Parse transcripts** — Read transcripts, extract actions, commit via API
+2. **Add/update/complete actions** — Full CRUD via REST API
 3. **Manage team members** — Add new people, update roles, reassign actions
-4. **Run queries** — Overdue report, workload analysis, weekly digest, custom queries
-5. **Add features** — Read existing code, create new components, wire them in
-6. **Fix bugs** — Read error context, edit source files directly
-7. **Change UI** — Edit React components, Tailwind classes, layout
-8. **Modify schema** — Add columns, create migration scripts
-9. **Add views** — Create new saved view configurations
+4. **Run queries** — Overdue report, workload analysis, weekly digest via API endpoints
+5. **Add features** — Read existing code, create new components, wire them in (via Claude Code)
+6. **Fix bugs** — Read error context, edit source files directly (via Claude Code)
+7. **Change UI** — Edit React components, Tailwind classes, layout (via Claude Code)
+8. **Modify schema** — Add columns via Supabase migrations
+9. **Add views** — Create new saved view configurations via API
 
 ### Design rules for editability:
 - Every component in its own file (no mega-files)
@@ -677,26 +535,26 @@ Claude:   1. DC:read_file → constants.js (see current statuses)
 ### Transcript parsing from a Claude conversation:
 ```
 Ransomed: [pastes meeting transcript] "Parse this into actions"
-Claude:   1. DC:start_process → sqlite3 tracker.db "SELECT id, name, aliases FROM members"
+Claude:   1. GET /api/members → read team roster
           2. Claude reads transcript, extracts actions, presents table in chat
           3. Ransomed reviews: "Drop #4, change #6 to P1, commit the rest"
-          4. DC:start_process → sqlite3 tracker.db "BEGIN; INSERT INTO actions ...; COMMIT;"
+          4. POST /api/actions/bulk → commit confirmed actions
           Done. Actions live in tracker. $0 extra cost.
 ```
 
 ### Daily tracker management from conversation:
 ```
 Ransomed: "What's overdue this week?"
-Claude:   1. DC:start_process → sqlite3 tracker.db "SELECT title, due_date FROM actions WHERE due_date < date('now') AND status NOT IN ('done','blocked')"
+Claude:   1. GET /api/actions/stats → get overdue count and details
           2. Present summary: "3 overdue — PRO registration (5 days), catalog send (3 days)..."
           3. Ransomed: "Mark PRO registration as done, push catalog to Friday"
-          4. DC:start_process → sqlite3 tracker.db "UPDATE actions SET status='done' WHERE ...; UPDATE actions SET due_date='2026-03-21' WHERE ..."
+          4. PUT /api/actions/bulk → update statuses and due dates
           Done.
 ```
 
 ---
 
-## macOS Menu Bar Widget
+## macOS Menu Bar Widget (Optional)
 
 A persistent menu bar icon that shows your next 5 actions at a glance — no need to open the browser.
 
@@ -704,11 +562,9 @@ A persistent menu bar icon that shows your next 5 actions at a glance — no nee
 
 | Component | Technology | Why |
 |-----------|-----------|-----|
-| Menu bar app | SwiftUI + GRDB.swift (recommended) or Electron | Native macOS, ~5MB, reads same SQLite file |
-| Data source | Reads directly from `~/action-tracker/tracker.db` | Same database the app and Claude write to — single source of truth |
-| Change detection | GRDB DatabaseRegionObservation + DispatchSource fallback | Auto-refreshes when any consumer writes to tracker.db |
-
-Alternatively, for a lighter footprint: a **SwiftUI menu bar app** (~50 lines of Swift) that reads the JSON file. No Electron overhead. Claude Code can build either.
+| Menu bar app | SwiftUI or Electron | Native macOS, lightweight |
+| Data source | Reads from Express API | Same API the web app and Claude use — single source of truth |
+| Refresh | Polls API on interval + on-focus | Auto-refreshes periodically |
 
 ### Behavior
 
@@ -741,7 +597,7 @@ Alternatively, for a lighter footprint: a **SwiftUI menu bar app** (~50 lines of
 
 ### Selection Logic — "Next 5"
 
-The widget queries `tracker.db` and displays the top 5 items sorted by this priority:
+The widget queries the API and displays the top 5 items sorted by this priority:
 
 1. **Overdue P0** (past due_date, highest priority first)
 2. **Overdue P1-P3** (past due_date, then by priority)
@@ -769,54 +625,28 @@ Owner filter (optional setting): can be set to show only actions where the curre
 | Click a row | Opens the action detail in the browser app (`localhost:5173/action/:id`) |
 | Right-click a row | Context menu: Mark Done, Change Priority, Snooze 1 Day |
 | "Open Tracker" button | Opens `http://localhost:5173` in default browser |
-| "Quick Add" button | Opens a minimal input field in the popup to create a new action (title + business + priority, writes to tracker.db) |
+| "Quick Add" button | Opens a minimal input field in the popup to create a new action (title + business + priority, writes via API) |
 | Hover on overdue badge | Tooltip showing count: "3 actions overdue" |
 
 ### Auto-Refresh
 
-The widget watches `~/action-tracker/tracker.db` using GRDB's `DatabaseRegionObservation` (detects writes from any consumer) with `DispatchSource.makeFileSystemObjectSource` as fallback. When any consumer writes to the database, the widget re-queries and updates the display automatically.
+The widget polls the Express API periodically (e.g., every 60 seconds) and on app-focus to pick up changes made by Claude or the web app.
 
 ### Launch at Login
 
 The menu bar app registers as a macOS login item so it starts automatically. Configurable in the app's preferences.
 
-### File Structure Addition
+### Implementation Note
 
-```
-~/action-tracker/
-├── menubar/                      Menu bar widget (separate from web app)
-│   ├── package.json              Electron deps (or Package.swift for native)
-│   ├── main.js                   Tray icon + window setup
-│   ├── renderer/
-│   │   ├── index.html            Popup UI
-│   │   ├── styles.css            Dark theme matching the web app
-│   │   └── app.js                Query tracker.db, sort, render top 5
-│   └── assets/
-│       ├── icon.png              Menu bar icon (16x16, 32x32 @2x)
-│       └── icon-alert.png        Icon with overdue indicator
-```
-
-### Native Swift Alternative (Lighter)
-
-If Electron feels too heavy for a menu bar widget, a native SwiftUI version is ~100 lines:
-
-```swift
-// Reads ~/action-tracker/tracker.db via GRDB.swift
-// Uses MenuBarExtra for the menu bar icon
-// GRDB DatabaseRegionObservation watches for changes
-// SwiftUI popover for the dropdown
-// ~5MB vs ~150MB for Electron
-```
-
-Claude Code can build either version. The Swift version is recommended for battery life and memory, but the Electron version is faster to prototype and matches the web app's tech stack.
+The menu bar widget can be built as a lightweight SwiftUI or Electron app that polls the Express API. Since the data is now cloud-hosted, the widget doesn't need to be on the same machine as the server — it just needs the API URL and auth token.
 
 ---
 
 ## Build Phases
 
-### Phase 1 — Foundation + Team Members
-- Express server with better-sqlite3 connecting to ~/action-tracker/tracker.db (WAL mode)
-- Full CRUD API for actions and team members using parameterized SQL
+### Phase 1 — Foundation + Team Members (DONE)
+- Express server with @supabase/supabase-js connecting to Supabase PostgreSQL
+- Full CRUD API for actions and team members
 - Multi-owner support (owners array in each action object)
 - React app shell with table view
 - Quick-add modal with @mention team member selector
@@ -837,7 +667,7 @@ Claude Code can build either version. The Swift version is recommended for batte
 - Keyboard shortcuts (Cmd+K, Cmd+T for transcript)
 - Stats dashboard with workload per member
 - Member detail pages
-- **macOS menu bar widget** — SwiftUI + GRDB.swift reading tracker.db, shows next 5 items, overdue badge, quick actions
+- **macOS menu bar widget** (optional) — polls Express API, shows next 5 items, overdue badge
 
 ### Phase 4 — Power Features
 - Natural language quick capture parsing
@@ -880,7 +710,7 @@ Pre-populate with current action items from the Edem sync call and other active 
 ```
 Ransomed: [pastes the 33-min Edem sync licensing transcript] "Parse this"
 
-Claude: [DC: sqlite3 ~/action-tracker/tracker.db "SELECT id, name, aliases FROM members WHERE is_active=1"]
+Claude: [GET /api/members → reads team roster with aliases]
 
         Participants matched: Ransomed ✓, Ola ✓
         Note: "Adam" appears in transcript — this is Edem (typo), correct?
@@ -905,23 +735,24 @@ Claude: [DC: sqlite3 ~/action-tracker/tracker.db "SELECT id, name, aliases FROM 
 
 Ransomed: Yes Adam = Edem. Drop 8, change 3 to P0, commit rest.
 
-Claude: [DC: sqlite3 tracker.db "BEGIN; INSERT INTO actions ... (x8); INSERT INTO transcripts ...; COMMIT;"]
+Claude: [POST /api/actions/bulk → commits 8 actions to Supabase]
 
         Done — 8 actions committed to Action Tracker.
         #3 set to P0. #8 skipped (noted for later).
-        Menu bar widget updated. Open tracker: http://localhost:5173
+        Web app updated. Open tracker to see all actions.
 ```
 
 ---
 
-## Launch Command
+## Environment Variables
+
+Required for deployment (see `app/.env.example`):
 
 ```bash
-cd ~/action-tracker
-npm install
-npm run dev
-# → Frontend: http://localhost:5173
-# → API: http://localhost:3001
+SUPABASE_URL=https://mnfovwxgmhacfljcpkio.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<from Supabase Dashboard → Settings → API>
+ATLAS_API_TOKEN=<your bearer token for API auth>
+NODE_ENV=production
 ```
 
-**No API keys needed.** Claude handles all transcript parsing directly via Desktop Commander in conversation. The app is just UI + data — all intelligence lives in your Claude conversations.
+**No AI API keys needed.** Claude handles all transcript parsing via conversation. The app is UI + data — all intelligence lives in your Claude conversations. Claude accesses the tracker via the Express API from anywhere.
