@@ -1,0 +1,15 @@
+name = "atlas-action-tracker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "../app/dist"
+
+[vars]
+NODE_ENV = "production"
+
+# Secrets set via: wrangler secret put <NAME>
+# SUPABASE_URL
+# SUPABASE_SERVICE_ROLE_KEY
+# ATLAS_API_TOKEN
