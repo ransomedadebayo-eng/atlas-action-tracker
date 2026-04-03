@@ -1,26 +1,33 @@
-import db from '../db.js';
+import supabase from '../db.js';
 
-function loadConfiguredBusinesses() {
-  const row = db.prepare("SELECT value FROM config WHERE key = 'businesses'").get();
-  if (!row?.value) return [];
+async function loadConfiguredBusinesses() {
+  const { data, error } = await supabase
+    .from('atlas_config')
+    .select('value')
+    .eq('key', 'businesses')
+    .single();
 
-  try {
-    const parsed = JSON.parse(row.value);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(item => item && typeof item.id === 'string' && item.id.trim());
-  } catch {
-    return [];
-  }
+  if (error || !data?.value) return [];
+
+  const parsed = data.value;
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(item => item && typeof item.id === 'string' && item.id.trim());
 }
 
-function loadMemberIds() {
-  return db.prepare('SELECT id FROM members WHERE is_active = 1').all().map(row => row.id);
+async function loadMemberIds() {
+  const { data, error } = await supabase
+    .from('atlas_members')
+    .select('id')
+    .eq('is_active', true);
+
+  if (error || !data) return [];
+  return data.map(row => row.id);
 }
 
-export function validateKnownBusinessId(business, label = 'business') {
+export async function validateKnownBusinessId(business, label = 'business') {
   if (business === undefined || business === null || business === '') return null;
 
-  const configured = loadConfiguredBusinesses();
+  const configured = await loadConfiguredBusinesses();
   if (configured.length === 0) return null;
 
   if (!configured.some(item => item.id === business)) {
@@ -30,11 +37,11 @@ export function validateKnownBusinessId(business, label = 'business') {
   return null;
 }
 
-export function validateKnownMemberIds(ids, label = 'owners') {
+export async function validateKnownMemberIds(ids, label = 'owners') {
   if (ids === undefined) return [];
   if (!Array.isArray(ids) || ids.length === 0) return [];
 
-  const memberIds = new Set(loadMemberIds());
+  const memberIds = new Set(await loadMemberIds());
   if (memberIds.size === 0) return [];
 
   const invalid = ids.filter(id => !memberIds.has(id));

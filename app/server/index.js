@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import logger from './middleware/logger.js';
 import authMiddleware from './middleware/auth.js';
-import db from './db.js';
+import supabase from './db.js';
 import actionsRouter from './routes/actions.js';
 import transcriptsRouter from './routes/transcripts.js';
 import membersRouter from './routes/members.js';
@@ -77,14 +77,6 @@ app.use(cors({
   credentials: true,
 }));
 
-// --- Block .db file requests ---
-app.use((req, res, next) => {
-  if (req.path.match(/\.db($|\?)/i)) {
-    return res.status(404).json({ error: 'Not found' });
-  }
-  next();
-});
-
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
@@ -149,28 +141,34 @@ app.use('/api/views', viewsRouter);
 app.use('/api/activity', activityRouter);
 
 // Config — dynamic businesses list from DB
-app.get('/api/config/businesses', (req, res) => {
+app.get('/api/config/businesses', async (req, res) => {
   try {
-    const row = db.prepare("SELECT value FROM config WHERE key = 'businesses'").get();
-    if (!row) return res.json([]);
+    const { data, error } = await supabase
+      .from('atlas_config')
+      .select('value')
+      .eq('key', 'businesses')
+      .single();
 
-    try {
-      const parsed = JSON.parse(row.value);
-      return res.json(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      return res.json([]);
-    }
+    if (error || !data) return res.json([]);
+
+    const parsed = data.value;
+    return res.json(Array.isArray(parsed) ? parsed : []);
   } catch (err) {
     console.error(`[config] GET businesses error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.put('/api/config/businesses', (req, res) => {
+app.put('/api/config/businesses', async (req, res) => {
   try {
     const businesses = req.body;
     if (!Array.isArray(businesses)) return res.status(400).json({ error: 'Expected array' });
-    db.prepare("INSERT OR REPLACE INTO config (key, value) VALUES ('businesses', ?)").run(JSON.stringify(businesses));
+
+    const { error } = await supabase
+      .from('atlas_config')
+      .upsert({ key: 'businesses', value: businesses });
+    if (error) throw error;
+
     res.json(businesses);
   } catch (err) {
     console.error(`[config] PUT businesses error: ${err.message}`);

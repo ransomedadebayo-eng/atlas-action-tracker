@@ -1,0 +1,20 @@
+{
+  "name": "atlas-action-tracker-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "cd ../app && npm run build && cd ../worker && wrangler deploy",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "hono": "^4.7.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250409.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.0.0"
+  }
+}

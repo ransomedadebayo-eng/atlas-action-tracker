@@ -1,22 +1,29 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import db from '../db.js';
+import supabase from '../db.js';
 import { validateStringLengths, sanitizeBody, parsePagination } from '../middleware/validate.js';
 import { getActor } from '../utils/actors.js';
 import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS } from '../utils/actionUtils.js';
-import { coerceJsonArray, serializeJsonArray, sqlJsonArray } from '../utils/json.js';
+import { coerceJsonArray, serializeJsonArray } from '../utils/json.js';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData.js';
 
 const router = Router();
 const BULK_MAX = 50;
-const OWNERS_JSON_SQL = sqlJsonArray('owners');
 
-function toActionResponse(action) {
-  return {
-    ...action,
-    owners: coerceJsonArray(action.owners),
-    tags: coerceJsonArray(action.tags),
-  };
+const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 };
+
+function sortByPriority(actions, direction = 'ASC') {
+  return actions.sort((a, b) => {
+    const pa = PRIORITY_ORDER[a.priority] ?? 3;
+    const pb = PRIORITY_ORDER[b.priority] ?? 3;
+    const cmp = pa - pb;
+    if (cmp !== 0) return direction === 'DESC' ? -cmp : cmp;
+    // secondary sort by due_date ASC, nulls last
+    if (a.due_date === b.due_date) return 0;
+    if (a.due_date === null) return 1;
+    if (b.due_date === null) return -1;
+    return a.due_date < b.due_date ? -1 : 1;
+  });
 }
 
 function parseBulkPayload(body, key) {
@@ -24,11 +31,11 @@ function parseBulkPayload(body, key) {
   return body?.[key];
 }
 
-function validateActionReferences(action) {
+async function validateActionReferences(action) {
   const errors = [];
-  const businessError = validateKnownBusinessId(action.business);
+  const businessError = await validateKnownBusinessId(action.business);
   if (businessError) errors.push(businessError);
-  errors.push(...validateKnownMemberIds(action.owners));
+  errors.push(...(await validateKnownMemberIds(action.owners)));
   return errors;
 }
 
@@ -49,177 +56,136 @@ function buildNextRecurringAction(existing, incoming, now) {
     business: incoming.business !== undefined ? incoming.business : existing.business,
     priority: incoming.priority !== undefined ? incoming.priority : existing.priority,
     due_date: nextDueDate,
-    owners: incoming.owners !== undefined ? incoming.owners : coerceJsonArray(existing.owners),
+    owners: incoming.owners !== undefined ? serializeJsonArray(incoming.owners) : coerceJsonArray(existing.owners),
     source_transcript_id: incoming.source_transcript_id !== undefined ? incoming.source_transcript_id : existing.source_transcript_id,
     source_label: incoming.source_label !== undefined ? incoming.source_label : existing.source_label,
-    tags: incoming.tags !== undefined ? incoming.tags : coerceJsonArray(existing.tags),
+    tags: incoming.tags !== undefined ? serializeJsonArray(incoming.tags) : coerceJsonArray(existing.tags),
     notes: '',
     recurrence,
+    status: 'not_started',
     created_at: now,
     updated_at: now,
   };
 }
 
-function insertRecurringAction(action) {
-  db.prepare(`
-    INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
-    VALUES (?, ?, ?, 'not_started', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    action.id,
-    action.title,
-    action.description,
-    action.business,
-    action.priority,
-    action.due_date,
-    serializeJsonArray(action.owners),
-    action.source_transcript_id,
-    action.source_label,
-    serializeJsonArray(action.tags),
-    action.notes,
-    action.recurrence,
-    action.created_at,
-    action.updated_at,
-  );
-
-  db.prepare(`
-    INSERT INTO activity_log (action_id, event, new_value, actor)
-    VALUES (?, 'created', ?, 'system')
-  `).run(action.id, action.title);
+async function insertRecurringAction(action) {
+  await supabase.from('atlas_actions').insert(action);
+  await supabase.from('atlas_activity_log').insert({
+    action_id: action.id,
+    event: 'created',
+    new_value: action.title,
+    actor: 'system',
+  });
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const {
       status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir,
     } = req.query;
 
-    let sql = 'SELECT * FROM actions WHERE 1=1';
-    const params = [];
+    let query = supabase.from('atlas_actions').select('*');
 
     if (status) {
       const statuses = status.split(',');
-      sql += ` AND status IN (${statuses.map(() => '?').join(',')})`;
-      params.push(...statuses);
+      query = query.in('status', statuses);
     }
     if (business) {
-      sql += ' AND business = ?';
-      params.push(business);
+      query = query.eq('business', business);
     }
     if (priority) {
       const priorities = priority.split(',');
-      sql += ` AND priority IN (${priorities.map(() => '?').join(',')})`;
-      params.push(...priorities);
+      query = query.in('priority', priorities);
     }
     if (owner_id) {
-      sql += ` AND EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)`;
-      params.push(owner_id);
+      query = query.contains('owners', [owner_id]);
     }
     if (due_before) {
-      sql += ' AND due_date <= ?';
-      params.push(due_before);
+      query = query.lte('due_date', due_before);
     }
     if (due_after) {
-      sql += ' AND due_date >= ?';
-      params.push(due_after);
+      query = query.gte('due_date', due_after);
     }
     if (search) {
-      sql += ' AND (title LIKE ? OR description LIKE ? OR notes LIKE ?)';
       const term = `%${search}%`;
-      params.push(term, term, term);
+      query = query.or(`title.ilike.${term},description.ilike.${term},notes.ilike.${term}`);
     }
     if (source_id) {
-      sql += ' AND source_transcript_id = ?';
-      params.push(source_id);
+      query = query.eq('source_transcript_id', source_id);
     }
 
     const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'created_at', 'updated_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
 
-    if (sortField === 'priority') {
-      sql += ` ORDER BY CASE priority WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 ELSE 3 END ${direction}, due_date ASC NULLS LAST`;
-    } else {
-      sql += ` ORDER BY ${sortField} ${direction} NULLS LAST`;
-    }
-
     const { limit, offset } = parsePagination(req.query);
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(limit, offset);
 
-    const actions = db.prepare(sql).all(...params);
-    res.json(actions.map(toActionResponse));
+    if (sortField === 'priority') {
+      // Fetch all matching, sort in app, then paginate
+      const { data, error } = await query;
+      if (error) throw error;
+      const sorted = sortByPriority(data || [], direction);
+      res.json(sorted.slice(offset, offset + limit));
+    } else {
+      query = query.order(sortField, { ascending: direction === 'ASC', nullsFirst: false });
+      query = query.range(offset, offset + limit - 1);
+      const { data, error } = await query;
+      if (error) throw error;
+      res.json(data || []);
+    }
   } catch (err) {
     console.error(`[actions] GET error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const { business } = req.query;
-    let whereClause = '';
-    const params = [];
-    if (business) {
-      whereClause = ' WHERE business = ?';
-      params.push(business);
-    }
-
-    const byStatus = db.prepare(`SELECT status, COUNT(*) AS count FROM actions${whereClause} GROUP BY status`).all(...params);
-
-    const filteredParams = business ? [business] : [];
-    const filteredWhere = business ? ' AND business = ?' : '';
-    const overdue = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE due_date < date('now') AND status NOT IN ('done','blocked')${filteredWhere}`).get(...filteredParams);
-    const completedThisWeek = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE status = 'done' AND completed_at >= date('now', '-7 days')${filteredWhere}`).get(...filteredParams);
-    const pendingTranscripts = db.prepare(`SELECT COUNT(*) AS count FROM transcripts WHERE status = 'pending'`).get();
-    const byBusiness = db.prepare(`SELECT business, COUNT(*) AS count FROM actions WHERE status != 'done' GROUP BY business`).all();
-    const byPriority = db.prepare(`SELECT priority, COUNT(*) AS count FROM actions WHERE status != 'done'${filteredWhere} GROUP BY priority`).all(...filteredParams);
-    const totalActive = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE status NOT IN ('done')${filteredWhere}`).get(...filteredParams);
-    const blocked = db.prepare(`SELECT COUNT(*) AS count FROM actions WHERE status = 'blocked'${filteredWhere}`).get(...filteredParams);
-
-    res.json({
-      totalActive: totalActive.count,
-      overdue: overdue.count,
-      completedThisWeek: completedThisWeek.count,
-      blocked: blocked.count,
-      pendingReview: pendingTranscripts.count,
-      byStatus,
-      byBusiness,
-      byPriority,
+    const { data, error } = await supabase.rpc('atlas_action_stats', {
+      business_filter: business || null,
     });
+    if (error) throw error;
+    res.json(data);
   } catch (err) {
     console.error(`[actions] stats error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/by-owner/:id', (req, res) => {
+router.get('/by-owner/:id', async (req, res) => {
   try {
-    const actions = db.prepare(`
-      SELECT * FROM actions
-      WHERE EXISTS (SELECT 1 FROM json_each(${OWNERS_JSON_SQL}) WHERE value = ?)
-      ORDER BY CASE priority WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 ELSE 3 END, due_date ASC
-    `).all(req.params.id);
+    const { data, error } = await supabase
+      .from('atlas_actions')
+      .select('*')
+      .contains('owners', [req.params.id]);
+    if (error) throw error;
 
-    res.json(actions.map(toActionResponse));
+    const sorted = sortByPriority(data || []);
+    res.json(sorted);
   } catch (err) {
     console.error(`[actions] by-owner error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
-    if (!action) return res.status(404).json({ error: 'Action not found' });
+    const { data, error } = await supabase
+      .from('atlas_actions')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (error || !data) return res.status(404).json({ error: 'Action not found' });
 
-    res.json(toActionResponse(action));
+    res.json(data);
   } catch (err) {
     console.error(`[actions] GET/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const body = sanitizeBody(req.body, ACTION_TEXT_FIELDS);
     const actor = getActor(req);
@@ -244,7 +210,7 @@ router.post('/', (req, res) => {
 
     const validationErrors = [
       ...validateActionFields(body),
-      ...validateActionReferences(body),
+      ...(await validateActionReferences(body)),
       ...validateStringLengths(body),
     ];
     if (validationErrors.length > 0) {
@@ -252,43 +218,47 @@ router.post('/', (req, res) => {
     }
 
     const id = uuidv4();
-    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+    const now = new Date().toISOString();
 
-    db.prepare(`
-      INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id,
-      title,
-      description,
-      status,
-      business,
-      priority,
-      due_date,
-      serializeJsonArray(owners),
-      source_transcript_id,
-      source_label,
-      serializeJsonArray(tags),
-      notes,
-      recurrence,
-      now,
-      now,
-    );
+    const { data: action, error } = await supabase
+      .from('atlas_actions')
+      .insert({
+        id,
+        title,
+        description,
+        status,
+        business,
+        priority,
+        due_date,
+        owners: serializeJsonArray(owners),
+        source_transcript_id,
+        source_label,
+        tags: serializeJsonArray(tags),
+        notes,
+        recurrence,
+        created_at: now,
+        updated_at: now,
+      })
+      .select()
+      .single();
 
-    db.prepare(`
-      INSERT INTO activity_log (action_id, event, new_value, actor)
-      VALUES (?, 'created', ?, ?)
-    `).run(id, title, actor);
+    if (error) throw error;
 
-    const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(id);
-    res.status(201).json(toActionResponse(action));
+    await supabase.from('atlas_activity_log').insert({
+      action_id: id,
+      event: 'created',
+      new_value: title,
+      actor,
+    });
+
+    res.status(201).json(action);
   } catch (err) {
     console.error(`[actions] POST error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/bulk', (req, res) => {
+router.post('/bulk', async (req, res) => {
   try {
     const rawActions = parseBulkPayload(req.body, 'actions');
     if (!Array.isArray(rawActions)) {
@@ -307,7 +277,7 @@ router.post('/bulk', (req, res) => {
 
       const fieldErrors = [
         ...validateActionFields(action),
-        ...validateActionReferences(action),
+        ...(await validateActionReferences(action)),
         ...validateStringLengths(action),
       ];
       if (fieldErrors.length > 0) {
@@ -316,48 +286,44 @@ router.post('/bulk', (req, res) => {
     }
 
     const actor = getActor(req);
-    const insertStmt = db.prepare(`
-      INSERT INTO actions (id, title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, recurrence)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const logStmt = db.prepare(`
-      INSERT INTO activity_log (action_id, event, new_value, actor)
-      VALUES (?, 'created', ?, ?)
-    `);
-
-    const created = [];
-    const bulkInsert = db.transaction(() => {
-      for (const action of actionsList) {
-        const id = uuidv4();
-        insertStmt.run(
-          id,
-          action.title,
-          action.description || '',
-          action.status || 'not_started',
-          action.business,
-          action.priority || 'p2',
-          action.due_date || null,
-          serializeJsonArray(action.owners),
-          action.source_transcript_id || null,
-          action.source_label || null,
-          serializeJsonArray(action.tags),
-          action.notes || '',
-          action.recurrence || 'none',
-        );
-        logStmt.run(id, action.title, actor);
-        created.push(id);
-      }
+    const rows = actionsList.map(action => {
+      const id = uuidv4();
+      return {
+        id,
+        title: action.title,
+        description: action.description || '',
+        status: action.status || 'not_started',
+        business: action.business,
+        priority: action.priority || 'p2',
+        due_date: action.due_date || null,
+        owners: serializeJsonArray(action.owners),
+        source_transcript_id: action.source_transcript_id || null,
+        source_label: action.source_label || null,
+        tags: serializeJsonArray(action.tags),
+        notes: action.notes || '',
+        recurrence: action.recurrence || 'none',
+      };
     });
-    bulkInsert();
 
-    res.status(201).json({ created: created.length, ids: created });
+    const { error } = await supabase.from('atlas_actions').insert(rows);
+    if (error) throw error;
+
+    const logRows = rows.map(row => ({
+      action_id: row.id,
+      event: 'created',
+      new_value: row.title,
+      actor,
+    }));
+    await supabase.from('atlas_activity_log').insert(logRows);
+
+    res.status(201).json({ created: rows.length, ids: rows.map(r => r.id) });
   } catch (err) {
     console.error(`[actions] POST/bulk error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.put('/bulk', (req, res) => {
+router.put('/bulk', async (req, res) => {
   try {
     const rawUpdates = parseBulkPayload(req.body, 'updates');
     if (!Array.isArray(rawUpdates)) {
@@ -371,7 +337,7 @@ router.put('/bulk', (req, res) => {
     for (let i = 0; i < updates.length; i += 1) {
       const fieldErrors = [
         ...validateActionFields(updates[i]),
-        ...validateActionReferences(updates[i]),
+        ...(await validateActionReferences(updates[i])),
         ...validateStringLengths(updates[i]),
       ];
       if (fieldErrors.length > 0) {
@@ -383,82 +349,92 @@ router.put('/bulk', (req, res) => {
     }
 
     const actor = getActor(req);
-    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+    const now = new Date().toISOString();
     let updatedCount = 0;
 
-    const bulkUpdate = db.transaction(() => {
-      for (const update of updates) {
-        const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(update.id);
-        if (!existing) continue;
+    for (const update of updates) {
+      const { data: existing, error: fetchErr } = await supabase
+        .from('atlas_actions')
+        .select('*')
+        .eq('id', update.id)
+        .single();
+      if (fetchErr || !existing) continue;
 
-        const fields = [];
-        const values = [];
-        const appendNote = update.append_note;
+      const fields = {};
+      const appendNote = update.append_note;
 
-        if (update.status !== undefined) { fields.push('status = ?'); values.push(update.status); }
-        if (update.priority !== undefined) { fields.push('priority = ?'); values.push(update.priority); }
-        if (update.title !== undefined) { fields.push('title = ?'); values.push(update.title); }
-        if (update.description !== undefined) { fields.push('description = ?'); values.push(update.description); }
-        if (update.due_date !== undefined) { fields.push('due_date = ?'); values.push(update.due_date); }
-        if (update.owners !== undefined) { fields.push('owners = ?'); values.push(serializeJsonArray(update.owners)); }
-        if (update.business !== undefined) { fields.push('business = ?'); values.push(update.business); }
-        if (update.source_transcript_id !== undefined) { fields.push('source_transcript_id = ?'); values.push(update.source_transcript_id); }
-        if (update.source_label !== undefined) { fields.push('source_label = ?'); values.push(update.source_label); }
-        if (update.tags !== undefined) { fields.push('tags = ?'); values.push(serializeJsonArray(update.tags)); }
-        if (update.notes !== undefined) { fields.push('notes = ?'); values.push(update.notes); }
-        if (appendNote !== undefined) {
-          fields.push('notes = ?');
-          values.push(existing.notes ? `${existing.notes}\n\n${appendNote}` : appendNote);
-        }
-        if (update.recurrence !== undefined) { fields.push('recurrence = ?'); values.push(update.recurrence); }
-
-        if (fields.length === 0) continue;
-
-        if (update.status === 'done' && existing.status !== 'done') {
-          fields.push('completed_at = ?');
-          values.push(now);
-        } else if (update.status !== undefined && update.status !== 'done' && existing.status === 'done') {
-          fields.push('completed_at = ?');
-          values.push(null);
-        }
-
-        fields.push('updated_at = ?');
-        values.push(now, update.id);
-
-        db.prepare(`UPDATE actions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-
-        if (update.status !== undefined && update.status !== existing.status) {
-          db.prepare(`
-            INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
-            VALUES (?, 'status_changed', ?, ?, ?)
-          `).run(update.id, existing.status, update.status, actor);
-        }
-        if (update.priority !== undefined && update.priority !== existing.priority) {
-          db.prepare(`
-            INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
-            VALUES (?, 'priority_changed', ?, ?, ?)
-          `).run(update.id, existing.priority, update.priority, actor);
-        }
-        if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined) {
-          db.prepare(`
-            INSERT INTO activity_log (action_id, event, new_value, actor)
-            VALUES (?, 'updated', ?, ?)
-          `).run(update.id, JSON.stringify(Object.keys(update).filter(key => key !== 'id')), actor);
-        }
-
-        const recurringAction = buildNextRecurringAction(existing, update, now);
-        if (recurringAction) {
-          insertRecurringAction(recurringAction);
-          db.prepare(`
-            INSERT INTO activity_log (action_id, event, new_value, actor)
-            VALUES (?, 'recurrence_spawned', ?, 'system')
-          `).run(update.id, recurringAction.id);
-        }
-
-        updatedCount += 1;
+      if (update.status !== undefined) fields.status = update.status;
+      if (update.priority !== undefined) fields.priority = update.priority;
+      if (update.title !== undefined) fields.title = update.title;
+      if (update.description !== undefined) fields.description = update.description;
+      if (update.due_date !== undefined) fields.due_date = update.due_date;
+      if (update.owners !== undefined) fields.owners = serializeJsonArray(update.owners);
+      if (update.business !== undefined) fields.business = update.business;
+      if (update.source_transcript_id !== undefined) fields.source_transcript_id = update.source_transcript_id;
+      if (update.source_label !== undefined) fields.source_label = update.source_label;
+      if (update.tags !== undefined) fields.tags = serializeJsonArray(update.tags);
+      if (update.notes !== undefined) fields.notes = update.notes;
+      if (appendNote !== undefined) {
+        fields.notes = existing.notes ? `${existing.notes}\n\n${appendNote}` : appendNote;
       }
-    });
-    bulkUpdate();
+      if (update.recurrence !== undefined) fields.recurrence = update.recurrence;
+
+      if (Object.keys(fields).length === 0) continue;
+
+      if (update.status === 'done' && existing.status !== 'done') {
+        fields.completed_at = now;
+      } else if (update.status !== undefined && update.status !== 'done' && existing.status === 'done') {
+        fields.completed_at = null;
+      }
+
+      fields.updated_at = now;
+
+      const { error: updateErr } = await supabase
+        .from('atlas_actions')
+        .update(fields)
+        .eq('id', update.id);
+      if (updateErr) throw updateErr;
+
+      if (update.status !== undefined && update.status !== existing.status) {
+        await supabase.from('atlas_activity_log').insert({
+          action_id: update.id,
+          event: 'status_changed',
+          old_value: existing.status,
+          new_value: update.status,
+          actor,
+        });
+      }
+      if (update.priority !== undefined && update.priority !== existing.priority) {
+        await supabase.from('atlas_activity_log').insert({
+          action_id: update.id,
+          event: 'priority_changed',
+          old_value: existing.priority,
+          new_value: update.priority,
+          actor,
+        });
+      }
+      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined) {
+        await supabase.from('atlas_activity_log').insert({
+          action_id: update.id,
+          event: 'updated',
+          new_value: JSON.stringify(Object.keys(update).filter(key => key !== 'id')),
+          actor,
+        });
+      }
+
+      const recurringAction = buildNextRecurringAction(existing, update, now);
+      if (recurringAction) {
+        await insertRecurringAction(recurringAction);
+        await supabase.from('atlas_activity_log').insert({
+          action_id: update.id,
+          event: 'recurrence_spawned',
+          new_value: recurringAction.id,
+          actor: 'system',
+        });
+      }
+
+      updatedCount += 1;
+    }
 
     res.json({ updated: updatedCount });
   } catch (err) {
@@ -467,22 +443,26 @@ router.put('/bulk', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Action not found' });
+    const { data: existing, error: fetchErr } = await supabase
+      .from('atlas_actions')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr || !existing) return res.status(404).json({ error: 'Action not found' });
 
     const body = sanitizeBody(req.body, ACTION_TEXT_FIELDS);
     const validationErrors = [
       ...validateActionFields(body),
-      ...validateActionReferences(body),
+      ...(await validateActionReferences(body)),
       ...validateStringLengths(body),
     ];
     if (validationErrors.length > 0) {
       return res.status(400).json({ error: validationErrors.join('; ') });
     }
 
-    const now = new Date().toISOString().replace('T', ' ').split('.')[0];
+    const now = new Date().toISOString();
     const actor = getActor(req);
     const {
       title, description, status, business, priority,
@@ -523,59 +503,72 @@ router.put('/:id', (req, res) => {
 
     updates.updated_at = now;
 
-    const fields = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    const values = [...Object.values(updates), req.params.id];
+    const { data: action, error: updateErr } = await supabase
+      .from('atlas_actions')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
 
-    const updateTx = db.transaction(() => {
-      db.prepare(`UPDATE actions SET ${fields} WHERE id = ?`).run(...values);
+    if (status !== undefined && status !== existing.status) {
+      await supabase.from('atlas_activity_log').insert({
+        action_id: req.params.id,
+        event: 'status_changed',
+        old_value: existing.status,
+        new_value: status,
+        actor,
+      });
+    }
 
-      if (status !== undefined && status !== existing.status) {
-        db.prepare(`
-          INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
-          VALUES (?, 'status_changed', ?, ?, ?)
-        `).run(req.params.id, existing.status, status, actor);
-      }
+    if (priority !== undefined && priority !== existing.priority) {
+      await supabase.from('atlas_activity_log').insert({
+        action_id: req.params.id,
+        event: 'priority_changed',
+        old_value: existing.priority,
+        new_value: priority,
+        actor,
+      });
+    }
 
-      if (priority !== undefined && priority !== existing.priority) {
-        db.prepare(`
-          INSERT INTO activity_log (action_id, event, old_value, new_value, actor)
-          VALUES (?, 'priority_changed', ?, ?, ?)
-        `).run(req.params.id, existing.priority, priority, actor);
-      }
+    if ((status === undefined || status === existing.status) && (priority === undefined || priority === existing.priority)) {
+      await supabase.from('atlas_activity_log').insert({
+        action_id: req.params.id,
+        event: 'updated',
+        new_value: JSON.stringify(mutableKeys),
+        actor,
+      });
+    }
 
-      if ((status === undefined || status === existing.status) && (priority === undefined || priority === existing.priority)) {
-        db.prepare(`
-          INSERT INTO activity_log (action_id, event, new_value, actor)
-          VALUES (?, 'updated', ?, ?)
-        `).run(req.params.id, JSON.stringify(mutableKeys), actor);
-      }
+    const recurringAction = buildNextRecurringAction(existing, body, now);
+    if (recurringAction) {
+      await insertRecurringAction(recurringAction);
+      await supabase.from('atlas_activity_log').insert({
+        action_id: req.params.id,
+        event: 'recurrence_spawned',
+        new_value: recurringAction.id,
+        actor: 'system',
+      });
+    }
 
-      const recurringAction = buildNextRecurringAction(existing, body, now);
-      if (recurringAction) {
-        insertRecurringAction(recurringAction);
-        db.prepare(`
-          INSERT INTO activity_log (action_id, event, new_value, actor)
-          VALUES (?, 'recurrence_spawned', ?, 'system')
-        `).run(req.params.id, recurringAction.id);
-      }
-    });
-    updateTx();
-
-    const action = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
-    res.json(toActionResponse(action));
+    res.json(action);
   } catch (err) {
     console.error(`[actions] PUT/:id error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const existing = db.prepare('SELECT * FROM actions WHERE id = ?').get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Action not found' });
+    const { data: existing, error: fetchErr } = await supabase
+      .from('atlas_actions')
+      .select('id')
+      .eq('id', req.params.id)
+      .single();
+    if (fetchErr || !existing) return res.status(404).json({ error: 'Action not found' });
 
-    db.prepare('DELETE FROM activity_log WHERE action_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM actions WHERE id = ?').run(req.params.id);
+    await supabase.from('atlas_activity_log').delete().eq('action_id', req.params.id);
+    await supabase.from('atlas_actions').delete().eq('id', req.params.id);
 
     res.json({ deleted: true });
   } catch (err) {
