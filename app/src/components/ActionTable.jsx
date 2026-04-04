@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react'
 import { useActions, useUpdateAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
@@ -14,11 +14,16 @@ const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
 const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked'
 
-export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone }) {
+export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone, frozenBusinesses = new Set(), showFrozen = false }) {
   const { BUSINESS_LIST } = useBusinessContext()
   const [filters, setFilters] = useState({})
   const [sort, setSort] = useState({ by: 'priority', dir: 'asc' })
   const [businessTab, setBusinessTab] = useState(selectedBusiness || 'all')
+
+  // Keep tab in sync when sidebar selection changes
+  useEffect(() => {
+    setBusinessTab(selectedBusiness || 'all')
+  }, [selectedBusiness])
 
   const effectiveBusiness = selectedBusiness || (businessTab !== 'all' ? businessTab : undefined)
 
@@ -71,6 +76,12 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     return arr
   }, [actions, sort])
 
+  // Filter out frozen businesses from default view (unless explicitly selected or showFrozen is on)
+  const visibleActions = useMemo(() => {
+    if (showFrozen || effectiveBusiness) return sorted
+    return sorted.filter(a => !frozenBusinesses.has(a.business))
+  }, [sorted, frozenBusinesses, showFrozen, effectiveBusiness])
+
   function handleSort(col) {
     setSort(prev =>
       prev.by === col
@@ -119,7 +130,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           >
             All
           </button>
-          {BUSINESS_LIST.map(b => (
+          {BUSINESS_LIST.filter(b => showFrozen || !frozenBusinesses.has(b.id)).map(b => (
             <button
               key={b.id}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
@@ -177,7 +188,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               </div>
             ))}
           </div>
-        ) : sorted.length === 0 ? (
+        ) : visibleActions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="text-4xl mb-3">&#10003;</div>
             <p className="text-text-primary font-medium">No actions found</p>
@@ -187,7 +198,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {sorted.map(action => {
+            {visibleActions.map(action => {
               const done = action.status === 'done'
               const overdue = isOverdue(action.due_date) && !done
               const owners = parseJsonArray(action.owners)
@@ -258,7 +269,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               <div className="h-3 bg-bg-elevated rounded w-1/2" />
             </div>
           ))
-        ) : sorted.length === 0 ? (
+        ) : visibleActions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="text-3xl mb-2">&#10003;</div>
             <p className="text-text-primary font-medium text-sm">No actions found</p>
@@ -267,7 +278,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
             </p>
           </div>
         ) : (
-          sorted.map(action => {
+          visibleActions.map(action => {
             const done = action.status === 'done'
             const overdue = isOverdue(action.due_date) && !done
             const owners = parseJsonArray(action.owners)
@@ -318,7 +329,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       </div>
 
       <p className="text-text-muted text-xs">
-        {sorted.length} action{sorted.length !== 1 ? 's' : ''}
+        {visibleActions.length} action{visibleActions.length !== 1 ? 's' : ''}
         {searchQuery && searchQuery.length >= 2 ? ` matching "${searchQuery}"` : ''}
       </p>
     </div>

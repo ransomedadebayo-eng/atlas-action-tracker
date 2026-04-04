@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { actionsApi } from '../api/client.js';
 
 export function useActions(filters = {}) {
@@ -6,6 +6,7 @@ export function useActions(filters = {}) {
     queryKey: ['actions', filters],
     queryFn: () => actionsApi.list(filters),
     staleTime: 30000,
+    placeholderData: keepPreviousData,
   });
 }
 
