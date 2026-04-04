@@ -25,10 +25,7 @@ export default function TopBar({
   const businessColor = selectedBusiness ? BUSINESS_COLORS[selectedBusiness] : null
 
   function handleSearchChange(e) {
-    const val = e.target.value
-    if (val.length >= 2 || val.length === 0) {
-      setSearchQuery(val)
-    }
+    setSearchQuery(e.target.value)
   }
 
   return (
