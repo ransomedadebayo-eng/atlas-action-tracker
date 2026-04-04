@@ -8,6 +8,8 @@ import {
   Command,
   Zap,
   X,
+  EyeOff,
+  Eye,
 } from 'lucide-react'
 import TopBar from './TopBar.jsx'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
@@ -30,6 +32,10 @@ export default function Layout({
   setSearchQuery,
   sidebarOpen,
   setSidebarOpen,
+  frozenBusinesses = new Set(),
+  toggleFreezeBusiness,
+  showFrozen,
+  setShowFrozen,
   children,
 }) {
   const { BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
@@ -115,19 +121,39 @@ export default function Layout({
                 <span className="w-2 h-2 rounded-full bg-text-muted flex-shrink-0" />
                 All
               </button>
-              {BUSINESS_LIST.map(({ id, label }) => (
+              {BUSINESS_LIST.filter(({ id }) => showFrozen || !frozenBusinesses.has(id)).map(({ id, label }) => {
+                const frozen = frozenBusinesses.has(id)
+                return (
+                  <div key={id} className="flex items-center group/biz">
+                    <button
+                      className={`sidebar-link flex-1 min-w-0${selectedBusiness === id ? ' active' : ''}${frozen ? ' opacity-40' : ''}`}
+                      onClick={() => { setSelectedBusiness(id === selectedBusiness ? null : id); setSidebarOpen(false) }}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: BUSINESS_COLORS[id] }}
+                      />
+                      <span className="truncate">{label}</span>
+                    </button>
+                    <button
+                      className="opacity-0 group-hover/biz:opacity-100 flex-shrink-0 p-1.5 mr-1 text-text-muted hover:text-text-secondary transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); toggleFreezeBusiness(id) }}
+                      title={frozen ? 'Unfreeze business' : 'Freeze business (hide from default view)'}
+                    >
+                      {frozen ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                    </button>
+                  </div>
+                )
+              })}
+              {frozenBusinesses.size > 0 && (
                 <button
-                  key={id}
-                  className={`sidebar-link w-full${selectedBusiness === id ? ' active' : ''}`}
-                  onClick={() => { setSelectedBusiness(id === selectedBusiness ? null : id); setSidebarOpen(false) }}
+                  className="sidebar-link w-full text-text-muted text-xs"
+                  onClick={() => setShowFrozen(v => !v)}
                 >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: BUSINESS_COLORS[id] }}
-                  />
-                  <span className="truncate">{label}</span>
+                  <span className="w-2 h-2 flex-shrink-0" />
+                  {showFrozen ? 'Hide frozen' : `Show frozen (${frozenBusinesses.size})`}
                 </button>
-              ))}
+              )}
             </div>
           </div>
         </nav>
