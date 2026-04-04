@@ -152,11 +152,6 @@ export default function ActionDetail({ actionId, onClose }) {
     }
   }, [])
 
-  // Close on backdrop click
-  function handleBackdropClick(e) {
-    if (e.target === e.currentTarget) onClose()
-  }
-
   if (isLoading || !form) {
     return (
       <div className="fixed inset-0 z-40 flex items-stretch pointer-events-none">
@@ -180,13 +175,12 @@ export default function ActionDetail({ actionId, onClose }) {
   return (
     <div
       className="fixed inset-0 z-40 flex items-stretch"
-      onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-label="Action details"
     >
-      {/* Dim overlay */}
-      <div className="flex-1 bg-black/50" />
+      {/* Dim overlay — clicking it closes the panel */}
+      <div className="flex-1 bg-black/50" onClick={onClose} />
 
       {/* Panel */}
       <div
