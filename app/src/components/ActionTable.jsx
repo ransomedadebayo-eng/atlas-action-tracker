@@ -38,7 +38,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     ...(statusFilter ? { status: statusFilter } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
-    ...(searchQuery && searchQuery.length >= 2 ? { search: searchQuery } : {}),
+    ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
   }
 
   const { data: actions = [], isLoading } = useActions(queryFilters)
@@ -330,7 +330,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
       <p className="text-text-muted text-xs">
         {visibleActions.length} action{visibleActions.length !== 1 ? 's' : ''}
-        {searchQuery && searchQuery.length >= 2 ? ` matching "${searchQuery}"` : ''}
+        {searchQuery && searchQuery.length >= 1 ? ` matching "${searchQuery}"` : ''}
       </p>
     </div>
   )
