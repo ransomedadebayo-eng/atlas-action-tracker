@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useBusinessContext } from './hooks/useBusinesses.js'
 import Layout from './components/Layout.jsx'
 import ActionTable from './components/ActionTable.jsx'
 import KanbanBoard from './components/KanbanBoard.jsx'
@@ -29,25 +30,8 @@ export default function App() {
     localStorage.setItem('atlas_hideDone', String(value))
   }, [])
 
-  const [frozenBusinesses, setFrozenBusinesses] = useState(() => {
-    try {
-      const stored = localStorage.getItem('atlas_frozenBusinesses')
-      return stored ? new Set(JSON.parse(stored)) : new Set()
-    } catch {
-      return new Set()
-    }
-  })
+  const { frozenSet: frozenBusinesses, toggleFreezeInDB: toggleFreezeBusiness } = useBusinessContext()
   const [showFrozen, setShowFrozen] = useState(false)
-
-  const toggleFreezeBusiness = useCallback((id) => {
-    setFrozenBusinesses(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      localStorage.setItem('atlas_frozenBusinesses', JSON.stringify([...next]))
-      return next
-    })
-  }, [])
 
   const queryClient = useQueryClient()
 

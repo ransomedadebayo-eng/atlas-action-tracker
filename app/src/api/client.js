@@ -107,4 +107,5 @@ export const activityApi = {
 // Config
 export const configApi = {
   businesses: () => request('/config/businesses'),
+  updateBusinesses: (businesses) => request('/config/businesses', { method: 'PUT', body: businesses }),
 };
