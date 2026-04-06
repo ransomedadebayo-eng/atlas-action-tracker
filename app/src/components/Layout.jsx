@@ -136,9 +136,9 @@ export default function Layout({
                       <span className="truncate">{label}</span>
                     </button>
                     <button
-                      className="opacity-0 group-hover/biz:opacity-100 flex-shrink-0 p-1.5 mr-1 text-text-muted hover:text-text-secondary transition-opacity"
+                      className={`flex-shrink-0 p-1.5 mr-1 transition-colors ${frozen ? 'text-text-secondary hover:text-text-primary' : 'text-text-muted opacity-30 hover:opacity-100'}`}
                       onClick={(e) => { e.stopPropagation(); toggleFreezeBusiness(id) }}
-                      title={frozen ? 'Unfreeze business' : 'Freeze business (hide from default view)'}
+                      title={frozen ? 'Unfreeze' : 'Freeze (hide from default view)'}
                     >
                       {frozen ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                     </button>
@@ -147,7 +147,7 @@ export default function Layout({
               })}
               {frozenBusinesses.size > 0 && (
                 <button
-                  className="sidebar-link w-full text-text-muted text-xs"
+                  className="sidebar-link w-full text-text-muted text-xs mt-1"
                   onClick={() => setShowFrozen(v => !v)}
                 >
                   <span className="w-2 h-2 flex-shrink-0" />
