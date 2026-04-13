@@ -75,11 +75,21 @@ async function insertRecurringAction(supabase: ReturnType<typeof getDb>, action:
   });
 }
 
+function isBlocked(action: Record<string, unknown>): boolean {
+  const deps = action.blocked_by;
+  if (!deps || !Array.isArray(deps)) return false;
+  return deps.length > 0;
+}
+
+function annotateBlocked(actions: Record<string, unknown>[]): Record<string, unknown>[] {
+  return actions.map(a => ({ ...a, is_blocked: isBlocked(a) }));
+}
+
 // GET /
 router.get('/', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir } = c.req.query() as Record<string, string>;
+    const { status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir, show_blocked } = c.req.query() as Record<string, string>;
 
     let query = supabase.from('atlas_actions').select('*');
 
@@ -99,18 +109,22 @@ router.get('/', async (c) => {
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
+    const hideBlocked = show_blocked !== 'true';
 
     if (sortField === 'priority') {
       const { data, error } = await query;
       if (error) throw error;
-      const sorted = sortByPriority((data || []) as Record<string, unknown>[], direction);
+      let results = annotateBlocked((data || []) as Record<string, unknown>[]);
+      if (hideBlocked) results = results.filter(a => !a.is_blocked);
+      const sorted = sortByPriority(results, direction);
       return c.json(sorted.slice(offset, offset + limit));
     } else {
       query = query.order(sortField, { ascending: direction === 'ASC', nullsFirst: false });
-      query = query.range(offset, offset + limit - 1);
       const { data, error } = await query;
       if (error) throw error;
-      return c.json(data || []);
+      let results = annotateBlocked((data || []) as Record<string, unknown>[]);
+      if (hideBlocked) results = results.filter(a => !a.is_blocked);
+      return c.json(results.slice(offset, offset + limit));
     }
   } catch (err) {
     console.error(`[actions] GET error: ${(err as Error).message}`);

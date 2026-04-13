@@ -296,6 +296,23 @@ export default function ActionDetail({ actionId, onClose }) {
             />
           </div>
 
+          {/* Dependencies */}
+          {action?.blocked_by && action.blocked_by.length > 0 && (
+            <div>
+              <label className="label block mb-1.5">
+                Blocked By
+              </label>
+              <div className="space-y-1.5">
+                {action.blocked_by.map(depId => (
+                  <div key={depId} className="glass-card rounded-xl px-3 py-2 text-sm flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                    <span className="text-text-secondary font-mono text-xs truncate">{depId}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Owners */}
           <div>
             <label className="label block mb-1.5">
