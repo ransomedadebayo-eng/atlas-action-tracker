@@ -17,7 +17,7 @@ import { parseJsonArray } from '../utils/parseUtils.js'
 function Select({ label, value, onChange, options }) {
   return (
     <div>
-      <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1.5">
+      <label className="label block mb-1.5">
         {label}
       </label>
       <div className="relative">
@@ -26,7 +26,7 @@ function Select({ label, value, onChange, options }) {
           value={value || ''}
           onChange={e => onChange(e.target.value)}
         >
-          <option value="">— None —</option>
+          <option value="">-- None --</option>
           {options.map(o => (
             <option key={o.id} value={o.id}>{o.label}</option>
           ))}
@@ -86,7 +86,6 @@ export default function ActionDetail({ actionId, onClose }) {
     setSaving(true)
     try {
       const payload = { ...form }
-      // Convert empty strings to null for optional fields the server validates strictly
       if (payload.due_date === '') payload.due_date = null
       if (payload.source_label === '') payload.source_label = null
       if (payload.business === '') payload.business = null
@@ -157,7 +156,8 @@ export default function ActionDetail({ actionId, onClose }) {
       <div className="fixed inset-0 z-40 flex items-stretch pointer-events-none">
         <div className="flex-1 hidden md:block" />
         <div
-          className="w-full md:w-[520px] h-full border-l border-border flex flex-col pointer-events-auto bg-bg-surface"
+          className="w-full md:w-[520px] h-full border-l border-white/10 flex flex-col pointer-events-auto glass-panel"
+          style={{ background: '#131313' }}
         >
           <div className="p-6 animate-pulse space-y-4">
             <div className="h-6 bg-bg-elevated rounded w-3/4" />
@@ -179,30 +179,31 @@ export default function ActionDetail({ actionId, onClose }) {
       aria-modal="true"
       aria-label="Action details"
     >
-      {/* Dim overlay — clicking it closes the panel */}
-      <div className="flex-1 bg-black/50" onClick={onClose} />
+      {/* Dim overlay */}
+      <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="w-full md:w-[520px] h-full border-l border-border flex flex-col overflow-hidden bg-bg-surface"
+        className="w-full md:w-[520px] h-full border-l border-white/10 flex flex-col overflow-hidden"
+        style={{ background: '#131313' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-2">
             {form.priority && (
               <span
-                className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
-                style={{ backgroundColor: `${priorityColor}20`, color: priorityColor }}
+                className="badge"
+                style={{ backgroundColor: `${priorityColor}15`, color: priorityColor, borderColor: `${priorityColor}30` }}
               >
                 {PRIORITIES[form.priority]?.shortLabel}
               </span>
             )}
             {form.business && businessColor && (
               <span
-                className="text-[10px] px-1.5 py-0.5 rounded"
-                style={{ backgroundColor: `${businessColor}15`, color: businessColor }}
+                className="badge"
+                style={{ backgroundColor: `${businessColor}12`, color: businessColor, borderColor: `${businessColor}25` }}
               >
                 {BUSINESSES[form.business]?.shortLabel}
               </span>
@@ -216,7 +217,7 @@ export default function ActionDetail({ actionId, onClose }) {
                 disabled={saving}
               >
                 <Save className="w-3.5 h-3.5" />
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? 'Saving...' : 'Save'}
               </button>
             )}
             <button
@@ -236,15 +237,15 @@ export default function ActionDetail({ actionId, onClose }) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
           {/* Title */}
           <div>
             <textarea
-              className="input-field w-full text-base font-semibold text-text-primary resize-none"
+              className="input-field w-full text-base font-headline font-semibold text-text-primary resize-none"
               rows={2}
               value={form.title}
               onChange={e => patch('title', e.target.value)}
-              placeholder="Action title…"
+              placeholder="Action title..."
             />
           </div>
 
@@ -273,7 +274,7 @@ export default function ActionDetail({ actionId, onClose }) {
               options={BUSINESS_LIST.map(b => ({ id: b.id, label: b.label }))}
             />
             <div>
-              <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1.5">
+              <label className="label block mb-1.5">
                 Due Date
               </label>
               <input
@@ -297,7 +298,7 @@ export default function ActionDetail({ actionId, onClose }) {
 
           {/* Owners */}
           <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1.5">
+            <label className="label block mb-1.5">
               Owners
             </label>
             <MemberSelector
@@ -309,7 +310,7 @@ export default function ActionDetail({ actionId, onClose }) {
 
           {/* Description */}
           <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1.5">
+            <label className="label block mb-1.5">
               Description
             </label>
             <textarea
@@ -317,13 +318,13 @@ export default function ActionDetail({ actionId, onClose }) {
               rows={3}
               value={form.description}
               onChange={e => patch('description', e.target.value)}
-              placeholder="What needs to happen and why…"
+              placeholder="What needs to happen and why..."
             />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1.5">
+            <label className="label block mb-1.5">
               Notes
             </label>
             <textarea
@@ -331,21 +332,29 @@ export default function ActionDetail({ actionId, onClose }) {
               rows={3}
               value={form.notes}
               onChange={e => patch('notes', e.target.value)}
-              placeholder="Additional context, blockers, links…"
+              placeholder="Additional context, blockers, links..."
             />
           </div>
 
           {/* Tags */}
           <div>
-            <label className="block text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1.5">
+            <label className="label block mb-1.5">
               Tags
             </label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {form.tags.map(tag => (
                 <span
                   key={tag}
-                  className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}
+                  className="flex items-center gap-1 rounded-full border px-3 py-1"
+                  style={{
+                    fontSize: '10px',
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase',
+                    fontWeight: 700,
+                    backgroundColor: 'rgba(75,226,119,0.1)',
+                    color: '#4be277',
+                    borderColor: 'rgba(75,226,119,0.2)',
+                  }}
                 >
                   #{tag}
                   <button
@@ -360,7 +369,7 @@ export default function ActionDetail({ actionId, onClose }) {
             <input
               type="text"
               className="input-field w-full text-sm"
-              placeholder="Add tag — press Enter or comma"
+              placeholder="Add tag -- press Enter or comma"
               value={tagInput}
               onChange={e => setTagInput(e.target.value)}
               onKeyDown={handleTagAdd}
@@ -378,7 +387,7 @@ export default function ActionDetail({ actionId, onClose }) {
           )}
 
           {/* Metadata */}
-          <div className="pt-2 border-t border-border space-y-1">
+          <div className="pt-2 border-t border-white/10 space-y-1">
             {action?.created_at && (
               <p className="text-xs text-text-muted font-mono">
                 Created {formatTimestamp(action.created_at)}
@@ -399,7 +408,7 @@ export default function ActionDetail({ actionId, onClose }) {
           {/* Activity Log */}
           {activityLog.length > 0 && (
             <div>
-              <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-2 flex items-center gap-1.5">
+              <p className="label mb-2 flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5" />
                 Activity
               </p>
@@ -419,11 +428,11 @@ export default function ActionDetail({ actionId, onClose }) {
 
         {/* Delete confirm */}
         {showDeleteConfirm && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-            <div className="card p-5 w-72 space-y-4">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+            <div className="glass-card p-6 w-72 space-y-4">
               <div className="flex items-center gap-2 text-red-400">
                 <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="font-semibold text-sm">Delete this action?</p>
+                <p className="font-headline font-semibold text-sm">Delete this action?</p>
               </div>
               <p className="text-text-muted text-xs">This cannot be undone.</p>
               {deleteError && (
@@ -437,7 +446,7 @@ export default function ActionDetail({ actionId, onClose }) {
                   Cancel
                 </button>
                 <button
-                  className="flex-1 text-sm py-2 px-3 rounded-md font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                  className="flex-1 text-sm py-2 px-3 rounded-xl font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors border border-red-500/20"
                   onClick={handleDelete}
                 >
                   Delete

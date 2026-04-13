@@ -8,12 +8,13 @@ import CalendarView from './components/CalendarView.jsx'
 import MemberList from './components/MemberList.jsx'
 import TranscriptUpload from './components/TranscriptUpload.jsx'
 import TranscriptHistory from './components/TranscriptHistory.jsx'
+import TodayDashboard from './components/TodayDashboard.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
 import { useKeyboard, useVisibilityRefresh } from './hooks/useKeyboard.js'
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('dashboard')
+  const [currentView, setCurrentView] = useState('today')
   const [selectedBusiness, setSelectedBusiness] = useState(null)
   const [selectedActionId, setSelectedActionId] = useState(null)
   const [showQuickCapture, setShowQuickCapture] = useState(false)
@@ -78,6 +79,14 @@ export default function App() {
 
   function renderView() {
     switch (currentView) {
+      case 'today':
+        return (
+          <TodayDashboard
+            selectedBusiness={selectedBusiness}
+            onSelectAction={setSelectedActionId}
+            frozenBusinesses={frozenBusinesses}
+          />
+        )
       case 'dashboard':
         return (
           <ActionTable

@@ -4,9 +4,9 @@
 
 @layer base {
   :root {
-    --scrollbar-thumb: #2a2d3a;
-    --scrollbar-track: #0f1117;
-    --scrollbar-thumb-hover: #3a3d4a;
+    --scrollbar-thumb: #2a2a2a;
+    --scrollbar-track: #131313;
+    --scrollbar-thumb-hover: #3a3a3a;
   }
 
   * {
@@ -33,38 +33,68 @@
   }
 
   ::selection {
-    background: rgba(245, 158, 11, 0.3);
-    color: #e4e4e7;
+    background: rgba(75, 226, 119, 0.3);
+    color: #e5e2e1;
   }
 }
 
 @layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1.5rem;
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
   .btn-primary {
-    @apply bg-accent hover:bg-accent-hover text-bg-primary font-semibold px-4 py-2 rounded-lg transition-colors duration-150;
+    @apply bg-accent hover:bg-accent-hover text-bg-primary font-semibold px-4 py-2 rounded-xl transition-colors duration-150;
   }
 
   .btn-secondary {
-    @apply bg-bg-elevated hover:bg-border text-text-primary px-4 py-2 rounded-lg border border-border transition-colors duration-150;
+    @apply bg-bg-elevated hover:bg-border text-text-primary px-4 py-2 rounded-xl border border-border transition-colors duration-150;
   }
 
   .btn-ghost {
-    @apply text-text-secondary hover:text-text-primary hover:bg-bg-elevated px-3 py-1.5 rounded-md transition-colors duration-150;
+    @apply text-text-secondary hover:text-text-primary hover:bg-bg-elevated px-3 py-1.5 rounded-xl transition-colors duration-150;
   }
 
   .input-field {
-    @apply bg-bg-primary border border-border rounded-lg px-3 py-2 text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors duration-150;
+    @apply bg-bg-primary border border-border rounded-xl px-3 py-2 text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors duration-150;
   }
 
   .card {
-    @apply bg-bg-surface border border-border rounded-xl;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    @apply rounded-2xl;
   }
 
   .badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium font-mono;
+    @apply inline-flex items-center rounded-full border px-3 py-1 font-bold;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors duration-150 cursor-pointer;
+    @apply flex items-center gap-3 px-3 py-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors duration-150 cursor-pointer;
   }
 
   .sidebar-link.active {

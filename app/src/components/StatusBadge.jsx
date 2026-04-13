@@ -11,7 +11,7 @@ export function StatusBadge({ status }) {
   return (
     <span
       className="badge"
-      style={{ backgroundColor: `${color}20`, color }}
+      style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
     >
       <span
         className="w-1.5 h-1.5 rounded-full mr-1.5"
@@ -30,7 +30,7 @@ export function PriorityBadge({ priority }) {
   return (
     <span
       className={`badge ${priority === 'p0' ? 'animate-pulse-p0' : ''}`}
-      style={{ backgroundColor: `${color}20`, color }}
+      style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
     >
       <span
         className="w-1.5 h-1.5 rounded-full mr-1.5"
@@ -50,7 +50,7 @@ export function BusinessBadge({ business }) {
   return (
     <span
       className="badge"
-      style={{ backgroundColor: `${color}15`, color }}
+      style={{ backgroundColor: `${color}12`, color, borderColor: `${color}25` }}
     >
       {info.label}
     </span>
@@ -59,8 +59,8 @@ export function BusinessBadge({ business }) {
 
 export function TranscriptStatusBadge({ status }) {
   const config = {
-    pending: { label: 'Pending', color: '#f59e0b' },
-    reviewed: { label: 'Reviewed', color: '#22c55e' },
+    pending: { label: 'Pending', color: '#ffb95f' },
+    reviewed: { label: 'Reviewed', color: '#4be277' },
     archived: { label: 'Archived', color: '#71717a' },
   };
   const c = config[status] || config.pending;
@@ -68,7 +68,7 @@ export function TranscriptStatusBadge({ status }) {
   return (
     <span
       className="badge"
-      style={{ backgroundColor: `${c.color}20`, color: c.color }}
+      style={{ backgroundColor: `${c.color}15`, color: c.color, borderColor: `${c.color}30` }}
     >
       <span
         className="w-1.5 h-1.5 rounded-full mr-1.5"

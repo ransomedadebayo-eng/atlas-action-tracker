@@ -30,9 +30,9 @@ export default function TopBar({
 
   return (
     <header
-      className="flex items-center gap-2 md:gap-4 px-3 md:px-6 border-b border-border flex-shrink-0 bg-bg-surface h-14"
+      className="flex items-center gap-2 md:gap-4 px-3 md:px-6 border-b border-white/10 flex-shrink-0 bg-bg-primary h-14"
     >
-      {/* Hamburger — mobile only */}
+      {/* Hamburger */}
       <button
         className="md:hidden p-1.5 -ml-1 text-text-muted hover:text-text-primary"
         onClick={onToggleSidebar}
@@ -43,12 +43,12 @@ export default function TopBar({
 
       {/* Left: title + business pill */}
       <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-shrink-0">
-        <h1 className="text-text-primary font-semibold text-sm md:text-base whitespace-nowrap">
+        <h1 className="text-text-primary font-headline font-semibold text-sm md:text-base whitespace-nowrap">
           {VIEW_TITLES[currentView] || 'ATLAS'}
         </h1>
         {businessInfo && (
           <span
-            className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap hidden sm:inline-flex"
+            className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full whitespace-nowrap hidden sm:inline-flex"
             style={{
               backgroundColor: `${businessColor}18`,
               color: businessColor,
@@ -83,7 +83,6 @@ export default function TopBar({
 
       {/* Right: action buttons */}
       <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
-        {/* Mobile search toggle could go here in future */}
         <button
           className="btn-secondary flex items-center gap-1.5 text-sm py-1.5 hidden md:flex"
           onClick={onViewTranscripts}

@@ -20,7 +20,7 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
     <div className="flex items-center gap-1.5 md:gap-2 flex-wrap overflow-x-auto">
       <div className="flex items-center gap-1 mr-1 md:mr-2 flex-shrink-0">
         <SlidersHorizontal className="w-4 h-4 text-text-muted" />
-        <span className="text-text-muted text-[10px] md:text-xs uppercase tracking-wider font-medium hidden sm:inline">Filters</span>
+        <span className="label hidden sm:inline">Filters</span>
       </div>
 
       {/* Status Filter */}
@@ -66,10 +66,10 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
       {onToggleHideDone && (
         <button
           type="button"
-          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] md:text-xs font-medium transition-colors flex-shrink-0 ${
+          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold transition-colors flex-shrink-0 border ${
             hideDone
-              ? 'bg-bg-elevated text-text-primary'
-              : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated'
+              ? 'bg-accent-muted text-accent border-accent/20'
+              : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated border-white/10'
           }`}
           onClick={() => onToggleHideDone(!hideDone)}
           aria-label={hideDone ? 'Show completed tasks' : 'Hide completed tasks'}
@@ -87,7 +87,7 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
       {/* Active Filter Chips */}
       {hasFilters && (
         <>
-          <div className="h-4 w-px bg-border mx-1" />
+          <div className="h-4 w-px bg-white/10 mx-1" />
           {filters.status && (
             <FilterChip
               label={STATUSES[filters.status]?.label}
@@ -112,7 +112,7 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
           {filters.search && (
             <FilterChip
               label={`"${filters.search}"`}
-              color="#f59e0b"
+              color="#ffb95f"
               onRemove={() => removeFilter('search')}
             />
           )}
@@ -131,8 +131,15 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
 function FilterChip({ label, color, onRemove }) {
   return (
     <span
-      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-      style={{ backgroundColor: `${color}15`, color }}
+      className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-bold"
+      style={{
+        fontSize: '10px',
+        letterSpacing: '0.15em',
+        textTransform: 'uppercase',
+        backgroundColor: `${color}12`,
+        color,
+        borderColor: `${color}25`,
+      }}
     >
       {label}
       <X

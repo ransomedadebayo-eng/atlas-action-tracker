@@ -128,9 +128,9 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="flex-1 card p-4 animate-pulse">
+            <div key={i} className="flex-1 glass-card p-5 animate-pulse">
               <div className="h-5 bg-bg-elevated rounded w-24 mb-4" />
               <div className="space-y-3">
                 <div className="h-24 bg-bg-elevated rounded" />
@@ -147,16 +147,16 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
     <div className="space-y-4 h-full flex flex-col">
       {/* Grouping toggles */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-text-muted text-xs uppercase tracking-wider font-medium mr-2">
+        <span className="label mr-2">
           Group by
         </span>
         {GROUP_MODES.map(mode => (
           <button
             key={mode.id}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] uppercase tracking-widest font-bold transition-colors border ${
               groupBy === mode.id
-                ? 'bg-bg-elevated text-text-primary'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+                ? 'bg-accent-muted text-accent border-accent/20'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated border-white/10'
             }`}
             onClick={() => setGroupBy(mode.id)}
           >
@@ -168,10 +168,10 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
           {onToggleHideDone && (
             <button
               type="button"
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] md:text-xs font-medium transition-colors flex-shrink-0 ${
+              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold transition-colors flex-shrink-0 border ${
                 hideDone
-                  ? 'bg-bg-elevated text-text-primary'
-                  : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated'
+                  ? 'bg-accent-muted text-accent border-accent/20'
+                  : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated border-white/10'
               }`}
               onClick={() => onToggleHideDone(!hideDone)}
               aria-label={hideDone ? 'Show completed tasks' : 'Hide completed tasks'}
@@ -200,10 +200,10 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
           return (
             <div
               key={column.id}
-              className={`flex flex-col min-w-[260px] w-[260px] md:min-w-[280px] md:w-[280px] flex-shrink-0 rounded-xl transition-colors snap-start ${
+              className={`flex flex-col min-w-[260px] w-[260px] md:min-w-[280px] md:w-[280px] flex-shrink-0 rounded-2xl transition-colors snap-start ${
                 isDragOver && canDrop ? 'ring-1 ring-accent/50' : ''
               }`}
-              style={{ background: isDragOver && canDrop ? 'rgba(245,158,11,0.05)' : 'transparent' }}
+              style={{ background: isDragOver && canDrop ? 'rgba(75,226,119,0.05)' : 'transparent' }}
               onDragOver={canDrop ? (e) => handleDragOver(e, column.id) : undefined}
               onDragLeave={canDrop ? (e) => handleDragLeave(e, column.id) : undefined}
               onDrop={canDrop ? (e) => handleDrop(e, column.id) : undefined}
@@ -214,12 +214,12 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                   className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: column.color }}
                 />
-                <span className="text-text-primary text-sm font-semibold truncate">
+                <span className="text-text-primary text-sm font-headline font-semibold truncate">
                   {column.label}
                 </span>
                 <span
-                  className="text-[11px] font-mono px-1.5 py-0.5 rounded-md ml-auto flex-shrink-0"
-                  style={{ backgroundColor: `${column.color}15`, color: column.color }}
+                  className="text-[10px] font-mono px-2 py-0.5 rounded-full ml-auto flex-shrink-0 border"
+                  style={{ backgroundColor: `${column.color}12`, color: column.color, borderColor: `${column.color}25` }}
                 >
                   {column.actions.length}
                 </span>
@@ -228,7 +228,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
               {/* Cards */}
               <div className="flex-1 overflow-y-auto space-y-2 px-1">
                 {column.actions.length === 0 ? (
-                  <div className="flex items-center justify-center py-8 text-text-muted text-xs border border-dashed border-border rounded-lg mx-1">
+                  <div className="flex items-center justify-center py-8 text-text-muted text-xs border border-dashed border-white/10 rounded-2xl mx-1">
                     No actions
                   </div>
                 ) : (
@@ -240,7 +240,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                     return (
                       <div
                         key={action.id}
-                        className={`card p-3 cursor-pointer hover:border-border-hover transition-all group ${
+                        className={`glass-card p-4 cursor-pointer hover:border-white/10 transition-all group ${
                           isDragging ? 'opacity-40' : ''
                         } ${action.status === 'done' ? 'opacity-50' : ''}`}
                         style={overdue ? { borderLeftColor: '#ef444460', borderLeftWidth: 2 } : {}}
@@ -271,8 +271,9 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                             <span
                               className="badge"
                               style={{
-                                backgroundColor: `${STATUS_COLORS[action.status]}20`,
+                                backgroundColor: `${STATUS_COLORS[action.status]}15`,
                                 color: STATUS_COLORS[action.status],
+                                borderColor: `${STATUS_COLORS[action.status]}30`,
                               }}
                             >
                               <span
@@ -286,7 +287,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
 
                         {/* Recurrence indicator */}
                         {action.recurrence && action.recurrence !== 'none' && (
-                          <span className="text-[10px] text-text-muted mt-0.5" title={`Repeats ${action.recurrence}`}>↻ {action.recurrence}</span>
+                          <span className="text-[10px] text-text-muted mt-0.5" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
                         )}
 
                         {/* Bottom row: due date + owners */}

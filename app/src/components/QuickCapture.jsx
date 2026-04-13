@@ -107,21 +107,21 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
       aria-label="Quick capture"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal — slides up from bottom on mobile, centered on desktop */}
+      {/* Modal */}
       <div
         ref={modalRef}
         tabIndex={-1}
-        className="relative w-full md:max-w-lg card shadow-2xl overflow-hidden rounded-t-2xl md:rounded-xl max-h-[90vh] md:max-h-none"
+        className="relative w-full md:max-w-lg glass-card shadow-2xl overflow-hidden rounded-t-3xl md:rounded-3xl max-h-[90vh] md:max-h-none"
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-white/5">
           <Zap className="w-4 h-4 text-accent flex-shrink-0" />
-          <span className="text-sm font-semibold text-text-primary">Quick Capture</span>
+          <span className="text-sm font-headline font-semibold text-text-primary">Quick Capture</span>
           <span className="ml-auto text-[10px] text-text-muted font-mono">
-            Cmd+Enter to save · Esc to close
+            Cmd+Enter to save
           </span>
           <button
             className="btn-ghost p-1 text-text-muted hover:text-text-primary ml-1"
@@ -132,7 +132,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+        <form onSubmit={handleSubmit} className="p-5 space-y-3">
           {/* Title */}
           <input
             ref={titleRef}
@@ -153,7 +153,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
                 value={form.business}
                 onChange={e => patch('business', e.target.value)}
               >
-                <option value="">Business…</option>
+                <option value="">Business...</option>
                 {BUSINESS_LIST.map(b => (
                   <option key={b.id} value={b.id}>{b.label}</option>
                 ))}
@@ -229,7 +229,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
                 members={members}
                 selectedIds={form.owners}
                 onChange={ids => patch('owners', ids)}
-                placeholder="Assign owners…"
+                placeholder="Assign owners..."
               />
 
               {/* Description */}
@@ -257,7 +257,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
               className="btn-primary flex-1 text-sm"
               disabled={saving}
             >
-              {saving ? 'Saving…' : 'Create Action'}
+              {saving ? 'Saving...' : 'Create Action'}
             </button>
           </div>
         </form>

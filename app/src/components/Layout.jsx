@@ -1,5 +1,6 @@
 import React from 'react'
 import {
+  Sun,
   LayoutDashboard,
   Columns,
   CalendarDays,
@@ -15,6 +16,7 @@ import TopBar from './TopBar.jsx'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 
 const NAV_LINKS = [
+  { id: 'today', label: 'Today', Icon: Sun },
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { id: 'kanban', label: 'Kanban', Icon: Columns },
   { id: 'calendar', label: 'Calendar', Icon: CalendarDays },
@@ -50,35 +52,35 @@ export default function Layout({
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar — hidden on mobile, slide-over when open */}
+      {/* Sidebar */}
       <aside
         aria-label="Sidebar"
         className={`
-          flex flex-col h-full border-r border-border flex-shrink-0
+          flex flex-col h-full border-r border-white/10 flex-shrink-0
           fixed inset-y-0 left-0 z-50 w-[240px] transition-transform duration-200 ease-out
           md:static md:translate-x-0
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          bg-bg-surface
+          bg-bg-primary glass-panel
         `}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-border">
+        <div className="px-5 py-5 border-b border-white/10">
           <div className="flex items-center gap-2">
             <span
               className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse"
-              style={{ backgroundColor: '#f59e0b' }}
+              style={{ backgroundColor: '#4be277' }}
             />
-            <span className="font-mono font-bold text-text-primary tracking-wide text-base">
+            <span className="font-headline font-bold text-text-primary tracking-wide text-base">
               ATLAS
             </span>
             <span
-              className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}
+              className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded-full"
+              style={{ backgroundColor: 'rgba(75,226,119,0.12)', color: '#4be277' }}
             >
               v1.0
             </span>
@@ -110,7 +112,7 @@ export default function Layout({
 
           {/* Businesses */}
           <div className="mt-6">
-            <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold px-3 mb-2">
+            <p className="label px-3 mb-2">
               Businesses
             </p>
             <div className="space-y-0.5">
@@ -158,8 +160,8 @@ export default function Layout({
           </div>
         </nav>
 
-        {/* Quick Add — desktop only (mobile uses bottom bar FAB) */}
-        <div className="p-3 border-t border-border hidden md:block">
+        {/* Quick Add */}
+        <div className="p-3 border-t border-white/10 hidden md:block">
           <button
             className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
             onClick={onOpenQuickCapture}
@@ -186,7 +188,7 @@ export default function Layout({
           onViewTranscripts={() => setCurrentView('transcripts')}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
         />
-        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 bg-bg-primary">
+        <main id="main-content" className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 bg-bg-primary">
           {children}
         </main>
       </div>
@@ -194,7 +196,7 @@ export default function Layout({
       {/* Mobile bottom tab bar */}
       <nav
         aria-label="Main"
-        className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-border flex items-center justify-around bg-bg-surface h-14"
+        className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-white/10 flex items-center justify-around glass-panel h-14"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {NAV_LINKS.slice(0, 4).map(({ id, label, Icon }) => (
@@ -209,12 +211,12 @@ export default function Layout({
             <span className="text-[10px] font-medium">{label}</span>
           </button>
         ))}
-        {/* FAB-style quick add in the center position */}
+        {/* FAB-style quick add */}
         <button
           className="flex flex-col items-center gap-0.5 px-3 py-1.5 min-w-[60px] text-accent"
           onClick={onOpenQuickCapture}
         >
-          <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center -mt-3 shadow-lg">
+          <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center -mt-3 shadow-lg shadow-accent/20">
             <Zap className="w-4 h-4 text-bg-primary" />
           </div>
           <span className="text-[10px] font-medium">Add</span>

@@ -9,8 +9,8 @@ export default function StatsStrip({ business }) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="card p-4 animate-pulse">
-            <div className="h-4 bg-bg-elevated rounded w-20 mb-2" />
+          <div key={i} className="glass-card p-5 animate-pulse">
+            <div className="h-4 bg-bg-elevated rounded w-20 mb-3" />
             <div className="h-8 bg-bg-elevated rounded w-12" />
           </div>
         ))}
@@ -36,7 +36,7 @@ export default function StatsStrip({ business }) {
       label: 'Completed (7d)',
       value: stats.completedThisWeek,
       icon: CheckCircle2,
-      color: '#22c55e',
+      color: '#4be277',
     },
     {
       label: 'Blocked',
@@ -60,11 +60,11 @@ export default function StatsStrip({ business }) {
         return (
           <div
             key={card.label}
-            className={`card p-4 ${card.alert ? 'border-opacity-50' : ''} ${isOverdueAlert ? 'col-span-2 sm:col-span-1' : ''}`}
-            style={card.alert ? { borderColor: `${card.color}40` } : undefined}
+            className={`glass-card p-5 ${isOverdueAlert ? 'col-span-2 sm:col-span-1' : ''}`}
+            style={card.alert ? { borderColor: `${card.color}30` } : undefined}
           >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-text-secondary text-xs font-medium uppercase tracking-wider flex items-center gap-1.5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="label flex items-center gap-1.5">
                 {card.label}
                 {isOverdueAlert && (
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -73,8 +73,8 @@ export default function StatsStrip({ business }) {
               <card.icon className="w-4 h-4" style={{ color: card.color }} />
             </div>
             <div
-              className={`font-mono font-bold ${isOverdueAlert ? 'text-3xl' : 'text-2xl'}`}
-              style={{ color: card.alert ? card.color : '#e4e4e7' }}
+              className={`font-headline font-bold ${isOverdueAlert ? 'text-3xl' : 'text-2xl'}`}
+              style={{ color: card.alert ? card.color : '#e5e2e1' }}
             >
               {card.value}
             </div>

@@ -76,7 +76,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     return arr
   }, [actions, sort])
 
-  // Filter out frozen businesses from default view (unless explicitly selected or showFrozen is on)
+  // Filter out frozen businesses from default view
   const visibleActions = useMemo(() => {
     if (showFrozen || effectiveBusiness) return sorted
     return sorted.filter(a => !frozenBusinesses.has(a.business))
@@ -117,14 +117,14 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     <div className="space-y-4 md:space-y-5">
       <StatsStrip business={effectiveBusiness} />
 
-      {/* Business tabs — only show when no business selected in sidebar */}
+      {/* Business tabs */}
       {!selectedBusiness && (
         <div className="flex items-center gap-1 overflow-x-auto pb-1 -mx-1 px-1">
           <button
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-full text-[10px] uppercase tracking-widest font-bold transition-colors whitespace-nowrap border ${
               businessTab === 'all'
-                ? 'bg-bg-elevated text-text-primary'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+                ? 'bg-accent-muted text-accent border-accent/20'
+                : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated border-white/10'
             }`}
             onClick={() => setBusinessTab('all')}
           >
@@ -133,10 +133,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           {BUSINESS_LIST.filter(b => showFrozen || !frozenBusinesses.has(b.id)).map(b => (
             <button
               key={b.id}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-full text-[10px] uppercase tracking-widest font-bold transition-colors whitespace-nowrap border ${
                 businessTab === b.id
-                  ? 'bg-bg-elevated text-text-primary'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+                  ? 'bg-accent-muted text-accent border-accent/20'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated border-white/10'
               }`}
               onClick={() => setBusinessTab(b.id)}
             >
@@ -159,13 +159,13 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       />
 
       {/* Desktop Table */}
-      <div className="card overflow-hidden hidden md:block">
+      <div className="glass-card overflow-hidden hidden md:block">
         {/* Header */}
-        <div className="flex items-center border-b border-border px-4 py-2.5 bg-bg-elevated gap-2">
+        <div className="flex items-center border-b border-white/5 px-5 py-3 gap-2">
           {columns.map(col => (
             <div
               key={col.id}
-              className={`${col.width} flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold text-text-muted ${
+              className={`${col.width} flex items-center gap-1 label ${
                 !col.noSort ? 'cursor-pointer select-none hover:text-text-secondary' : ''
               }`}
               onClick={() => !col.noSort && handleSort(col.id)}
@@ -178,9 +178,9 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
         {/* Rows */}
         {isLoading ? (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-white/5">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-2 px-4 py-3 animate-pulse">
+              <div key={i} className="flex items-center gap-2 px-5 py-3 animate-pulse">
                 <div className="h-5 bg-bg-elevated rounded w-16" />
                 <div className="h-5 bg-bg-elevated rounded w-24" />
                 <div className="h-5 bg-bg-elevated rounded flex-1" />
@@ -190,14 +190,14 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           </div>
         ) : visibleActions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="text-4xl mb-3">&#10003;</div>
-            <p className="text-text-primary font-medium">No actions found</p>
+            <div className="text-4xl mb-3 text-accent">&#10003;</div>
+            <p className="text-text-primary font-headline font-medium">No actions found</p>
             <p className="text-text-muted text-sm mt-1">
               {searchQuery ? 'Try a different search term' : 'Create an action with Cmd+K'}
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-white/5">
             {visibleActions.map(action => {
               const done = action.status === 'done'
               const overdue = isOverdue(action.due_date) && !done
@@ -207,7 +207,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               return (
                 <div
                   key={action.id}
-                  className={`flex items-center gap-2 px-4 py-2.5 cursor-pointer transition-colors hover:bg-bg-elevated group ${
+                  className={`flex items-center gap-2 px-5 py-3 cursor-pointer transition-colors hover:bg-white/[0.02] group ${
                     done ? 'opacity-50' : ''
                   }`}
                   style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
@@ -226,7 +226,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none')) && (
                       <div className="flex gap-1 mt-0.5 items-center">
                         {action.recurrence && action.recurrence !== 'none' && (
-                          <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>↻ {action.recurrence}</span>
+                          <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
                         )}
                         {tags.slice(0, 3).map(tag => (
                           <span key={tag} className="text-[10px] text-text-muted">#{tag}</span>
@@ -251,7 +251,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     onClick={e => markDone(e, action)}
                     aria-label={done ? 'Mark not started' : 'Mark done'}
                   >
-                    <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#22c55e' : '#52525b' }} />
+                    <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#4be277' : '#666' }} />
                   </button>
                 </div>
               )
@@ -264,15 +264,15 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       <div className="md:hidden space-y-2">
         {isLoading ? (
           [...Array(4)].map((_, i) => (
-            <div key={i} className="card p-3 animate-pulse space-y-2">
+            <div key={i} className="glass-card p-4 animate-pulse space-y-2">
               <div className="h-4 bg-bg-elevated rounded w-3/4" />
               <div className="h-3 bg-bg-elevated rounded w-1/2" />
             </div>
           ))
         ) : visibleActions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="text-3xl mb-2">&#10003;</div>
-            <p className="text-text-primary font-medium text-sm">No actions found</p>
+            <div className="text-3xl mb-2 text-accent">&#10003;</div>
+            <p className="text-text-primary font-headline font-medium text-sm">No actions found</p>
             <p className="text-text-muted text-xs mt-1">
               {searchQuery ? 'Try a different search term' : 'Tap + to create one'}
             </p>
@@ -286,7 +286,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
             return (
               <div
                 key={action.id}
-                className={`card p-3 cursor-pointer active:bg-bg-elevated transition-colors ${done ? 'opacity-50' : ''}`}
+                className={`glass-card p-4 cursor-pointer active:bg-white/[0.04] transition-colors ${done ? 'opacity-50' : ''}`}
                 style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
                 onClick={() => onSelectAction(action.id)}
               >
@@ -302,7 +302,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     >
                       <CheckCircle2
                         className="w-5 h-5"
-                        style={{ color: done ? '#22c55e' : '#52525b' }}
+                        style={{ color: done ? '#4be277' : '#666' }}
                       />
                     </button>
                   </div>
