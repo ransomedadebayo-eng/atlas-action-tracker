@@ -8,6 +8,7 @@ import transcriptsRouter from './routes/transcripts';
 import viewsRouter from './routes/views';
 import activityRouter from './routes/activity';
 import configRouter from './routes/config';
+import briefingRouter from './routes/briefing';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -33,6 +34,7 @@ app.route('/api/transcripts', transcriptsRouter);
 app.route('/api/views', viewsRouter);
 app.route('/api/activity', activityRouter);
 app.route('/api/config', configRouter);
+app.route('/api/briefing', briefingRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {

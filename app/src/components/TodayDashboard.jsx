@@ -8,6 +8,7 @@ import OwnerAvatars from './OwnerAvatars.jsx'
 import { formatRelativeDate, isOverdue, isToday } from '../utils/dateUtils.js'
 import { PRIORITY_COLORS, STATUS_COLORS } from '../utils/colors.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
+import TodayFocusBanner from './TodayFocusBanner.jsx'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked'
@@ -281,6 +282,9 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             : `${totalFocus} action${totalFocus === 1 ? '' : 's'} need${totalFocus === 1 ? 's' : ''} your attention today.`}
         </p>
       </div>
+
+      {/* Today's Focus — briefing banner */}
+      <TodayFocusBanner />
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 mb-10">
