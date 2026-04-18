@@ -63,7 +63,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
   const statCards = [
     { label: 'Active', value: stats.not_started + stats.in_progress + stats.waiting, color: '#3b82f6', icon: Clock },
     { label: 'Overdue', value: stats.overdue, color: '#ef4444', icon: AlertTriangle, alert: stats.overdue > 0 },
-    { label: 'Done', value: stats.done, color: '#22c55e', icon: CheckCircle2 },
+    { label: 'Done', value: stats.done, color: '#f4b860', icon: CheckCircle2 },
     { label: 'Total', value: stats.total, color: '#71717a', icon: Circle },
   ]
 

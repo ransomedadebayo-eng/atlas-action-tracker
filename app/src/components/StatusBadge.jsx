@@ -60,7 +60,7 @@ export function BusinessBadge({ business }) {
 export function TranscriptStatusBadge({ status }) {
   const config = {
     pending: { label: 'Pending', color: '#ffb95f' },
-    reviewed: { label: 'Reviewed', color: '#4be277' },
+    reviewed: { label: 'Reviewed', color: '#f4b860' },
     archived: { label: 'Archived', color: '#71717a' },
   };
   const c = config[status] || config.pending;

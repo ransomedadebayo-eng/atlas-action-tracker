@@ -369,7 +369,7 @@ export default function ActionDetail({ actionId, onClose }) {
                     textTransform: 'uppercase',
                     fontWeight: 700,
                     backgroundColor: 'rgba(75,226,119,0.1)',
-                    color: '#4be277',
+                    color: '#f4b860',
                     borderColor: 'rgba(75,226,119,0.2)',
                   }}
                 >

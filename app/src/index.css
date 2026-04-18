@@ -4,28 +4,46 @@
 
 @layer base {
   :root {
-    --scrollbar-thumb: #2a2a2a;
-    --scrollbar-track: #131313;
-    --scrollbar-thumb-hover: #3a3a3a;
+    /* AEGIS tokens */
+    --aegis-bg:                #0e0e0e;
+    --aegis-surface-2:         #131313;
+    --aegis-surface-container: #191a1a;
+    --aegis-surface-3:         #252626;
+    --aegis-surface-4:         #313334;
+    --aegis-surface-bright:    #2b2c2c;
+    --aegis-border:            rgba(72, 72, 72, 0.22);
+    --aegis-text:              #e5e5e5;
+    --aegis-muted-strong:      #a3a3a3;
+    --aegis-muted:             #525252;
+    --aegis-shadow-panel:      0 18px 40px rgba(0, 0, 0, 0.22);
+    --aegis-shadow-overlay:    0 12px 32px rgba(0, 0, 0, 0.4);
+    /* Atlas app accent */
+    --aegis-app-accent:        #f4b860;
+
+    --scrollbar-thumb: #252626;
+    --scrollbar-track: #0e0e0e;
+    --scrollbar-thumb-hover: #313334;
   }
 
   html {
+    color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
   }
 
   body {
     background:
-      radial-gradient(circle at top left, rgba(75, 226, 119, 0.05), transparent 28%),
-      radial-gradient(circle at 82% 18%, rgba(255, 185, 95, 0.04), transparent 24%),
-      radial-gradient(circle at 55% 80%, rgba(75, 226, 119, 0.03), transparent 20%),
-      #131313;
+      radial-gradient(circle at top left, rgba(229, 229, 229, 0.04), transparent 24%),
+      radial-gradient(circle at 78% 16%, rgba(16, 185, 129, 0.03), transparent 22%),
+      linear-gradient(180deg, #0e0e0e 0%, #0b1014 55%, #091016 100%);
     background-attachment: fixed;
+    color: var(--aegis-text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
   h1, h2, h3, h4 {
-    font-family: 'Manrope', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     letter-spacing: -0.02em;
   }
 
@@ -40,7 +58,7 @@
   }
 
   *::-webkit-scrollbar-track {
-    background: var(--scrollbar-track);
+    background: transparent;
   }
 
   *::-webkit-scrollbar-thumb {
@@ -53,69 +71,79 @@
   }
 
   ::selection {
-    background: rgba(75, 226, 119, 0.3);
-    color: #e5e2e1;
+    background: rgba(244, 184, 96, 0.28);
+    color: #0e0e0e;
   }
 }
 
 @layer components {
+  /* AEGIS flat panel — no blur, opaque surface */
   .glass-card {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 1.5rem;
-    box-shadow: 0 0 40px rgba(75, 226, 119, 0.06);
+    background: var(--aegis-surface-2, #131313);
+    border: 1px solid var(--aegis-border, rgba(72, 72, 72, 0.22));
+    border-radius: 16px;
+    box-shadow: var(--aegis-shadow-panel);
   }
 
   .glass-panel {
-    background: rgba(255, 255, 255, 0.02);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--aegis-surface-container, #191a1a);
+    border: 1px solid var(--aegis-border, rgba(72, 72, 72, 0.22));
+  }
+
+  .card {
+    background: var(--aegis-surface-2, #131313);
+    border: 1px solid var(--aegis-border, rgba(72, 72, 72, 0.22));
+    border-radius: 16px;
   }
 
   .label {
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--aegis-muted, #525252);
   }
 
   .btn-primary {
-    @apply bg-accent hover:bg-accent-hover text-bg-primary font-semibold px-4 py-2 rounded-xl transition-colors duration-150;
+    @apply bg-accent hover:bg-accent-hover text-bg-primary font-semibold px-4 py-2.5 transition-all duration-150 hover:-translate-y-px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
   .btn-secondary {
-    @apply bg-bg-elevated hover:bg-border text-text-primary px-4 py-2 rounded-xl border border-border transition-colors duration-150;
+    @apply bg-bg-elevated hover:bg-border text-text-primary px-4 py-2.5 border border-border transition-all duration-150 hover:-translate-y-px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
   .btn-ghost {
-    @apply text-text-secondary hover:text-text-primary hover:bg-bg-elevated px-3 py-1.5 rounded-xl transition-colors duration-150;
+    @apply text-text-secondary hover:text-text-primary hover:bg-bg-elevated px-3 py-2 transition-colors duration-150;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
   }
 
   .input-field {
-    @apply bg-bg-primary border border-border rounded-xl px-3 py-2 text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors duration-150;
-  }
-
-  .card {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    @apply rounded-2xl;
+    @apply bg-bg-elevated border border-border px-3 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-white/20 transition-colors duration-150;
+    border-radius: 10px;
   }
 
   .badge {
-    @apply inline-flex items-center rounded-full border px-3 py-1 font-bold;
-    font-size: 10px;
-    letter-spacing: 0.15em;
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 font-semibold;
+    font-size: 9px;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 px-3 py-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors duration-150 cursor-pointer;
+    @apply flex items-center gap-3 px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-bg-elevated transition-colors duration-150 cursor-pointer;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
   .sidebar-link.active {
@@ -140,7 +168,7 @@
 }
 
 .view-transition {
-  animation: view-enter 0.2s ease-out;
+  animation: view-enter 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* Mobile: hide scrollbars in horizontal scroll areas */

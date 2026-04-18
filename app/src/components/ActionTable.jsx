@@ -251,7 +251,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     onClick={e => markDone(e, action)}
                     aria-label={done ? 'Mark not started' : 'Mark done'}
                   >
-                    <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#4be277' : '#666' }} />
+                    <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#f4b860' : '#666' }} />
                   </button>
                 </div>
               )
@@ -302,7 +302,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     >
                       <CheckCircle2
                         className="w-5 h-5"
-                        style={{ color: done ? '#4be277' : '#666' }}
+                        style={{ color: done ? '#f4b860' : '#666' }}
                       />
                     </button>
                   </div>

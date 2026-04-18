@@ -36,7 +36,7 @@ export default function StatsStrip({ business }) {
       label: 'Completed (7d)',
       value: stats.completedThisWeek,
       icon: CheckCircle2,
-      color: '#4be277',
+      color: '#f4b860',
     },
     {
       label: 'Blocked',

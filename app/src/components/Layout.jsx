@@ -73,14 +73,14 @@ export default function Layout({
           <div className="flex items-center gap-2">
             <span
               className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse"
-              style={{ backgroundColor: '#4be277' }}
+              style={{ backgroundColor: '#f4b860' }}
             />
             <span className="font-headline font-bold text-text-primary tracking-wide text-base">
               ATLAS
             </span>
             <span
               className="ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(75,226,119,0.12)', color: '#4be277' }}
+              style={{ backgroundColor: 'rgba(75,226,119,0.12)', color: '#f4b860' }}
             >
               v1.0
             </span>

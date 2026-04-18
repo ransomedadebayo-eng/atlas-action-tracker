@@ -4,7 +4,7 @@ import { useBriefing } from '../hooks/useBriefing.js'
 function readinessConfig(level) {
   switch (level) {
     case 'push':
-      return { label: 'Push Day', color: '#4be277', bg: 'rgba(75,226,119,0.12)', border: 'rgba(75,226,119,0.25)' }
+      return { label: 'Push Day', color: '#f4b860', bg: 'rgba(75,226,119,0.12)', border: 'rgba(75,226,119,0.25)' }
     case 'recovery':
       return { label: 'Recovery', color: '#e55353', bg: 'rgba(229,83,83,0.12)', border: 'rgba(229,83,83,0.25)' }
     default:

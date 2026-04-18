@@ -1,5 +1,5 @@
 export const BUSINESS_COLORS = {
-  riddim_exchange: '#22c55e',
+  riddim_exchange: '#f4b860',
   real_estate: '#3b82f6',
   investments: '#a855f7',
   personal: '#f59e0b',
@@ -20,11 +20,11 @@ export const STATUS_COLORS = {
   in_progress: '#3b82f6',
   waiting: '#f59e0b',
   blocked: '#ef4444',
-  done: '#22c55e',
+  done: '#f4b860',
 };
 
 export const MEMBER_COLORS = [
-  '#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444',
+  '#f4b860', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444',
   '#06b6d4', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316',
   '#6366f1', '#84cc16', '#e879f9', '#fb923c', '#38bdf8',
   '#a3e635', '#c084fc',
