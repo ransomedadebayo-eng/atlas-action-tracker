@@ -79,10 +79,7 @@
     --accent-hover:   #b45309;
     --accent-muted:   rgba(217, 119, 6, 0.12);
 
-    --body-bg:
-      radial-gradient(circle at top left, rgba(217, 119, 6, 0.05), transparent 28%),
-      radial-gradient(circle at 78% 16%, rgba(16, 185, 129, 0.04), transparent 24%),
-      linear-gradient(180deg, #fafaf9 0%, #f5f5f4 55%, #ffffff 100%);
+    --body-bg: #fafaf9;
 
     --scrollbar-thumb: #d4d4d8;
     --scrollbar-track: #fafaf9;
@@ -136,6 +133,14 @@
     background: var(--accent-muted);
     color: var(--text-primary);
   }
+
+  /* Darken light pastel utility colors for readability on the light theme */
+  .light .text-red-400 { color: #dc2626; }
+  .light .text-amber-400 { color: #b45309; }
+  .light .text-blue-400 { color: #1d4ed8; }
+  .light .text-green-400 { color: #15803d; }
+  .light .text-emerald-400 { color: #047857; }
+  .light .text-red-500 { color: #b91c1c; }
 }
 
 @layer components {

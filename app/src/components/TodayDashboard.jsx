@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
-import { Flame, Clock, Play, ArrowRight, AlertTriangle } from 'lucide-react'
-import { useActions } from '../hooks/useActions.js'
+import { Flame, Clock, Play, ArrowRight, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { useActions, useUpdateAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { PriorityBadge, StatusBadge } from './StatusBadge.jsx'
@@ -37,55 +37,57 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function ActionCard({ action, onSelect, businessColors, members }) {
-  const owners = parseJsonArray(action.owner_ids)
-  const overdue = isOverdue(action.due_date) && action.status !== 'done'
+function ActionCard({ action, onSelect, businessColors, members, onToggleDone }) {
+  const owners = parseJsonArray(action.owners)
+  const done = action.status === 'done'
+  const overdue = isOverdue(action.due_date) && !done
   const dueToday = isToday(action.due_date)
   const priorityColor = PRIORITY_COLORS[action.priority] || '#71717a'
   const businessColor = businessColors[action.business] || '#71717a'
 
   return (
-    <button
+    <div
       onClick={() => onSelect(action.id)}
-      className="w-full text-left rounded-2xl p-4 border transition-all duration-150 hover:border-white/20 hover:scale-[1.01] active:scale-[0.99] group"
-      style={{
-        background: 'rgba(255,255,255,0.03)',
-        backdropFilter: 'blur(20px)',
-        borderColor: overdue ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.07)',
-      }}
+      className={`w-full text-left rounded-2xl p-4 border bg-bg-surface transition-all duration-150 hover:border-accent/40 hover:scale-[1.01] active:scale-[0.99] group cursor-pointer ${
+        overdue ? 'border-danger/30' : 'border-border'
+      }`}
     >
       <div className="flex items-start gap-3">
-        {/* Priority stripe */}
         <div
           className="w-1 h-10 rounded-full flex-shrink-0 mt-0.5"
           style={{ backgroundColor: priorityColor }}
         />
 
         <div className="flex-1 min-w-0">
-          {/* Top row: priority + due */}
           <div className="flex items-center gap-2 mb-1.5">
             <PriorityBadge priority={action.priority} />
             <span
               className={`text-xs font-medium ml-auto ${
                 overdue
-                  ? 'text-red-400'
+                  ? 'text-danger'
                   : dueToday
-                    ? 'text-amber-400'
-                    : 'text-white/40'
+                    ? 'text-accent'
+                    : 'text-text-muted'
               }`}
             >
               {formatRelativeDate(action.due_date)}
             </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleDone?.(action) }}
+              className="p-1 -mr-1 text-text-muted hover:text-accent transition-colors"
+              aria-label={done ? 'Mark not started' : 'Mark done'}
+              title={done ? 'Mark not started' : 'Mark done'}
+            >
+              <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#10b981' : undefined }} />
+            </button>
           </div>
 
-          {/* Title */}
-          <p className="text-sm font-medium text-white/90 leading-snug truncate group-hover:text-white">
+          <p className={`text-sm font-medium leading-snug truncate ${done ? 'line-through text-text-muted' : 'text-text-primary group-hover:text-text-primary'}`}>
             {action.title}
           </p>
 
-          {/* Bottom row: business + owners + status */}
           <div className="flex items-center gap-3 mt-2.5">
-            <span className="flex items-center gap-1.5 text-xs text-white/40">
+            <span className="flex items-center gap-1.5 text-xs text-text-muted">
               <span
                 className="w-2 h-2 rounded-full flex-shrink-0"
                 style={{ backgroundColor: businessColor }}
@@ -102,7 +104,7 @@ function ActionCard({ action, onSelect, businessColors, members }) {
           </div>
         </div>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -174,6 +176,14 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
   const { data: actions = [], isLoading } = useActions(queryFilters)
   const { data: members = [] } = useMembers()
   const { BUSINESS_COLORS } = useBusinessContext()
+  const updateAction = useUpdateAction()
+
+  const toggleDone = (action) => {
+    updateAction.mutate({
+      id: action.id,
+      status: action.status === 'done' ? 'not_started' : 'done',
+    })
+  }
 
   const { onFire, dueToday, inProgress, upNext, stats } = useMemo(() => {
     // Filter out frozen businesses
@@ -288,47 +298,29 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 mb-10">
-        <div
-          className="rounded-2xl p-4 border"
-          style={{
-            background: stats.overdue > 0 ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)',
-            borderColor: stats.overdue > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-          }}
-        >
-          <p className="text-white/30 text-[10px] uppercase tracking-widest font-semibold mb-1">
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.overdue > 0 ? 'border-danger/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
             Overdue
           </p>
-          <p className={`text-3xl font-bold ${stats.overdue > 0 ? 'text-red-400' : 'text-white/20'}`}>
+          <p className={`text-3xl font-bold ${stats.overdue > 0 ? 'text-danger' : 'text-text-muted'}`}>
             {stats.overdue}
           </p>
         </div>
 
-        <div
-          className="rounded-2xl p-4 border"
-          style={{
-            background: stats.dueToday > 0 ? 'rgba(245,158,11,0.06)' : 'rgba(255,255,255,0.03)',
-            borderColor: stats.dueToday > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.05)',
-          }}
-        >
-          <p className="text-white/30 text-[10px] uppercase tracking-widest font-semibold mb-1">
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.dueToday > 0 ? 'border-accent/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
             Due Today
           </p>
-          <p className={`text-3xl font-bold ${stats.dueToday > 0 ? 'text-amber-400' : 'text-white/20'}`}>
+          <p className={`text-3xl font-bold ${stats.dueToday > 0 ? 'text-accent' : 'text-text-muted'}`}>
             {stats.dueToday}
           </p>
         </div>
 
-        <div
-          className="rounded-2xl p-4 border"
-          style={{
-            background: stats.inProgress > 0 ? 'rgba(59,130,246,0.06)' : 'rgba(255,255,255,0.03)',
-            borderColor: stats.inProgress > 0 ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
-          }}
-        >
-          <p className="text-white/30 text-[10px] uppercase tracking-widest font-semibold mb-1">
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.inProgress > 0 ? 'border-status-in_progress/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
             In Progress
           </p>
-          <p className={`text-3xl font-bold ${stats.inProgress > 0 ? 'text-blue-400' : 'text-white/20'}`}>
+          <p className={`text-3xl font-bold ${stats.inProgress > 0 ? 'text-status-in_progress' : 'text-text-muted'}`}>
             {stats.inProgress}
           </p>
         </div>
@@ -350,6 +342,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
+            onToggleDone={toggleDone}
           />
         ))}
       </Section>
@@ -369,6 +362,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
+            onToggleDone={toggleDone}
           />
         ))}
       </Section>
@@ -387,6 +381,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
+            onToggleDone={toggleDone}
           />
         ))}
       </Section>
@@ -405,6 +400,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
+            onToggleDone={toggleDone}
           />
         ))}
       </Section>

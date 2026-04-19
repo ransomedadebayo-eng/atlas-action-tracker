@@ -138,11 +138,16 @@ export default function Layout({
                       <span className="truncate">{label}</span>
                     </button>
                     <button
-                      className={`flex-shrink-0 p-1.5 mr-1 transition-colors ${frozen ? 'text-text-secondary hover:text-text-primary' : 'text-text-muted opacity-30 hover:opacity-100'}`}
+                      className={`flex-shrink-0 p-1.5 mr-1 rounded-md transition-colors ${
+                        frozen
+                          ? 'text-accent hover:bg-bg-elevated'
+                          : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated'
+                      }`}
                       onClick={(e) => { e.stopPropagation(); toggleFreezeBusiness(id) }}
                       title={frozen ? 'Unfreeze' : 'Freeze (hide from default view)'}
+                      aria-label={frozen ? 'Unfreeze business' : 'Freeze business'}
                     >
-                      {frozen ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                      {frozen ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
                     </button>
                   </div>
                 )
