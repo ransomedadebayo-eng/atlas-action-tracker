@@ -5,6 +5,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        white: 'rgb(var(--fg) / <alpha-value>)',
         bg: {
           primary: 'var(--bg-primary)',
           surface: 'var(--bg-surface)',

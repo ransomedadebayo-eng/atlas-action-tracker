@@ -5,6 +5,9 @@
 @layer base {
   :root,
   .dark {
+    /* Alpha-capable foreground/backdrop tokens (swap in light theme) */
+    --fg: 255 255 255;
+    --fg-inverse: 14 14 14;
     /* AEGIS dark tokens */
     --aegis-bg:                #0e0e0e;
     --aegis-surface-2:         #131313;
@@ -46,6 +49,9 @@
   }
 
   .light {
+    --fg: 23 23 23;
+    --fg-inverse: 255 255 255;
+
     /* AEGIS light tokens */
     --aegis-bg:                #fafaf9;
     --aegis-surface-2:         #ffffff;
