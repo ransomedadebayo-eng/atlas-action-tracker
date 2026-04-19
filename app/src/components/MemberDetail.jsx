@@ -122,8 +122,8 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
               <card.icon className="w-3.5 h-3.5" style={{ color: card.color }} />
             </div>
             <div
-              className="text-xl font-mono font-bold"
-              style={{ color: card.alert ? card.color : '#e4e4e7' }}
+              className={`text-xl font-mono font-bold ${card.alert ? '' : 'text-text-primary'}`}
+              style={card.alert ? { color: card.color } : undefined}
             >
               {card.value}
             </div>

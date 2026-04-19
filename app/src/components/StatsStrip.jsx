@@ -73,8 +73,8 @@ export default function StatsStrip({ business }) {
               <card.icon className="w-4 h-4" style={{ color: card.color }} />
             </div>
             <div
-              className={`font-headline font-bold ${isOverdueAlert ? 'text-3xl' : 'text-2xl'}`}
-              style={{ color: card.alert ? card.color : '#e5e2e1' }}
+              className={`font-headline font-bold ${isOverdueAlert ? 'text-3xl' : 'text-2xl'} ${card.alert ? '' : 'text-text-primary'}`}
+              style={card.alert ? { color: card.color } : undefined}
             >
               {card.value}
             </div>

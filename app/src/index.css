@@ -3,8 +3,9 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* AEGIS tokens */
+  :root,
+  .dark {
+    /* AEGIS dark tokens */
     --aegis-bg:                #0e0e0e;
     --aegis-surface-2:         #131313;
     --aegis-surface-container: #191a1a;
@@ -17,25 +18,80 @@
     --aegis-muted:             #525252;
     --aegis-shadow-panel:      0 18px 40px rgba(0, 0, 0, 0.22);
     --aegis-shadow-overlay:    0 12px 32px rgba(0, 0, 0, 0.4);
-    /* Atlas app accent */
     --aegis-app-accent:        #f4b860;
+
+    /* Semantic tokens consumed by Tailwind */
+    --bg-primary:     #0e0e0e;
+    --bg-surface:     #131313;
+    --bg-elevated:    #191a1a;
+    --border:         rgba(72, 72, 72, 0.22);
+    --border-hover:   rgba(72, 72, 72, 0.38);
+    --text-primary:   #e5e5e5;
+    --text-secondary: #a3a3a3;
+    --text-muted:     #525252;
+    --accent:         #f4b860;
+    --accent-hover:   #f9c83a;
+    --accent-muted:   rgba(244, 184, 96, 0.12);
+
+    --body-bg:
+      radial-gradient(circle at top left, rgba(229, 229, 229, 0.04), transparent 24%),
+      radial-gradient(circle at 78% 16%, rgba(16, 185, 129, 0.03), transparent 22%),
+      linear-gradient(180deg, #0e0e0e 0%, #0b1014 55%, #091016 100%);
 
     --scrollbar-thumb: #252626;
     --scrollbar-track: #0e0e0e;
     --scrollbar-thumb-hover: #313334;
+
+    color-scheme: dark;
+  }
+
+  .light {
+    /* AEGIS light tokens */
+    --aegis-bg:                #fafaf9;
+    --aegis-surface-2:         #ffffff;
+    --aegis-surface-container: #f5f5f4;
+    --aegis-surface-3:         #e7e5e4;
+    --aegis-surface-4:         #d6d3d1;
+    --aegis-surface-bright:    #ffffff;
+    --aegis-border:            rgba(23, 23, 23, 0.1);
+    --aegis-text:              #171717;
+    --aegis-muted-strong:      #52525b;
+    --aegis-muted:             #a1a1aa;
+    --aegis-shadow-panel:      0 10px 30px rgba(15, 17, 23, 0.08);
+    --aegis-shadow-overlay:    0 8px 20px rgba(15, 17, 23, 0.12);
+    --aegis-app-accent:        #d97706;
+
+    --bg-primary:     #fafaf9;
+    --bg-surface:     #ffffff;
+    --bg-elevated:    #f5f5f4;
+    --border:         rgba(23, 23, 23, 0.1);
+    --border-hover:   rgba(23, 23, 23, 0.2);
+    --text-primary:   #171717;
+    --text-secondary: #52525b;
+    --text-muted:     #a1a1aa;
+    --accent:         #d97706;
+    --accent-hover:   #b45309;
+    --accent-muted:   rgba(217, 119, 6, 0.12);
+
+    --body-bg:
+      radial-gradient(circle at top left, rgba(217, 119, 6, 0.05), transparent 28%),
+      radial-gradient(circle at 78% 16%, rgba(16, 185, 129, 0.04), transparent 24%),
+      linear-gradient(180deg, #fafaf9 0%, #f5f5f4 55%, #ffffff 100%);
+
+    --scrollbar-thumb: #d4d4d8;
+    --scrollbar-track: #fafaf9;
+    --scrollbar-thumb-hover: #a1a1aa;
+
+    color-scheme: light;
   }
 
   html {
-    color-scheme: dark;
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
   }
 
   body {
-    background:
-      radial-gradient(circle at top left, rgba(229, 229, 229, 0.04), transparent 24%),
-      radial-gradient(circle at 78% 16%, rgba(16, 185, 129, 0.03), transparent 22%),
-      linear-gradient(180deg, #0e0e0e 0%, #0b1014 55%, #091016 100%);
+    background: var(--body-bg);
     background-attachment: fixed;
     color: var(--aegis-text);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -71,8 +127,8 @@
   }
 
   ::selection {
-    background: rgba(244, 184, 96, 0.28);
-    color: #0e0e0e;
+    background: var(--accent-muted);
+    color: var(--text-primary);
   }
 }
 

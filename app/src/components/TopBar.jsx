@@ -1,6 +1,7 @@
 import React, { useRef } from 'react'
-import { Search, X, Plus, Upload, Menu } from 'lucide-react'
+import { Search, X, Plus, Upload, Menu, Sun, Moon } from 'lucide-react'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
+import { useTheme } from '../hooks/useTheme.js'
 
 const VIEW_TITLES = {
   dashboard: 'Dashboard',
@@ -20,6 +21,7 @@ export default function TopBar({
   onToggleSidebar,
 }) {
   const { BUSINESSES, BUSINESS_COLORS } = useBusinessContext()
+  const { theme, toggleTheme } = useTheme()
   const searchRef = useRef(null)
   const businessInfo = selectedBusiness ? BUSINESSES[selectedBusiness] : null
   const businessColor = selectedBusiness ? BUSINESS_COLORS[selectedBusiness] : null
@@ -83,6 +85,14 @@ export default function TopBar({
 
       {/* Right: action buttons */}
       <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+        <button
+          className="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors"
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
         <button
           className="btn-secondary flex items-center gap-1.5 text-sm py-1.5 hidden md:flex"
           onClick={onViewTranscripts}

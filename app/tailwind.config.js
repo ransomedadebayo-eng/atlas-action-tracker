@@ -1,27 +1,28 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         bg: {
-          primary: '#0e0e0e',
-          surface: '#131313',
-          elevated: '#191a1a',
+          primary: 'var(--bg-primary)',
+          surface: 'var(--bg-surface)',
+          elevated: 'var(--bg-elevated)',
         },
         border: {
-          DEFAULT: 'rgba(72, 72, 72, 0.22)',
-          hover: 'rgba(72, 72, 72, 0.38)',
+          DEFAULT: 'var(--border)',
+          hover: 'var(--border-hover)',
         },
         text: {
-          primary: '#e5e5e5',
-          secondary: '#a3a3a3',
-          muted: '#525252',
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
         },
         accent: {
-          DEFAULT: '#f4b860',
-          hover: '#f9c83a',
-          muted: 'rgba(244, 184, 96, 0.12)',
+          DEFAULT: 'var(--accent)',
+          hover: 'var(--accent-hover)',
+          muted: 'var(--accent-muted)',
         },
         amber: {
           DEFAULT: '#f4b860',
