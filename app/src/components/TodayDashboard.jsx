@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
-import { Flame, Clock, Play, ArrowRight, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { useActions, useUpdateAction } from '../hooks/useActions.js'
+import { Flame, Clock, Play, ArrowRight, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react'
+import { useActions, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { PriorityBadge, StatusBadge } from './StatusBadge.jsx'
@@ -37,7 +37,7 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function ActionCard({ action, onSelect, businessColors, members, onToggleDone }) {
+function ActionCard({ action, onSelect, businessColors, members, onToggleDone, onDelete }) {
   const owners = parseJsonArray(action.owners)
   const done = action.status === 'done'
   const overdue = isOverdue(action.due_date) && !done
@@ -74,11 +74,19 @@ function ActionCard({ action, onSelect, businessColors, members, onToggleDone })
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleDone?.(action) }}
-              className="p-1 -mr-1 text-text-muted hover:text-accent transition-colors"
+              className="p-1 text-text-muted hover:text-accent transition-colors"
               aria-label={done ? 'Mark not started' : 'Mark done'}
               title={done ? 'Mark not started' : 'Mark done'}
             >
               <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#10b981' : undefined }} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete?.(action) }}
+              className="p-1 -mr-1 text-text-muted hover:text-danger transition-colors"
+              aria-label="Delete action"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
 
@@ -177,12 +185,19 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
   const { data: members = [] } = useMembers()
   const { BUSINESS_COLORS } = useBusinessContext()
   const updateAction = useUpdateAction()
+  const deleteAction = useDeleteAction()
 
   const toggleDone = (action) => {
     updateAction.mutate({
       id: action.id,
       status: action.status === 'done' ? 'not_started' : 'done',
     })
+  }
+
+  const handleDelete = (action) => {
+    if (window.confirm(`Delete "${action.title}"? This cannot be undone.`)) {
+      deleteAction.mutate(action.id)
+    }
   }
 
   const { onFire, dueToday, inProgress, upNext, stats } = useMemo(() => {
@@ -343,6 +358,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             businessColors={BUSINESS_COLORS}
             members={members}
             onToggleDone={toggleDone}
+            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -363,6 +379,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             businessColors={BUSINESS_COLORS}
             members={members}
             onToggleDone={toggleDone}
+            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -382,6 +399,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             businessColors={BUSINESS_COLORS}
             members={members}
             onToggleDone={toggleDone}
+            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -401,6 +419,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             businessColors={BUSINESS_COLORS}
             members={members}
             onToggleDone={toggleDone}
+            onDelete={handleDelete}
           />
         ))}
       </Section>

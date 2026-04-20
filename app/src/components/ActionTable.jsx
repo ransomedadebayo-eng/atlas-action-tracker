@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ChevronUp, ChevronDown, CheckCircle2 } from 'lucide-react'
-import { useActions, useUpdateAction } from '../hooks/useActions.js'
+import { ChevronUp, ChevronDown, CheckCircle2, Trash2 } from 'lucide-react'
+import { useActions, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { StatusBadge, PriorityBadge, BusinessBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
@@ -44,6 +44,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
   const { data: actions = [], isLoading } = useActions(queryFilters)
   const { data: members = [] } = useMembers()
   const updateAction = useUpdateAction()
+  const deleteAction = useDeleteAction()
 
   const sorted = useMemo(() => {
     const arr = [...actions]
@@ -95,6 +96,13 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     updateAction.mutate({ id: action.id, status: action.status === 'done' ? 'not_started' : 'done' })
   }
 
+  function handleDelete(e, action) {
+    e.stopPropagation()
+    if (window.confirm(`Delete "${action.title}"? This cannot be undone.`)) {
+      deleteAction.mutate(action.id)
+    }
+  }
+
   function SortIcon({ col }) {
     if (sort.by !== col) return <ChevronDown className="w-3 h-3 opacity-30" />
     return sort.dir === 'asc'
@@ -110,7 +118,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     { id: 'owners', label: 'Owners', width: 'w-28', noSort: true },
     { id: 'due_date', label: 'Due', width: 'w-24' },
     { id: 'updated_at', label: 'Updated', width: 'w-28' },
-    { id: 'actions', label: '', width: 'w-10', noSort: true },
+    { id: 'actions', label: '', width: 'w-20', noSort: true },
   ]
 
   return (
@@ -246,13 +254,24 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                   <div className="w-28 flex-shrink-0 text-xs text-text-muted font-mono">
                     {action.updated_at ? formatTimestamp(action.updated_at) : '\u2014'}
                   </div>
-                  <button
-                    className="w-10 flex-shrink-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={e => markDone(e, action)}
-                    aria-label={done ? 'Mark not started' : 'Mark done'}
-                  >
-                    <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#f4b860' : '#666' }} />
-                  </button>
+                  <div className="w-20 flex-shrink-0 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      className="p-1 text-text-muted hover:text-accent transition-colors"
+                      onClick={e => markDone(e, action)}
+                      aria-label={done ? 'Mark not started' : 'Mark done'}
+                      title={done ? 'Mark not started' : 'Mark done'}
+                    >
+                      <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#10b981' : undefined }} />
+                    </button>
+                    <button
+                      className="p-1 text-text-muted hover:text-danger transition-colors"
+                      onClick={e => handleDelete(e, action)}
+                      aria-label="Delete action"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -298,12 +317,20 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                     <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
                     <button
                       onClick={e => markDone(e, action)}
-                      className="p-1"
+                      className="p-1 text-text-muted hover:text-accent"
+                      aria-label={done ? 'Mark not started' : 'Mark done'}
                     >
                       <CheckCircle2
                         className="w-5 h-5"
-                        style={{ color: done ? '#f4b860' : '#666' }}
+                        style={{ color: done ? '#10b981' : undefined }}
                       />
+                    </button>
+                    <button
+                      onClick={e => handleDelete(e, action)}
+                      className="p-1 text-text-muted hover:text-danger"
+                      aria-label="Delete action"
+                    >
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
