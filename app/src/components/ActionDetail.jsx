@@ -56,6 +56,7 @@ export default function ActionDetail({ actionId, onClose }) {
   const [tagInput, setTagInput] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [saveError, setSaveError] = useState('')
   const panelRef = useRef(null)
 
   useEffect(() => {
@@ -84,6 +85,7 @@ export default function ActionDetail({ actionId, onClose }) {
   async function handleSave() {
     if (!form || !dirty) return
     setSaving(true)
+    setSaveError('')
     try {
       const payload = { ...form }
       if (payload.due_date === '') payload.due_date = null
@@ -91,6 +93,8 @@ export default function ActionDetail({ actionId, onClose }) {
       if (payload.business === '') payload.business = null
       await updateAction.mutateAsync({ id: actionId, ...payload })
       setDirty(false)
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save')
     } finally {
       setSaving(false)
     }
@@ -210,6 +214,11 @@ export default function ActionDetail({ actionId, onClose }) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {saveError && (
+              <span className="text-danger text-xs max-w-[240px] truncate" title={saveError}>
+                {saveError}
+              </span>
+            )}
             {dirty && (
               <button
                 className="btn-primary flex items-center gap-1.5 text-xs py-1.5"

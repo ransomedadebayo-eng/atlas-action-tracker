@@ -8,22 +8,10 @@ export async function validateKnownBusinessId(_supabase: SupabaseClient, busines
   return null;
 }
 
-export async function validateKnownMemberIds(supabase: SupabaseClient, ids: unknown, label = 'owners'): Promise<string[]> {
+export async function validateKnownMemberIds(_supabase: SupabaseClient, ids: unknown, label = 'owners'): Promise<string[]> {
   if (ids === undefined) return [];
-  if (!Array.isArray(ids) || ids.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('atlas_members')
-    .select('id')
-    .eq('is_active', true);
-
-  if (error || !data) return [];
-
-  const memberIds = new Set(data.map((row: { id: string }) => row.id));
-  if (memberIds.size === 0) return [];
-
-  const invalid = (ids as string[]).filter(id => !memberIds.has(id));
-  if (invalid.length === 0) return [];
-
-  return [`${label} contains unknown member ids: ${invalid.join(', ')}`];
+  if (!Array.isArray(ids)) return [`${label} must be an array`];
+  const invalid = (ids as unknown[]).filter(id => typeof id !== 'string' || !(id as string).trim());
+  if (invalid.length) return [`${label} must be non-empty strings`];
+  return [];
 }
