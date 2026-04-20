@@ -3,6 +3,30 @@ export const VALID_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 export const VALID_RECURRENCES = ['none', 'daily', 'weekly', 'biweekly', 'monthly'];
 export const ACTION_TEXT_FIELDS = ['title', 'description', 'notes', 'append_note', 'source_label'];
 
+const PRIORITY_COERCE: Record<string, string> = {
+  critical: 'p0', high: 'p1', medium: 'p2', low: 'p3',
+  p0: 'p0', p1: 'p1', p2: 'p2', p3: 'p3',
+};
+const STATUS_COERCE: Record<string, string> = {
+  completed: 'done', frozen: 'done', todo: 'not_started',
+  open: 'not_started', cancelled: 'done',
+};
+
+export function coercePriority(v: unknown): unknown {
+  if (typeof v !== 'string') return v;
+  return PRIORITY_COERCE[v.toLowerCase()] ?? v;
+}
+export function coerceStatus(v: unknown): unknown {
+  if (typeof v !== 'string') return v;
+  return STATUS_COERCE[v] ?? v;
+}
+
+export function coerceActionBody(body: Record<string, unknown>): Record<string, unknown> {
+  if (body.priority !== undefined) body.priority = coercePriority(body.priority);
+  if (body.status !== undefined) body.status = coerceStatus(body.status);
+  return body;
+}
+
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export function computeNextDueDate(currentDueDate: string | null | undefined, recurrence: string): string | null {

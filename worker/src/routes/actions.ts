@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Env, getDb } from '../db';
 import { validateStringLengths, sanitizeBody, parsePagination } from '../middleware/validate';
 import { getActor } from '../utils/actors';
-import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS } from '../utils/actionUtils';
+import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS, coerceActionBody } from '../utils/actionUtils';
 import { coerceJsonArray, serializeJsonArray } from '../utils/json';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData';
 
@@ -177,7 +177,7 @@ router.post('/', async (c) => {
   try {
     const supabase = getDb(c.env);
     const rawBody = await c.req.json();
-    const body = sanitizeBody(rawBody, ACTION_TEXT_FIELDS);
+    const body = coerceActionBody(sanitizeBody(rawBody, ACTION_TEXT_FIELDS));
     const actor = getActor(c);
     const {
       title, description = '', status = 'not_started', business, priority = 'p2',
@@ -222,7 +222,7 @@ router.post('/bulk', async (c) => {
     if (!Array.isArray(rawActions)) return c.json({ error: 'actions array required' }, 400);
     if (rawActions.length > BULK_MAX) return c.json({ error: `Bulk operations limited to ${BULK_MAX} items` }, 400);
 
-    const actionsList = rawActions.map((item: unknown) => sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS));
+    const actionsList = rawActions.map((item: unknown) => coerceActionBody(sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS)));
     for (let i = 0; i < actionsList.length; i++) {
       const action = actionsList[i];
       if (!action.title || !action.business) return c.json({ error: `Item ${i}: title and business are required` }, 400);
@@ -273,7 +273,7 @@ router.put('/bulk', async (c) => {
     if (!Array.isArray(rawUpdates)) return c.json({ error: 'updates array required' }, 400);
     if (rawUpdates.length > BULK_MAX) return c.json({ error: `Bulk operations limited to ${BULK_MAX} items` }, 400);
 
-    const updates = rawUpdates.map((item: unknown) => sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS));
+    const updates = rawUpdates.map((item: unknown) => coerceActionBody(sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS)));
     for (let i = 0; i < updates.length; i++) {
       const fieldErrors = [
         ...validateActionFields(updates[i]),
@@ -355,7 +355,7 @@ router.put('/:id', async (c) => {
     if (fetchErr || !existing) return c.json({ error: 'Action not found' }, 404);
 
     const rawBody = await c.req.json();
-    const body = sanitizeBody(rawBody, ACTION_TEXT_FIELDS);
+    const body = coerceActionBody(sanitizeBody(rawBody, ACTION_TEXT_FIELDS));
 
     const validationErrors = [
       ...validateActionFields(body),
