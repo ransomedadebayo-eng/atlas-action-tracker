@@ -181,7 +181,7 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
     status: NON_DONE_STATUSES,
   }
-  const { data: actions = [], isLoading } = useActions(queryFilters)
+  const { data: actions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: members = [] } = useMembers()
   const { BUSINESS_COLORS } = useBusinessContext()
   const updateAction = useUpdateAction()
@@ -284,6 +284,21 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
               <div key={i} className="h-20 bg-white/5 rounded-2xl" />
             ))}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="px-2 md:px-6 py-6 md:py-8 max-w-6xl mx-auto">
+        <div className="rounded-2xl border border-danger/30 bg-danger/10 p-5">
+          <p className="text-danger text-xs uppercase tracking-widest font-semibold mb-2">
+            Data unavailable
+          </p>
+          <p className="text-white/80 text-sm">
+            {error?.message || 'ATLAS could not load actions.'}
+          </p>
         </div>
       </div>
     )

@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useBusinessContext } from './hooks/useBusinesses.js'
 import Layout from './components/Layout.jsx'
 import ActionTable from './components/ActionTable.jsx'
@@ -11,7 +10,7 @@ import TranscriptHistory from './components/TranscriptHistory.jsx'
 import TodayDashboard from './components/TodayDashboard.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
-import { useKeyboard, useVisibilityRefresh } from './hooks/useKeyboard.js'
+import { useKeyboard } from './hooks/useKeyboard.js'
 
 export default function App() {
   const [currentView, setCurrentView] = useState('today')
@@ -33,8 +32,6 @@ export default function App() {
 
   const { frozenSet: frozenBusinesses, toggleFreezeInDB: toggleFreezeBusiness } = useBusinessContext()
   const [showFrozen, setShowFrozen] = useState(false)
-
-  const queryClient = useQueryClient()
 
   const shortcuts = useMemo(() => [
     {
@@ -62,15 +59,6 @@ export default function App() {
   ], [showQuickCapture, selectedActionId, sidebarOpen])
 
   useKeyboard(shortcuts)
-
-  const refetchFns = useMemo(() => [
-    () => queryClient.invalidateQueries({ queryKey: ['actions'] }),
-    () => queryClient.invalidateQueries({ queryKey: ['actionStats'] }),
-    () => queryClient.invalidateQueries({ queryKey: ['members'] }),
-    () => queryClient.invalidateQueries({ queryKey: ['transcripts'] }),
-  ], [queryClient])
-
-  useVisibilityRefresh(refetchFns)
 
   function handleOpenQuickCapture(date = null) {
     setQuickCaptureDate(date)

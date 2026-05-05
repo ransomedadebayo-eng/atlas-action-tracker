@@ -17,12 +17,23 @@ async function request(path, options = {}) {
 
   const res = await fetch(url, config);
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(error.error || `Request failed: ${res.status}`);
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
   }
 
-  return res.json();
+  if (!res.ok) {
+    const cloudflareLimit = text.includes('Error 1027') || text.includes('temporarily rate limited');
+    const message = data?.error
+      || (cloudflareLimit ? 'Cloudflare Workers request limit reached. Check the Workers plan or wait for the daily reset.' : res.statusText)
+      || `Request failed: ${res.status}`;
+    throw new Error(message);
+  }
+
+  return data;
 }
 
 // Actions
