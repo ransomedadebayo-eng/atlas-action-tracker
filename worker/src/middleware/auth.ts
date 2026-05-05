@@ -13,12 +13,18 @@ function safeTokenCompare(provided: string, expected: string): boolean {
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
   const token = c.env.ATLAS_API_TOKEN;
   const authHeader = c.req.header('authorization');
+  const accessJwt = c.req.header('cf-access-jwt-assertion');
+  const accessUser = c.req.header('cf-access-authenticated-user-email');
 
   if (token && authHeader) {
     const expected = `Bearer ${token}`;
     if (safeTokenCompare(authHeader, expected)) {
       return next();
     }
+  }
+
+  if (accessJwt || accessUser) {
+    return next();
   }
 
   return c.json({ error: 'Unauthorized' }, 401);
