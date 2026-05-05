@@ -23,6 +23,7 @@ app.use('/api/*', cors({
 // Health checks (unauthenticated)
 app.get('/health', (c) => c.json({ status: 'ok' }));
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
+app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 302));
 
 // Auth on all /api/* routes
 app.use('/api/*', authMiddleware);
