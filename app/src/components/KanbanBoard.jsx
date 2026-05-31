@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react'
-import { GripVertical, Users, Building2, Columns, EyeOff, Eye } from 'lucide-react'
+import { GripVertical, Users, Building2, Columns, EyeOff, Eye, Bot } from 'lucide-react'
 import { useActions, useUpdateAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
-import { PriorityBadge, BusinessBadge } from './StatusBadge.jsx'
+import { PriorityBadge, BusinessBadge, WorkModeBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
-import { KANBAN_COLUMNS, STATUSES } from '../utils/constants.js'
-import { STATUS_COLORS, getMemberColor } from '../utils/colors.js'
+import { KANBAN_COLUMNS, STATUSES, WORK_MODE_LIST, canonicalStatus } from '../utils/constants.js'
+import { STATUS_COLORS, WORK_MODE_COLORS, getMemberColor } from '../utils/colors.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
@@ -14,9 +14,10 @@ const GROUP_MODES = [
   { id: 'status', label: 'Status', Icon: Columns },
   { id: 'business', label: 'Business', Icon: Building2 },
   { id: 'owner', label: 'Owner', Icon: Users },
+  { id: 'work_mode', label: 'Mode', Icon: Bot },
 ]
 
-const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked'
+const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open'
 
 export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone = true, onToggleHideDone }) {
   const { BUSINESSES, BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
@@ -40,7 +41,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
         id: status,
         label: STATUSES[status]?.label || status,
         color: STATUS_COLORS[status],
-        actions: actions.filter(a => a.status === status),
+        actions: actions.filter(a => canonicalStatus(a.status) === status),
       }))
     }
 
@@ -84,6 +85,22 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       return cols
     }
 
+    if (groupBy === 'work_mode') {
+      const classified = WORK_MODE_LIST.map(mode => ({
+        id: mode.id,
+        label: mode.label,
+        color: WORK_MODE_COLORS[mode.id],
+        actions: actions.filter(a => a.work_mode === mode.id),
+      }))
+      const unclassified = {
+        id: '_unclassified',
+        label: 'Unclassified',
+        color: '#71717a',
+        actions: actions.filter(a => !a.work_mode),
+      }
+      return [...classified, unclassified].filter(column => column.actions.length > 0)
+    }
+
     return []
   }, [actions, groupBy, selectedBusiness, members, hideDone])
 
@@ -116,6 +133,8 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       updateAction.mutate({ id: actionId, status: columnId })
     } else if (groupBy === 'business') {
       updateAction.mutate({ id: actionId, business: columnId })
+    } else if (groupBy === 'work_mode') {
+      updateAction.mutate({ id: actionId, work_mode: columnId === '_unclassified' ? null : columnId })
     }
 
     setDragState({ actionId: null, overColumn: null })
@@ -195,7 +214,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       <div className="flex gap-3 md:gap-4 flex-1 overflow-x-auto pb-2 min-h-0 snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0">
         {columns.map(column => {
           const isDragOver = dragState.overColumn === column.id && dragState.actionId
-          const canDrop = groupBy === 'status' || groupBy === 'business'
+          const canDrop = groupBy === 'status' || groupBy === 'business' || groupBy === 'work_mode'
 
           return (
             <div
@@ -267,20 +286,23 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                           {groupBy !== 'business' && action.business && (
                             <BusinessBadge business={action.business} />
                           )}
+                          {groupBy !== 'work_mode' && (
+                            <WorkModeBadge workMode={action.work_mode} />
+                          )}
                           {groupBy !== 'status' && (
                             <span
                               className="badge"
                               style={{
-                                backgroundColor: `${STATUS_COLORS[action.status]}15`,
-                                color: STATUS_COLORS[action.status],
-                                borderColor: `${STATUS_COLORS[action.status]}30`,
+                                backgroundColor: `${STATUS_COLORS[canonicalStatus(action.status)]}15`,
+                                color: STATUS_COLORS[canonicalStatus(action.status)],
+                                borderColor: `${STATUS_COLORS[canonicalStatus(action.status)]}30`,
                               }}
                             >
                               <span
                                 className="w-1.5 h-1.5 rounded-full mr-1"
-                                style={{ backgroundColor: STATUS_COLORS[action.status] }}
+                                style={{ backgroundColor: STATUS_COLORS[canonicalStatus(action.status)] }}
                               />
-                              {STATUSES[action.status]?.label}
+                              {STATUSES[canonicalStatus(action.status)]?.label}
                             </span>
                           )}
                         </div>

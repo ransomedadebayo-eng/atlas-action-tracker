@@ -73,6 +73,7 @@ export default function App() {
             selectedBusiness={selectedBusiness}
             onSelectAction={setSelectedActionId}
             frozenBusinesses={frozenBusinesses}
+            searchQuery={searchQuery}
           />
         )
       case 'dashboard':

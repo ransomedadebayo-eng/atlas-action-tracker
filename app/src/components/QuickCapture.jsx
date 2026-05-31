@@ -3,7 +3,7 @@ import { X, Zap, ChevronDown } from 'lucide-react'
 import { useCreateAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import MemberSelector from './MemberSelector.jsx'
-import { PRIORITY_LIST, STATUS_LIST, RECURRENCE_LIST } from '../utils/constants.js'
+import { PRIORITY_LIST, STATUS_LIST, RECURRENCE_LIST, WORK_MODE_LIST } from '../utils/constants.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 
 const DEFAULT_FORM = {
@@ -15,6 +15,7 @@ const DEFAULT_FORM = {
   owners: [],
   description: '',
   recurrence: 'none',
+  work_mode: '',
 }
 
 export default function QuickCapture({ onClose, selectedBusiness, prefilledDate }) {
@@ -84,6 +85,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
       const payload = {
         ...form,
         due_date: form.due_date || null,
+        work_mode: form.work_mode || null,
       }
       await createAction.mutateAsync(payload)
       onClose()
@@ -204,6 +206,21 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
                 >
                   {STATUS_LIST.map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+              </div>
+
+              {/* Work mode */}
+              <div className="relative">
+                <select
+                  className="input-field w-full appearance-none pr-8 text-sm"
+                  value={form.work_mode}
+                  onChange={e => patch('work_mode', e.target.value)}
+                >
+                  <option value="">No work mode</option>
+                  {WORK_MODE_LIST.map(mode => (
+                    <option key={mode.id} value={mode.id}>{mode.label}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />

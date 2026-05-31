@@ -62,6 +62,7 @@ function buildNextRecurringAction(existing, incoming, now) {
     tags: incoming.tags !== undefined ? serializeJsonArray(incoming.tags) : coerceJsonArray(existing.tags),
     notes: '',
     recurrence,
+    work_mode: incoming.work_mode !== undefined ? incoming.work_mode : existing.work_mode,
     status: 'not_started',
     created_at: now,
     updated_at: now,
@@ -81,7 +82,7 @@ async function insertRecurringAction(action) {
 router.get('/', async (req, res) => {
   try {
     const {
-      status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir,
+      status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir,
     } = req.query;
 
     let query = supabase.from('atlas_actions').select('*');
@@ -96,6 +97,10 @@ router.get('/', async (req, res) => {
     if (priority) {
       const priorities = priority.split(',');
       query = query.in('priority', priorities);
+    }
+    if (work_mode) {
+      const workModes = work_mode.split(',');
+      query = query.in('work_mode', workModes);
     }
     if (owner_id) {
       query = query.contains('owners', [owner_id]);
@@ -114,7 +119,7 @@ router.get('/', async (req, res) => {
       query = query.eq('source_transcript_id', source_id);
     }
 
-    const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'created_at', 'updated_at'];
+    const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'work_mode', 'created_at', 'updated_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
 
@@ -202,6 +207,7 @@ router.post('/', async (req, res) => {
       tags = [],
       notes = '',
       recurrence = 'none',
+      work_mode = null,
     } = body;
 
     if (!title || !business) {
@@ -236,6 +242,7 @@ router.post('/', async (req, res) => {
         tags: serializeJsonArray(tags),
         notes,
         recurrence,
+        work_mode,
         created_at: now,
         updated_at: now,
       })
@@ -302,6 +309,7 @@ router.post('/bulk', async (req, res) => {
         tags: serializeJsonArray(action.tags),
         notes: action.notes || '',
         recurrence: action.recurrence || 'none',
+        work_mode: action.work_mode || null,
       };
     });
 
@@ -378,6 +386,7 @@ router.put('/bulk', async (req, res) => {
         fields.notes = existing.notes ? `${existing.notes}\n\n${appendNote}` : appendNote;
       }
       if (update.recurrence !== undefined) fields.recurrence = update.recurrence;
+      if (update.work_mode !== undefined) fields.work_mode = update.work_mode || null;
 
       if (Object.keys(fields).length === 0) continue;
 
@@ -413,7 +422,7 @@ router.put('/bulk', async (req, res) => {
           actor,
         });
       }
-      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined) {
+      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined || update.work_mode !== undefined) {
         await supabase.from('atlas_activity_log').insert({
           action_id: update.id,
           event: 'updated',
@@ -467,7 +476,7 @@ router.put('/:id', async (req, res) => {
     const {
       title, description, status, business, priority,
       due_date, owners, source_transcript_id, source_label,
-      tags, notes, append_note, recurrence,
+      tags, notes, append_note, recurrence, work_mode,
     } = body;
 
     if (notes !== undefined && append_note !== undefined) {
@@ -488,6 +497,7 @@ router.put('/:id', async (req, res) => {
     if (notes !== undefined) updates.notes = notes;
     if (append_note !== undefined) updates.notes = existing.notes ? `${existing.notes}\n\n${append_note}` : append_note;
     if (recurrence !== undefined) updates.recurrence = recurrence;
+    if (work_mode !== undefined) updates.work_mode = work_mode || null;
 
     const mutableKeys = Object.keys(updates);
     if (mutableKeys.length === 0) {

@@ -23,6 +23,12 @@ export const STATUS_COLORS = {
   done: '#f4b860',
 };
 
+export const WORK_MODE_COLORS = {
+  autonomous: '#14b8a6',
+  review_required: '#f4b860',
+  user_only: '#8cb8ff',
+};
+
 export const MEMBER_COLORS = [
   '#f4b860', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444',
   '#06b6d4', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316',

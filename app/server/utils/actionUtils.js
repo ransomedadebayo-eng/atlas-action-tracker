@@ -1,6 +1,7 @@
 export const VALID_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'done'];
 export const VALID_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 export const VALID_RECURRENCES = ['none', 'daily', 'weekly', 'biweekly', 'monthly'];
+export const VALID_WORK_MODES = ['autonomous', 'review_required', 'user_only'];
 export const ACTION_TEXT_FIELDS = ['title', 'description', 'notes', 'append_note', 'source_label'];
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,6 +61,10 @@ export function validateActionFields(body) {
 
   if (body.recurrence !== undefined && !VALID_RECURRENCES.includes(body.recurrence)) {
     errors.push(`recurrence must be one of: ${VALID_RECURRENCES.join(', ')}`);
+  }
+
+  if (body.work_mode !== undefined && body.work_mode !== null && !VALID_WORK_MODES.includes(body.work_mode)) {
+    errors.push(`work_mode must be one of: ${VALID_WORK_MODES.join(', ')}`);
   }
 
   return errors;

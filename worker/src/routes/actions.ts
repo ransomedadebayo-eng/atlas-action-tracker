@@ -59,6 +59,7 @@ function buildNextRecurringAction(existing: Record<string, unknown>, incoming: R
     tags: incoming.tags !== undefined ? serializeJsonArray(incoming.tags) : coerceJsonArray(existing.tags),
     notes: '',
     recurrence,
+    work_mode: incoming.work_mode !== undefined ? incoming.work_mode : existing.work_mode,
     status: 'not_started',
     created_at: now,
     updated_at: now,
@@ -89,13 +90,14 @@ function annotateBlocked(actions: Record<string, unknown>[]): Record<string, unk
 router.get('/', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { status, business, priority, owner_id, due_before, due_after, search, source_id, sort_by, sort_dir, show_blocked } = c.req.query() as Record<string, string>;
+    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked } = c.req.query() as Record<string, string>;
 
     let query = supabase.from('atlas_actions').select('*');
 
     if (status) query = query.in('status', status.split(','));
     if (business) query = query.eq('business', business);
     if (priority) query = query.in('priority', priority.split(','));
+    if (work_mode) query = query.in('work_mode', work_mode.split(','));
     if (owner_id) query = query.contains('owners', [owner_id]);
     if (due_before) query = query.lte('due_date', due_before);
     if (due_after) query = query.gte('due_date', due_after);
@@ -105,7 +107,7 @@ router.get('/', async (c) => {
     }
     if (source_id) query = query.eq('source_transcript_id', source_id);
 
-    const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'created_at', 'updated_at'];
+    const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'work_mode', 'created_at', 'updated_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
@@ -182,7 +184,7 @@ router.post('/', async (c) => {
     const {
       title, description = '', status = 'not_started', business, priority = 'p2',
       due_date = null, owners = [], source_transcript_id = null, source_label = null,
-      tags = [], notes = '', recurrence = 'none',
+      tags = [], notes = '', recurrence = 'none', work_mode = null,
     } = body as Record<string, unknown>;
 
     if (!title || !business) return c.json({ error: 'title and business are required' }, 400);
@@ -199,7 +201,7 @@ router.post('/', async (c) => {
 
     const { data: action, error } = await supabase
       .from('atlas_actions')
-      .insert({ id, title, description, status, business, priority, due_date, owners: serializeJsonArray(owners), source_transcript_id, source_label, tags: serializeJsonArray(tags), notes, recurrence, created_at: now, updated_at: now })
+      .insert({ id, title, description, status, business, priority, due_date, owners: serializeJsonArray(owners), source_transcript_id, source_label, tags: serializeJsonArray(tags), notes, recurrence, work_mode, created_at: now, updated_at: now })
       .select().single();
 
     if (error) throw error;
@@ -249,6 +251,7 @@ router.post('/bulk', async (c) => {
       tags: serializeJsonArray(action.tags),
       notes: action.notes || '',
       recurrence: action.recurrence || 'none',
+      work_mode: action.work_mode || null,
     }));
 
     const { error } = await supabase.from('atlas_actions').insert(rows);
@@ -310,6 +313,7 @@ router.put('/bulk', async (c) => {
       if (update.notes !== undefined) fields.notes = update.notes;
       if (appendNote !== undefined) fields.notes = existing.notes ? `${existing.notes}\n\n${appendNote}` : appendNote;
       if (update.recurrence !== undefined) fields.recurrence = update.recurrence;
+      if (update.work_mode !== undefined) fields.work_mode = update.work_mode;
 
       if (Object.keys(fields).length === 0) continue;
 
@@ -327,7 +331,7 @@ router.put('/bulk', async (c) => {
       if (update.priority !== undefined && update.priority !== existing.priority) {
         await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'priority_changed', old_value: existing.priority, new_value: update.priority, actor });
       }
-      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined) {
+      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined || update.work_mode !== undefined) {
         await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'updated', new_value: JSON.stringify(Object.keys(update).filter(k => k !== 'id')), actor });
       }
 
@@ -366,7 +370,7 @@ router.put('/:id', async (c) => {
 
     const now = new Date().toISOString();
     const actor = getActor(c);
-    const { title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, append_note, recurrence } = body as Record<string, unknown>;
+    const { title, description, status, business, priority, due_date, owners, source_transcript_id, source_label, tags, notes, append_note, recurrence, work_mode } = body as Record<string, unknown>;
 
     if (notes !== undefined && append_note !== undefined) return c.json({ error: 'notes and append_note are mutually exclusive' }, 400);
 
@@ -384,6 +388,7 @@ router.put('/:id', async (c) => {
     if (notes !== undefined) updates.notes = notes;
     if (append_note !== undefined) updates.notes = existing.notes ? `${existing.notes}\n\n${append_note}` : append_note;
     if (recurrence !== undefined) updates.recurrence = recurrence;
+    if (work_mode !== undefined) updates.work_mode = work_mode;
 
     const mutableKeys = Object.keys(updates);
     if (mutableKeys.length === 0) return c.json({ error: 'No fields to update' }, 400);

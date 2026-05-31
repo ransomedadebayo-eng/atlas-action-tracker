@@ -11,6 +11,11 @@ export const STATUS_LIST = Object.entries(STATUSES).map(([id, val]) => ({
   ...val,
 }));
 
+export function canonicalStatus(status) {
+  if (status === 'todo' || status === 'open') return 'not_started';
+  return status;
+}
+
 export const KANBAN_COLUMNS = ['not_started', 'in_progress', 'waiting', 'done'];
 
 export const PRIORITIES = {
@@ -21,6 +26,32 @@ export const PRIORITIES = {
 };
 
 export const PRIORITY_LIST = Object.entries(PRIORITIES).map(([id, val]) => ({
+  id,
+  ...val,
+}));
+
+export const WORK_MODES = {
+  autonomous: {
+    label: 'Autonomous',
+    shortLabel: 'Auto',
+    description: 'Agent can execute and verify without user input.',
+    order: 0,
+  },
+  review_required: {
+    label: 'Review Required',
+    shortLabel: 'Review',
+    description: 'Agent should prepare the work, then wait for approval or a decision.',
+    order: 1,
+  },
+  user_only: {
+    label: 'User Only',
+    shortLabel: 'User',
+    description: 'Agent can prep, but Ransomed or another person must perform the final action.',
+    order: 2,
+  },
+};
+
+export const WORK_MODE_LIST = Object.entries(WORK_MODES).map(([id, val]) => ({
   id,
   ...val,
 }));

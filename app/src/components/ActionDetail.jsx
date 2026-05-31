@@ -8,11 +8,12 @@ import { useMembers } from '../hooks/useMembers.js'
 import { useQuery } from '@tanstack/react-query'
 import { activityApi } from '../api/client.js'
 import MemberSelector from './MemberSelector.jsx'
-import { PRIORITIES, STATUS_LIST, PRIORITY_LIST, RECURRENCE_LIST } from '../utils/constants.js'
+import { PRIORITIES, STATUS_LIST, PRIORITY_LIST, RECURRENCE_LIST, WORK_MODES, WORK_MODE_LIST, canonicalStatus } from '../utils/constants.js'
 import { PRIORITY_COLORS } from '../utils/colors.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatTimestamp } from '../utils/dateUtils.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
+import { WorkModeBadge } from './StatusBadge.jsx'
 
 function Select({ label, value, onChange, options }) {
   return (
@@ -64,7 +65,7 @@ export default function ActionDetail({ actionId, onClose }) {
       setForm({
         title: action.title || '',
         description: action.description || '',
-        status: action.status || 'not_started',
+        status: canonicalStatus(action.status) || 'not_started',
         priority: action.priority || 'p2',
         business: action.business || '',
         due_date: action.due_date || '',
@@ -73,6 +74,7 @@ export default function ActionDetail({ actionId, onClose }) {
         notes: action.notes || '',
         source_label: action.source_label || '',
         recurrence: action.recurrence || 'none',
+        work_mode: action.work_mode || '',
       })
     }
   }, [action, dirty])
@@ -91,6 +93,7 @@ export default function ActionDetail({ actionId, onClose }) {
       if (payload.due_date === '') payload.due_date = null
       if (payload.source_label === '') payload.source_label = null
       if (payload.business === '') payload.business = null
+      if (payload.work_mode === '') payload.work_mode = null
       await updateAction.mutateAsync({ id: actionId, ...payload })
       setDirty(false)
     } catch (err) {
@@ -212,6 +215,7 @@ export default function ActionDetail({ actionId, onClose }) {
                 {BUSINESSES[form.business]?.shortLabel}
               </span>
             )}
+            <WorkModeBadge workMode={form.work_mode} />
           </div>
           <div className="flex items-center gap-2">
             {saveError && (
@@ -296,13 +300,26 @@ export default function ActionDetail({ actionId, onClose }) {
           </div>
 
           {/* Recurrence */}
-          <div>
+          <div className="grid grid-cols-1 gap-3">
             <Select
               label="Recurrence"
               value={form.recurrence}
               onChange={val => patch('recurrence', val || 'none')}
               options={RECURRENCE_LIST}
             />
+            <div>
+              <Select
+                label="Work Mode"
+                value={form.work_mode}
+                onChange={val => patch('work_mode', val)}
+                options={WORK_MODE_LIST}
+              />
+              {form.work_mode && (
+                <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
+                  {WORK_MODES[form.work_mode]?.description}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Dependencies */}

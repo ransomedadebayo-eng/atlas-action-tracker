@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { ChevronUp, ChevronDown, CheckCircle2, Trash2 } from 'lucide-react'
 import { useActions, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
-import { StatusBadge, PriorityBadge, BusinessBadge } from './StatusBadge.jsx'
+import { StatusBadge, PriorityBadge, BusinessBadge, WorkModeBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
 import FilterBar from './FilterBar.jsx'
 import StatsStrip from './StatsStrip.jsx'
@@ -12,7 +12,7 @@ import { parseJsonArray } from '../utils/parseUtils.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
-const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked'
+const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open'
 
 export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone, frozenBusinesses = new Set(), showFrozen = false }) {
   const { BUSINESS_LIST } = useBusinessContext()
@@ -38,6 +38,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     ...(statusFilter ? { status: statusFilter } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
+    ...(filters.work_mode ? { work_mode: filters.work_mode } : {}),
     ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
   }
 
@@ -62,6 +63,9 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           break
         case 'business':
           cmp = (a.business || '').localeCompare(b.business || '')
+          break
+        case 'work_mode':
+          cmp = (a.work_mode || 'zzzz').localeCompare(b.work_mode || 'zzzz')
           break
         case 'due_date':
           cmp = (a.due_date || 'zzzz').localeCompare(b.due_date || 'zzzz')
@@ -115,6 +119,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     { id: 'status', label: 'Status', width: 'w-32' },
     { id: 'title', label: 'Title', width: 'flex-1' },
     { id: 'business', label: 'Business', width: 'w-36' },
+    { id: 'work_mode', label: 'Mode', width: 'w-32' },
     { id: 'owners', label: 'Owners', width: 'w-28', noSort: true },
     { id: 'due_date', label: 'Due', width: 'w-24' },
     { id: 'updated_at', label: 'Updated', width: 'w-28' },
@@ -245,6 +250,9 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                   <div className="w-36 flex-shrink-0">
                     <BusinessBadge business={action.business} />
                   </div>
+                  <div className="w-32 flex-shrink-0">
+                    <WorkModeBadge workMode={action.work_mode} />
+                  </div>
                   <div className="w-28 flex-shrink-0">
                     <OwnerAvatars owners={owners} members={members} />
                   </div>
@@ -343,6 +351,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                 {/* Bottom: business + due date */}
                 <div className="flex items-center gap-2 mt-2">
                   <BusinessBadge business={action.business} />
+                  <WorkModeBadge workMode={action.work_mode} />
                   {action.due_date && (
                     <span className={`text-[11px] font-mono ml-auto ${overdue ? 'text-red-400 font-semibold' : 'text-text-muted'}`}>
                       {formatRelativeDate(action.due_date)}

@@ -1,10 +1,10 @@
 import React from 'react'
 import { X, SlidersHorizontal, EyeOff, Eye } from 'lucide-react'
-import { STATUSES, PRIORITIES } from '../utils/constants.js'
-import { STATUS_COLORS, PRIORITY_COLORS } from '../utils/colors.js'
+import { STATUSES, PRIORITIES, WORK_MODES } from '../utils/constants.js'
+import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js'
 
 export default function FilterBar({ filters, onFilterChange, members = [], hideDone = true, onToggleHideDone }) {
-  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.search
+  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.search
 
   function clearAll() {
     onFilterChange({ business: filters.business })
@@ -33,6 +33,19 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
         <option value="">Status</option>
         {Object.entries(STATUSES).map(([id, s]) => (
           <option key={id} value={id}>{s.label}</option>
+        ))}
+      </select>
+
+      {/* Work Mode Filter */}
+      <select
+        aria-label="Filter by work mode"
+        className="input-field text-[11px] md:text-xs py-1 px-1.5 md:px-2 bg-bg-surface flex-shrink-0"
+        value={filters.work_mode || ''}
+        onChange={e => onFilterChange({ ...filters, work_mode: e.target.value || undefined })}
+      >
+        <option value="">Work mode</option>
+        {Object.entries(WORK_MODES).map(([id, mode]) => (
+          <option key={id} value={id}>{mode.label}</option>
         ))}
       </select>
 
@@ -107,6 +120,13 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
               label={members.find(m => m.id === filters.owner_id)?.name || filters.owner_id}
               color="#3b82f6"
               onRemove={() => removeFilter('owner_id')}
+            />
+          )}
+          {filters.work_mode && (
+            <FilterChip
+              label={WORK_MODES[filters.work_mode]?.label || filters.work_mode}
+              color={WORK_MODE_COLORS[filters.work_mode] || '#71717a'}
+              onRemove={() => removeFilter('work_mode')}
             />
           )}
           {filters.search && (

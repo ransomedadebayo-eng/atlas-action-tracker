@@ -1,6 +1,7 @@
 export const VALID_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'done'];
 export const VALID_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 export const VALID_RECURRENCES = ['none', 'daily', 'weekly', 'biweekly', 'monthly'];
+export const VALID_WORK_MODES = ['autonomous', 'review_required', 'user_only'];
 export const ACTION_TEXT_FIELDS = ['title', 'description', 'notes', 'append_note', 'source_label'];
 
 const PRIORITY_COERCE: Record<string, string> = {
@@ -10,6 +11,18 @@ const PRIORITY_COERCE: Record<string, string> = {
 const STATUS_COERCE: Record<string, string> = {
   completed: 'done', frozen: 'done', todo: 'not_started',
   open: 'not_started', cancelled: 'done',
+};
+const WORK_MODE_COERCE: Record<string, string> = {
+  auto: 'autonomous',
+  autonomous: 'autonomous',
+  codex: 'autonomous',
+  review: 'review_required',
+  approval: 'review_required',
+  review_required: 'review_required',
+  'review-required': 'review_required',
+  user: 'user_only',
+  user_only: 'user_only',
+  'user-only': 'user_only',
 };
 
 export function coercePriority(v: unknown): unknown {
@@ -24,6 +37,8 @@ export function coerceStatus(v: unknown): unknown {
 export function coerceActionBody(body: Record<string, unknown>): Record<string, unknown> {
   if (body.priority !== undefined) body.priority = coercePriority(body.priority);
   if (body.status !== undefined) body.status = coerceStatus(body.status);
+  if (body.work_mode === '') body.work_mode = null;
+  if (typeof body.work_mode === 'string') body.work_mode = WORK_MODE_COERCE[body.work_mode.toLowerCase()] ?? body.work_mode;
   return body;
 }
 
@@ -67,6 +82,9 @@ export function validateActionFields(body: Record<string, unknown>): string[] {
   }
   if (body.recurrence !== undefined && !VALID_RECURRENCES.includes(body.recurrence as string)) {
     errors.push(`recurrence must be one of: ${VALID_RECURRENCES.join(', ')}`);
+  }
+  if (body.work_mode !== undefined && body.work_mode !== null && !VALID_WORK_MODES.includes(body.work_mode as string)) {
+    errors.push(`work_mode must be one of: ${VALID_WORK_MODES.join(', ')}`);
   }
   return errors;
 }

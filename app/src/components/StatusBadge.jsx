@@ -1,11 +1,12 @@
 import React from 'react';
-import { STATUSES, PRIORITIES } from '../utils/constants.js';
-import { STATUS_COLORS, PRIORITY_COLORS } from '../utils/colors.js';
+import { STATUSES, PRIORITIES, WORK_MODES, canonicalStatus } from '../utils/constants.js';
+import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js';
 import { useBusinessContext } from '../hooks/useBusinesses.js';
 
 export function StatusBadge({ status }) {
-  const info = STATUSES[status];
-  const color = STATUS_COLORS[status];
+  const normalizedStatus = canonicalStatus(status);
+  const info = STATUSES[normalizedStatus];
+  const color = STATUS_COLORS[normalizedStatus];
   if (!info) return null;
 
   return (
@@ -53,6 +54,26 @@ export function BusinessBadge({ business }) {
       style={{ backgroundColor: `${color}12`, color, borderColor: `${color}25` }}
     >
       {info.label}
+    </span>
+  );
+}
+
+export function WorkModeBadge({ workMode }) {
+  const info = WORK_MODES[workMode];
+  const color = WORK_MODE_COLORS[workMode];
+  if (!info) return null;
+
+  return (
+    <span
+      className="badge"
+      title={info.description}
+      style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full mr-1.5"
+        style={{ backgroundColor: color }}
+      />
+      {info.shortLabel}
     </span>
   );
 }
