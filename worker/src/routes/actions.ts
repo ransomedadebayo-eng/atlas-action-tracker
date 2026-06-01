@@ -4,12 +4,20 @@ import { Env, getDb } from '../db';
 import { validateStringLengths, sanitizeBody, parsePagination } from '../middleware/validate';
 import { getActor } from '../utils/actors';
 import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS, coerceActionBody } from '../utils/actionUtils';
-import { coerceJsonArray, serializeJsonArray } from '../utils/json';
+import { coerceJsonArray, serializeJsonArray, serializeJsonObject } from '../utils/json';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData';
 
 const router = new Hono<{ Bindings: Env }>();
 const BULK_MAX = 50;
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
+const PROTOCOL_FIELDS = [
+  'next_action',
+  'definition_of_done',
+  'review_date',
+  'evidence_json',
+  'agent_assignment_id',
+  'approval_state',
+];
 
 function sortByPriority(actions: Record<string, unknown>[], direction = 'ASC') {
   return actions.sort((a, b) => {
@@ -28,6 +36,43 @@ function parseBulkPayload(body: unknown, key: string): unknown[] | undefined {
   if (Array.isArray(body)) return body;
   if (body && typeof body === 'object') return (body as Record<string, unknown>)[key] as unknown[];
   return undefined;
+}
+
+function hasEvidence(action: Record<string, unknown>): boolean {
+  const evidence = action.evidence_json;
+  return !!evidence && typeof evidence === 'object' && !Array.isArray(evidence) && Object.keys(evidence).length > 0;
+}
+
+function applyProtocolFields(target: Record<string, unknown>, source: Record<string, unknown>) {
+  if (source.next_action !== undefined) target.next_action = source.next_action || null;
+  if (source.definition_of_done !== undefined) target.definition_of_done = source.definition_of_done || null;
+  if (source.review_date !== undefined) target.review_date = source.review_date || null;
+  if (source.evidence_json !== undefined) target.evidence_json = serializeJsonObject(source.evidence_json);
+  if (source.agent_assignment_id !== undefined) target.agent_assignment_id = source.agent_assignment_id || null;
+  if (source.approval_state !== undefined) target.approval_state = source.approval_state || 'not_required';
+}
+
+function isProtocolStale(action: Record<string, unknown>, today: string): boolean {
+  const dueDate = typeof action.due_date === 'string' ? action.due_date : null;
+  const isOverdue = !!dueDate && dueDate < today && action.status !== 'done';
+  return (
+    isOverdue ||
+    !action.work_mode ||
+    !action.next_action ||
+    !action.definition_of_done ||
+    (!dueDate && !action.review_date)
+  );
+}
+
+function filterProtocolSpecialModes(query: any, workMode?: string) {
+  if (!workMode) return query;
+  const workModes = workMode.split(',').filter(Boolean);
+  if (workModes.includes('__null__')) {
+    const concrete = workModes.filter(mode => mode !== '__null__');
+    if (concrete.length === 0) return query.is('work_mode', null);
+    return query.or(`work_mode.is.null,work_mode.in.(${concrete.join(',')})`);
+  }
+  return query.in('work_mode', workModes);
 }
 
 async function validateActionReferences(supabase: ReturnType<typeof getDb>, action: Record<string, unknown>) {
@@ -86,18 +131,29 @@ function annotateBlocked(actions: Record<string, unknown>[]): Record<string, unk
   return actions.map(a => ({ ...a, is_blocked: isBlocked(a) }));
 }
 
+function assignmentPriority(priority: unknown): string {
+  if (priority === 'p0') return 'critical';
+  if (priority === 'p1') return 'high';
+  if (priority === 'p3') return 'low';
+  return 'medium';
+}
+
+function assignmentTypeForWorkMode(workMode: unknown): string {
+  return workMode === 'review_required' || workMode === 'user_only' ? 'review' : 'execution';
+}
+
 // GET /
 router.get('/', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked } = c.req.query() as Record<string, string>;
+    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked, stewardship } = c.req.query() as Record<string, string>;
 
     let query = supabase.from('atlas_actions').select('*');
 
     if (status) query = query.in('status', status.split(','));
     if (business) query = query.eq('business', business);
     if (priority) query = query.in('priority', priority.split(','));
-    if (work_mode) query = query.in('work_mode', work_mode.split(','));
+    query = filterProtocolSpecialModes(query, work_mode);
     if (owner_id) query = query.contains('owners', [owner_id]);
     if (due_before) query = query.lte('due_date', due_before);
     if (due_after) query = query.gte('due_date', due_after);
@@ -107,7 +163,7 @@ router.get('/', async (c) => {
     }
     if (source_id) query = query.eq('source_transcript_id', source_id);
 
-    const validSorts = ['priority', 'due_date', 'status', 'title', 'business', 'work_mode', 'created_at', 'updated_at'];
+    const validSorts = ['priority', 'due_date', 'review_date', 'status', 'title', 'business', 'work_mode', 'approval_state', 'created_at', 'updated_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
@@ -117,6 +173,7 @@ router.get('/', async (c) => {
       const { data, error } = await query;
       if (error) throw error;
       let results = annotateBlocked((data || []) as Record<string, unknown>[]);
+      if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       const sorted = sortByPriority(results, direction);
       return c.json(sorted.slice(offset, offset + limit));
@@ -125,6 +182,7 @@ router.get('/', async (c) => {
       const { data, error } = await query;
       if (error) throw error;
       let results = annotateBlocked((data || []) as Record<string, unknown>[]);
+      if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       return c.json(results.slice(offset, offset + limit));
     }
@@ -174,6 +232,69 @@ router.get('/:id', async (c) => {
   }
 });
 
+// POST /:id/agent-assignment
+router.post('/:id/agent-assignment', async (c) => {
+  try {
+    const supabase = getDb(c.env);
+    const actor = getActor(c);
+    const { data: action, error: fetchErr } = await supabase.from('atlas_actions').select('*').eq('id', c.req.param('id')).single();
+    if (fetchErr || !action) return c.json({ error: 'Action not found' }, 404);
+    if (action.agent_assignment_id) return c.json({ error: 'Action already has an agent assignment.' }, 409);
+
+    const now = new Date().toISOString();
+    const definition = action.definition_of_done || `Complete and verify: ${action.title}`;
+    const assignmentId = uuidv4();
+    const { data: assignment, error: insertErr } = await supabase
+      .from('agent_assignments')
+      .insert({
+        id: assignmentId,
+        title: `Atlas: ${action.title}`,
+        description: action.description || action.notes || null,
+        assignment_type: assignmentTypeForWorkMode(action.work_mode),
+        task_type: 'execution',
+        goal: action.next_action || action.title,
+        success_criteria_json: [definition],
+        constraints_json: [],
+        due_at: action.due_date ? `${action.due_date}T23:59:00.000Z` : null,
+        priority: assignmentPriority(action.priority),
+        owner_review_required: action.work_mode !== 'autonomous',
+        status: action.work_mode === 'autonomous' ? 'queued' : 'awaiting_review',
+        created_by: actor,
+        work_mode: action.work_mode || 'review_required',
+        definition_of_done: definition,
+        evidence_required_json: {
+          required: true,
+          sources: ['atlas_action', 'agent_run'],
+        },
+        review_medium: action.work_mode === 'autonomous' ? 'chat' : 'peos_review_queue',
+        source_action_id: action.id,
+        created_at: now,
+        updated_at: now,
+      })
+      .select()
+      .single();
+    if (insertErr) throw insertErr;
+
+    await supabase.from('atlas_actions').update({
+      agent_assignment_id: assignment.id,
+      approval_state: action.work_mode === 'autonomous' ? 'not_required' : 'needs_review',
+      updated_at: now,
+    }).eq('id', action.id);
+
+    await supabase.from('atlas_activity_log').insert({
+      action_id: action.id,
+      event: 'agent_assignment_created',
+      new_value: assignment.id,
+      actor,
+    });
+
+    return c.json(assignment, 201);
+  } catch (err) {
+    console.error(`[actions] agent-assignment error: ${(err as Error).message}`);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
 // POST /
 router.post('/', async (c) => {
   try {
@@ -199,9 +320,16 @@ router.post('/', async (c) => {
     const id = uuidv4();
     const now = new Date().toISOString();
 
+    if (status === 'done' && !hasEvidence(body)) {
+      return c.json({ error: 'Evidence is required before marking an action done.' }, 400);
+    }
+
+    const protocolFields: Record<string, unknown> = {};
+    applyProtocolFields(protocolFields, body);
+
     const { data: action, error } = await supabase
       .from('atlas_actions')
-      .insert({ id, title, description, status, business, priority, due_date, owners: serializeJsonArray(owners), source_transcript_id, source_label, tags: serializeJsonArray(tags), notes, recurrence, work_mode, created_at: now, updated_at: now })
+      .insert({ id, title, description, status, business, priority, due_date, owners: serializeJsonArray(owners), source_transcript_id, source_label, tags: serializeJsonArray(tags), notes, recurrence, work_mode, ...protocolFields, created_at: now, updated_at: now })
       .select().single();
 
     if (error) throw error;
@@ -234,6 +362,9 @@ router.post('/bulk', async (c) => {
         ...validateStringLengths(action),
       ];
       if (fieldErrors.length > 0) return c.json({ error: `Item ${i}: ${fieldErrors.join('; ')}` }, 400);
+      if (action.status === 'done' && !hasEvidence(action)) {
+        return c.json({ error: `Item ${i}: evidence_json is required before marking an action done` }, 400);
+      }
     }
 
     const actor = getActor(c);
@@ -252,6 +383,12 @@ router.post('/bulk', async (c) => {
       notes: action.notes || '',
       recurrence: action.recurrence || 'none',
       work_mode: action.work_mode || null,
+      next_action: action.next_action || null,
+      definition_of_done: action.definition_of_done || null,
+      review_date: action.review_date || null,
+      evidence_json: serializeJsonObject(action.evidence_json),
+      agent_assignment_id: action.agent_assignment_id || null,
+      approval_state: action.approval_state || 'not_required',
     }));
 
     const { error } = await supabase.from('atlas_actions').insert(rows);
@@ -314,8 +451,16 @@ router.put('/bulk', async (c) => {
       if (appendNote !== undefined) fields.notes = existing.notes ? `${existing.notes}\n\n${appendNote}` : appendNote;
       if (update.recurrence !== undefined) fields.recurrence = update.recurrence;
       if (update.work_mode !== undefined) fields.work_mode = update.work_mode;
+      applyProtocolFields(fields, update);
 
       if (Object.keys(fields).length === 0) continue;
+
+      if (update.status === 'done' && existing.status !== 'done') {
+        const merged = { ...existing, ...fields };
+        if (!hasEvidence(merged)) {
+          return c.json({ error: `Item ${update.id}: evidence_json is required before marking an action done` }, 400);
+        }
+      }
 
       if (update.status === 'done' && existing.status !== 'done') fields.completed_at = now;
       else if (update.status !== undefined && update.status !== 'done' && existing.status === 'done') fields.completed_at = null;
@@ -331,7 +476,7 @@ router.put('/bulk', async (c) => {
       if (update.priority !== undefined && update.priority !== existing.priority) {
         await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'priority_changed', old_value: existing.priority, new_value: update.priority, actor });
       }
-      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined || update.work_mode !== undefined) {
+      if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined || update.work_mode !== undefined || PROTOCOL_FIELDS.some(field => update[field] !== undefined)) {
         await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'updated', new_value: JSON.stringify(Object.keys(update).filter(k => k !== 'id')), actor });
       }
 
@@ -389,9 +534,17 @@ router.put('/:id', async (c) => {
     if (append_note !== undefined) updates.notes = existing.notes ? `${existing.notes}\n\n${append_note}` : append_note;
     if (recurrence !== undefined) updates.recurrence = recurrence;
     if (work_mode !== undefined) updates.work_mode = work_mode;
+    applyProtocolFields(updates, body);
 
     const mutableKeys = Object.keys(updates);
     if (mutableKeys.length === 0) return c.json({ error: 'No fields to update' }, 400);
+
+    if (status === 'done' && existing.status !== 'done') {
+      const merged = { ...existing, ...updates };
+      if (!hasEvidence(merged)) {
+        return c.json({ error: 'Evidence is required before marking an action done.' }, 400);
+      }
+    }
 
     if (status === 'done' && existing.status !== 'done') updates.completed_at = now;
     if (status && status !== 'done' && existing.status === 'done') updates.completed_at = null;

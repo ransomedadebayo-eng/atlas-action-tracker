@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
   X, Trash2, FileText, ChevronDown,
-  AlertCircle, Save, Activity,
+  AlertCircle, Save, Activity, CheckCircle2, ClipboardCheck, Bot,
 } from 'lucide-react'
-import { useAction, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
+import { useAction, useUpdateAction, useDeleteAction, useCreateAgentAssignment } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useQuery } from '@tanstack/react-query'
 import { activityApi } from '../api/client.js'
 import MemberSelector from './MemberSelector.jsx'
-import { PRIORITIES, STATUS_LIST, PRIORITY_LIST, RECURRENCE_LIST, WORK_MODES, WORK_MODE_LIST, canonicalStatus } from '../utils/constants.js'
+import { PRIORITIES, STATUS_LIST, PRIORITY_LIST, RECURRENCE_LIST, WORK_MODES, WORK_MODE_LIST, APPROVAL_STATE_LIST, canonicalStatus } from '../utils/constants.js'
 import { PRIORITY_COLORS } from '../utils/colors.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatTimestamp } from '../utils/dateUtils.js'
-import { parseJsonArray } from '../utils/parseUtils.js'
+import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
 import { WorkModeBadge } from './StatusBadge.jsx'
 
 function Select({ label, value, onChange, options }) {
@@ -44,6 +44,7 @@ export default function ActionDetail({ actionId, onClose }) {
   const { data: members = [] } = useMembers()
   const updateAction = useUpdateAction()
   const deleteAction = useDeleteAction()
+  const createAgentAssignment = useCreateAgentAssignment()
 
   const { data: activityLog = [] } = useQuery({
     queryKey: ['activity', actionId],
@@ -60,6 +61,11 @@ export default function ActionDetail({ actionId, onClose }) {
   const [saveError, setSaveError] = useState('')
   const panelRef = useRef(null)
 
+  function formatEvidence(value) {
+    const obj = parseJsonObject(value)
+    return Object.keys(obj).length ? JSON.stringify(obj, null, 2) : ''
+  }
+
   useEffect(() => {
     if (action && !dirty) {
       setForm({
@@ -75,6 +81,12 @@ export default function ActionDetail({ actionId, onClose }) {
         source_label: action.source_label || '',
         recurrence: action.recurrence || 'none',
         work_mode: action.work_mode || '',
+        next_action: action.next_action || '',
+        definition_of_done: action.definition_of_done || '',
+        review_date: action.review_date || '',
+        approval_state: action.approval_state || 'not_required',
+        agent_assignment_id: action.agent_assignment_id || '',
+        evidence_text: formatEvidence(action.evidence_json),
       })
     }
   }, [action, dirty])
@@ -84,22 +96,83 @@ export default function ActionDetail({ actionId, onClose }) {
     setDirty(true)
   }
 
-  async function handleSave() {
-    if (!form || !dirty) return
+  function buildPayload(overrides = {}) {
+    const payload = { ...form, ...overrides }
+    if (payload.due_date === '') payload.due_date = null
+    if (payload.source_label === '') payload.source_label = null
+    if (payload.business === '') payload.business = null
+    if (payload.work_mode === '') payload.work_mode = null
+    if (payload.review_date === '') payload.review_date = null
+    if (payload.agent_assignment_id === '') payload.agent_assignment_id = null
+    if (!payload.approval_state) payload.approval_state = 'not_required'
+
+    const evidenceText = (payload.evidence_text || '').trim()
+    if (evidenceText) {
+      const parsed = JSON.parse(evidenceText)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('Evidence must be a JSON object.')
+      }
+      payload.evidence_json = parsed
+    } else {
+      payload.evidence_json = {}
+    }
+    delete payload.evidence_text
+    return payload
+  }
+
+  async function savePayload(overrides = {}, keepDirty = false) {
     setSaving(true)
     setSaveError('')
     try {
-      const payload = { ...form }
-      if (payload.due_date === '') payload.due_date = null
-      if (payload.source_label === '') payload.source_label = null
-      if (payload.business === '') payload.business = null
-      if (payload.work_mode === '') payload.work_mode = null
+      const payload = buildPayload(overrides)
       await updateAction.mutateAsync({ id: actionId, ...payload })
-      setDirty(false)
+      setForm(prev => ({ ...prev, ...overrides }))
+      if (!keepDirty) setDirty(false)
     } catch (err) {
       setSaveError(err?.message || 'Failed to save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!form || !dirty) return
+    await savePayload()
+  }
+
+  async function handleNeedsReviewPacket() {
+    await savePayload({
+      approval_state: 'needs_review',
+      status: form.status === 'done' ? form.status : 'waiting',
+      next_action: form.next_action || 'Prepare review packet in PEOS.',
+    })
+  }
+
+  async function handleMarkVerifiedDone() {
+    const hasEvidence = (form.evidence_text || '').trim().length > 2
+    if (!hasEvidence) {
+      setSaveError('Add evidence before marking verified done.')
+      return
+    }
+    await savePayload({
+      status: 'done',
+      approval_state: form.approval_state === 'needs_review' ? 'approved' : form.approval_state,
+    })
+  }
+
+  async function handleCreateAgentAssignment() {
+    setSaveError('')
+    try {
+      if (dirty) await savePayload({}, true)
+      const assignment = await createAgentAssignment.mutateAsync(actionId)
+      setForm(prev => ({
+        ...prev,
+        agent_assignment_id: assignment.id,
+        approval_state: prev.work_mode === 'autonomous' ? 'not_required' : 'needs_review',
+      }))
+      setDirty(false)
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to create assignment')
     }
   }
 
@@ -319,6 +392,117 @@ export default function ActionDetail({ actionId, onClose }) {
                   {WORK_MODES[form.work_mode]?.description}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Protocol contract */}
+          <div className="pt-4 border-t border-white/10 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="label">Execution Contract</p>
+                <p className="mt-1 text-xs text-text-muted">Next action, review gate, and proof before completion.</p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  className="btn-ghost flex items-center gap-1.5 text-xs py-1.5"
+                  onClick={handleCreateAgentAssignment}
+                  disabled={saving || createAgentAssignment.isPending || !!form.agent_assignment_id}
+                  title="Create a linked PEOS agent assignment"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  Create Agent Assignment
+                </button>
+                <button
+                  className="btn-ghost flex items-center gap-1.5 text-xs py-1.5"
+                  onClick={handleNeedsReviewPacket}
+                  disabled={saving}
+                  title="Flag this action for a PEOS review packet"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                  Needs Review Packet
+                </button>
+                <button
+                  className="btn-primary flex items-center gap-1.5 text-xs py-1.5"
+                  onClick={handleMarkVerifiedDone}
+                  disabled={saving || !(form.evidence_text || '').trim()}
+                  title="Mark done only after evidence is attached"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Mark Verified Done
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="label block mb-1.5">
+                Next Action
+              </label>
+              <textarea
+                className="input-field w-full text-sm resize-none"
+                rows={2}
+                value={form.next_action}
+                onChange={e => patch('next_action', e.target.value)}
+                placeholder="The next concrete step..."
+              />
+            </div>
+
+            <div>
+              <label className="label block mb-1.5">
+                Definition of Done
+              </label>
+              <textarea
+                className="input-field w-full text-sm resize-none"
+                rows={3}
+                value={form.definition_of_done}
+                onChange={e => patch('definition_of_done', e.target.value)}
+                placeholder="The evidence and outcome needed before this can close..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label block mb-1.5">
+                  Review Date
+                </label>
+                <input
+                  type="date"
+                  className="input-field w-full text-sm"
+                  value={form.review_date || ''}
+                  onChange={e => patch('review_date', e.target.value)}
+                />
+              </div>
+              <Select
+                label="Approval"
+                value={form.approval_state}
+                onChange={val => patch('approval_state', val || 'not_required')}
+                options={APPROVAL_STATE_LIST}
+              />
+            </div>
+
+            <div>
+              <label className="label block mb-1.5">
+                Agent Assignment
+              </label>
+              <input
+                type="text"
+                className="input-field w-full text-sm font-mono"
+                value={form.agent_assignment_id || ''}
+                onChange={e => patch('agent_assignment_id', e.target.value)}
+                placeholder="Linked assignment id"
+              />
+            </div>
+
+            <div>
+              <label className="label block mb-1.5">
+                Evidence JSON
+              </label>
+              <textarea
+                className="input-field w-full text-xs font-mono resize-none"
+                rows={6}
+                value={form.evidence_text}
+                onChange={e => patch('evidence_text', e.target.value)}
+                placeholder='{"deploy_url":"https://...", "tests":"passed"}'
+              />
             </div>
           </div>
 

@@ -61,6 +61,18 @@ export function useUpdateAction() {
   });
 }
 
+export function useCreateAgentAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id) => actionsApi.createAgentAssignment(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['actions'] });
+      queryClient.invalidateQueries({ queryKey: ['action', id] });
+      queryClient.invalidateQueries({ queryKey: ['actionStats'] });
+    },
+  });
+}
+
 export function useDeleteAction() {
   const queryClient = useQueryClient();
   return useMutation({

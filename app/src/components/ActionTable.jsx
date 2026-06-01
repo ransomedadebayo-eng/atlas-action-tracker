@@ -1,18 +1,25 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ChevronUp, ChevronDown, CheckCircle2, Trash2 } from 'lucide-react'
+import { ChevronUp, ChevronDown, CheckCircle2, Trash2, ClipboardCheck } from 'lucide-react'
 import { useActions, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { StatusBadge, PriorityBadge, BusinessBadge, WorkModeBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
 import FilterBar from './FilterBar.jsx'
 import StatsStrip from './StatsStrip.jsx'
-import { formatRelativeDate, formatTimestamp, isOverdue } from '../utils/dateUtils.js'
+import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
-import { parseJsonArray } from '../utils/parseUtils.js'
+import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
 const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open'
+const PROTOCOL_VIEWS = [
+  { id: 'codex-pull', label: 'Codex Pull Queue', filters: { work_mode: 'autonomous', owner_id: 'codex' } },
+  { id: 'needs-review', label: 'Needs Review', filters: { work_mode: 'review_required' } },
+  { id: 'user-only', label: 'User Only', filters: { work_mode: 'user_only' } },
+  { id: 'unclassified', label: 'Unclassified Cleanup', filters: { work_mode: '__null__' } },
+  { id: 'stale', label: 'Stale / Stewardship', filters: { stewardship: 'stale' } },
+]
 
 export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone, frozenBusinesses = new Set(), showFrozen = false }) {
   const { BUSINESS_LIST } = useBusinessContext()
@@ -39,6 +46,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     ...(filters.priority ? { priority: filters.priority } : {}),
     ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
     ...(filters.work_mode ? { work_mode: filters.work_mode } : {}),
+    ...(filters.stewardship ? { stewardship: filters.stewardship } : {}),
     ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
   }
 
@@ -66,6 +74,12 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           break
         case 'work_mode':
           cmp = (a.work_mode || 'zzzz').localeCompare(b.work_mode || 'zzzz')
+          break
+        case 'review_date':
+          cmp = (a.review_date || 'zzzz').localeCompare(b.review_date || 'zzzz')
+          break
+        case 'approval_state':
+          cmp = (a.approval_state || 'zzzz').localeCompare(b.approval_state || 'zzzz')
           break
         case 'due_date':
           cmp = (a.due_date || 'zzzz').localeCompare(b.due_date || 'zzzz')
@@ -97,6 +111,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
   function markDone(e, action) {
     e.stopPropagation()
+    if (action.status !== 'done' && Object.keys(parseJsonObject(action.evidence_json)).length === 0) {
+      window.alert('Open the action and add evidence before marking it verified done.')
+      return
+    }
     updateAction.mutate({ id: action.id, status: action.status === 'done' ? 'not_started' : 'done' })
   }
 
@@ -115,20 +133,40 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
   }
 
   const columns = [
-    { id: 'priority', label: 'Priority', width: 'w-24' },
-    { id: 'status', label: 'Status', width: 'w-32' },
-    { id: 'title', label: 'Title', width: 'flex-1' },
-    { id: 'business', label: 'Business', width: 'w-36' },
-    { id: 'work_mode', label: 'Mode', width: 'w-32' },
-    { id: 'owners', label: 'Owners', width: 'w-28', noSort: true },
-    { id: 'due_date', label: 'Due', width: 'w-24' },
-    { id: 'updated_at', label: 'Updated', width: 'w-28' },
-    { id: 'actions', label: '', width: 'w-20', noSort: true },
+    { id: 'priority', label: 'Priority', width: 'w-20' },
+    { id: 'status', label: 'Status', width: 'w-28' },
+    { id: 'title', label: 'Title', width: 'min-w-[200px] flex-1' },
+    { id: 'business', label: 'Business', width: 'w-28' },
+    { id: 'work_mode', label: 'Mode', width: 'w-24' },
+    { id: 'owners', label: 'Owners', width: 'w-20', noSort: true },
+    { id: 'due_date', label: 'Due', width: 'w-20' },
+    { id: 'actions', label: '', width: 'w-16', noSort: true },
   ]
 
   return (
     <div className="space-y-4 md:space-y-5">
       <StatsStrip business={effectiveBusiness} />
+
+      <div className="flex flex-wrap gap-2">
+        {PROTOCOL_VIEWS.map(view => {
+          const active = Object.entries(view.filters).every(([key, value]) => filters[key] === value)
+          return (
+            <button
+              key={view.id}
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold uppercase transition-colors ${
+                active
+                  ? 'border-accent/30 bg-accent-muted text-accent'
+                  : 'border-white/10 text-text-secondary hover:border-accent/25 hover:text-accent'
+              }`}
+              onClick={() => setFilters(active ? {} : view.filters)}
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              {view.label}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Business tabs */}
       {!selectedBusiness && (
@@ -172,7 +210,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       />
 
       {/* Desktop Table */}
-      <div className="glass-card overflow-hidden hidden md:block">
+      <div className="glass-card overflow-x-auto hidden md:block">
         {/* Header */}
         <div className="flex items-center border-b border-white/5 px-5 py-3 gap-2">
           {columns.map(col => (
@@ -216,6 +254,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               const overdue = isOverdue(action.due_date) && !done
               const owners = parseJsonArray(action.owners)
               const tags = parseJsonArray(action.tags)
+              const hasEvidence = Object.keys(parseJsonObject(action.evidence_json)).length > 0
 
               return (
                 <div
@@ -226,20 +265,34 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                   style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
                   onClick={() => onSelectAction(action.id)}
                 >
-                  <div className="w-24 flex-shrink-0">
+                  <div className="w-20 flex-shrink-0">
                     <PriorityBadge priority={action.priority} />
                   </div>
-                  <div className="w-32 flex-shrink-0">
+                  <div className="w-28 flex-shrink-0">
                     <StatusBadge status={action.status} />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-[200px] flex-1">
                     <span className={`text-sm font-medium truncate block ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
                       {action.title}
                     </span>
-                    {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none')) && (
-                      <div className="flex gap-1 mt-0.5 items-center">
+                    {action.next_action && (
+                      <span className="mt-0.5 block max-w-full truncate text-[10px] text-text-muted" title={action.next_action}>
+                        {action.next_action}
+                      </span>
+                    )}
+                    {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || hasEvidence || action.review_date || (action.approval_state && action.approval_state !== 'not_required')) && (
+                      <div className="mt-0.5 flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden">
                         {action.recurrence && action.recurrence !== 'none' && (
                           <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
+                        )}
+                        {action.review_date && (
+                          <span className="text-[10px] text-text-muted">review {formatRelativeDate(action.review_date)}</span>
+                        )}
+                        {action.approval_state && action.approval_state !== 'not_required' && (
+                          <span className="text-[10px] text-text-muted">{action.approval_state.replace(/_/g, ' ')}</span>
+                        )}
+                        {hasEvidence && (
+                          <span className="text-[10px] text-accent">evidence</span>
                         )}
                         {tags.slice(0, 3).map(tag => (
                           <span key={tag} className="text-[10px] text-text-muted">#{tag}</span>
@@ -247,22 +300,19 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                       </div>
                     )}
                   </div>
-                  <div className="w-36 flex-shrink-0">
+                  <div className="w-28 flex-shrink-0">
                     <BusinessBadge business={action.business} />
                   </div>
-                  <div className="w-32 flex-shrink-0">
+                  <div className="w-24 flex-shrink-0">
                     <WorkModeBadge workMode={action.work_mode} />
                   </div>
-                  <div className="w-28 flex-shrink-0">
+                  <div className="w-20 flex-shrink-0">
                     <OwnerAvatars owners={owners} members={members} />
                   </div>
-                  <div className={`w-24 flex-shrink-0 text-xs font-mono ${overdue ? 'text-red-400 font-semibold' : 'text-text-secondary'}`}>
+                  <div className={`w-20 flex-shrink-0 text-xs font-mono ${overdue ? 'text-red-400 font-semibold' : 'text-text-secondary'}`}>
                     {action.due_date ? formatRelativeDate(action.due_date) : '\u2014'}
                   </div>
-                  <div className="w-28 flex-shrink-0 text-xs text-text-muted font-mono">
-                    {action.updated_at ? formatTimestamp(action.updated_at) : '\u2014'}
-                  </div>
-                  <div className="w-20 flex-shrink-0 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-16 flex-shrink-0 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       className="p-1 text-text-muted hover:text-accent transition-colors"
                       onClick={e => markDone(e, action)}

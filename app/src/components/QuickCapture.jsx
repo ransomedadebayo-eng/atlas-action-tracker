@@ -16,6 +16,9 @@ const DEFAULT_FORM = {
   description: '',
   recurrence: 'none',
   work_mode: '',
+  next_action: '',
+  definition_of_done: '',
+  review_date: '',
 }
 
 export default function QuickCapture({ onClose, selectedBusiness, prefilledDate }) {
@@ -86,6 +89,9 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
         ...form,
         due_date: form.due_date || null,
         work_mode: form.work_mode || null,
+        review_date: form.review_date || null,
+        next_action: form.next_action || null,
+        definition_of_done: form.definition_of_done || null,
       }
       await createAction.mutateAsync(payload)
       onClose()
@@ -240,6 +246,30 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
                 </select>
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
               </div>
+
+              <input
+                type="date"
+                className="input-field w-full text-sm"
+                value={form.review_date}
+                onChange={e => patch('review_date', e.target.value)}
+                aria-label="Review date"
+              />
+
+              <textarea
+                className="input-field w-full text-sm resize-none"
+                rows={2}
+                placeholder="Next action"
+                value={form.next_action}
+                onChange={e => patch('next_action', e.target.value)}
+              />
+
+              <textarea
+                className="input-field w-full text-sm resize-none"
+                rows={2}
+                placeholder="Definition of done"
+                value={form.definition_of_done}
+                onChange={e => patch('definition_of_done', e.target.value)}
+              />
 
               {/* Owners */}
               <MemberSelector

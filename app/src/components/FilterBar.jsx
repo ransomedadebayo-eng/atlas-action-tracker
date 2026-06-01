@@ -4,7 +4,7 @@ import { STATUSES, PRIORITIES, WORK_MODES } from '../utils/constants.js'
 import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js'
 
 export default function FilterBar({ filters, onFilterChange, members = [], hideDone = true, onToggleHideDone }) {
-  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.search
+  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.search
 
   function clearAll() {
     onFilterChange({ business: filters.business })
@@ -44,6 +44,7 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
         onChange={e => onFilterChange({ ...filters, work_mode: e.target.value || undefined })}
       >
         <option value="">Work mode</option>
+        <option value="__null__">Unclassified</option>
         {Object.entries(WORK_MODES).map(([id, mode]) => (
           <option key={id} value={id}>{mode.label}</option>
         ))}
@@ -124,9 +125,16 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
           )}
           {filters.work_mode && (
             <FilterChip
-              label={WORK_MODES[filters.work_mode]?.label || filters.work_mode}
+              label={filters.work_mode === '__null__' ? 'Unclassified' : WORK_MODES[filters.work_mode]?.label || filters.work_mode}
               color={WORK_MODE_COLORS[filters.work_mode] || '#71717a'}
               onRemove={() => removeFilter('work_mode')}
+            />
+          )}
+          {filters.stewardship && (
+            <FilterChip
+              label="Stale / Stewardship"
+              color="#f4b860"
+              onRemove={() => removeFilter('stewardship')}
             />
           )}
           {filters.search && (

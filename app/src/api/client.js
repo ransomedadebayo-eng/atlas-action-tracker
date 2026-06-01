@@ -49,6 +49,7 @@ export const actionsApi = {
   get: (id) => request(`/actions/${id}`),
   create: (data) => request('/actions', { method: 'POST', body: data }),
   update: (id, data) => request(`/actions/${id}`, { method: 'PUT', body: data }),
+  createAgentAssignment: (id) => request(`/actions/${id}/agent-assignment`, { method: 'POST', body: {} }),
   delete: (id) => request(`/actions/${id}`, { method: 'DELETE' }),
   bulkCreate: (actions) => request('/actions/bulk', { method: 'POST', body: { actions } }),
   bulkUpdate: (updates) => request('/actions/bulk', { method: 'PUT', body: { updates } }),

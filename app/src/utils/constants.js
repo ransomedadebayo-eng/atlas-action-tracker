@@ -56,6 +56,19 @@ export const WORK_MODE_LIST = Object.entries(WORK_MODES).map(([id, val]) => ({
   ...val,
 }));
 
+export const APPROVAL_STATES = {
+  not_required: { label: 'Not Required' },
+  needs_review: { label: 'Needs Review' },
+  approved: { label: 'Approved' },
+  rejected: { label: 'Rejected' },
+  deferred: { label: 'Deferred' },
+};
+
+export const APPROVAL_STATE_LIST = Object.entries(APPROVAL_STATES).map(([id, val]) => ({
+  id,
+  ...val,
+}));
+
 export const BUSINESSES = {
   riddim_exchange: { label: 'Riddim Exchange', shortLabel: 'RX' },
   real_estate: { label: 'Real Estate', shortLabel: 'RE' },
