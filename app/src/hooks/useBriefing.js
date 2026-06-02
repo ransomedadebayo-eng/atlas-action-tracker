@@ -3,11 +3,9 @@ import { actionsApi } from '../api/client.js'
 
 async function fetchBriefing() {
   const BASE_URL = '/api'
-  const token = import.meta.env.VITE_ATLAS_API_TOKEN
   const res = await fetch(`${BASE_URL}/briefing/today`, {
     headers: {
       'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
     },
   })
   if (!res.ok) return { briefing: null }

@@ -11,6 +11,7 @@ import { getActor } from '../utils/actors.js';
 import { ACTION_TEXT_FIELDS, validateActionFields } from '../utils/actionUtils.js';
 import { serializeJsonArray } from '../utils/json.js';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData.js';
+import { buildSafeIlikePattern } from '../utils/search.js';
 
 const router = Router();
 const TRANSCRIPT_TEXT_FIELDS = ['title', 'raw_text', 'summary', 'summary_file'];
@@ -70,8 +71,9 @@ router.get('/', async (req, res) => {
     if (business) {
       query = query.eq('business', business);
     }
-    if (search) {
-      const term = `%${search}%`;
+    const searchTerm = buildSafeIlikePattern(search);
+    if (searchTerm) {
+      const term = searchTerm;
       query = query.or(`title.ilike.${term},summary.ilike.${term}`);
     }
 

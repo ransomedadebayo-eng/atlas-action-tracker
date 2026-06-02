@@ -6,6 +6,7 @@ import { getActor } from '../utils/actors.js';
 import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS, coerceActionBody } from '../utils/actionUtils.js';
 import { coerceJsonArray, serializeJsonArray, serializeJsonObject } from '../utils/json.js';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData.js';
+import { buildSafeIlikePattern } from '../utils/search.js';
 
 const router = Router();
 const BULK_MAX = 50;
@@ -175,8 +176,9 @@ router.get('/', async (req, res) => {
     if (due_after) {
       query = query.gte('due_date', due_after);
     }
-    if (search) {
-      const term = `%${search}%`;
+    const searchTerm = buildSafeIlikePattern(search);
+    if (searchTerm) {
+      const term = searchTerm;
       query = query.or(`title.ilike.${term},description.ilike.${term},notes.ilike.${term}`);
     }
     if (source_id) {

@@ -20,8 +20,13 @@ fi
 NODE_ENV=production node server/index.js &
 sleep 1
 
-# Start Vite dev server for local development (hot reload)
-npx vite --host 0.0.0.0 --port 5173 &
+# Start Vite dev server for local development (hot reload).
+# Set ATLAS_LAN_DEV=1 only when intentionally testing from another device.
+if [ "$ATLAS_LAN_DEV" = "1" ]; then
+  npx vite --host 0.0.0.0 --port 5173 &
+else
+  npx vite --host 127.0.0.1 --port 5173 &
+fi
 sleep 2
 
 # Open local dev server in browser
@@ -44,7 +49,9 @@ echo "==================================="
 echo "  ATLAS Action Tracker is running"
 echo "==================================="
 echo "  Local dev:  http://localhost:5173"
+if [ "$ATLAS_LAN_DEV" = "1" ]; then
 echo "  Phone LAN:  http://$IP:5173"
+fi
 if [ -n "$TUNNEL_URL" ]; then
 echo "  Remote:     $TUNNEL_URL"
 fi

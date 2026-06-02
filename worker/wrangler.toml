@@ -12,6 +12,10 @@ directory = "../app/dist"
 
 [vars]
 NODE_ENV = "production"
+CF_ACCESS_TEAM_DOMAIN = "ransomedadebayo"
+CF_ACCESS_AUD = "d6cc947de1c5940fd3477afe8ad4f059328b92ce24353de484b6f6e14d8650fe"
+CF_ACCESS_ISSUER = "https://ransomedadebayo.cloudflareaccess.com"
+CF_ACCESS_JWKS_URL = "https://ransomedadebayo.cloudflareaccess.com/cdn-cgi/access/certs"
 
 # Secrets set via: wrangler secret put <NAME>
 # SUPABASE_URL

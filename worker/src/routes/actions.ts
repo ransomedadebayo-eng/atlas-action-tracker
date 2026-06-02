@@ -6,6 +6,7 @@ import { getActor } from '../utils/actors';
 import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS, coerceActionBody } from '../utils/actionUtils';
 import { coerceJsonArray, serializeJsonArray, serializeJsonObject } from '../utils/json';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData';
+import { buildSafeIlikePattern } from '../utils/search';
 
 const router = new Hono<{ Bindings: Env }>();
 const BULK_MAX = 50;
@@ -158,8 +159,9 @@ router.get('/', async (c) => {
     if (owner_id) query = query.contains('owners', [owner_id]);
     if (due_before) query = query.lte('due_date', due_before);
     if (due_after) query = query.gte('due_date', due_after);
-    if (search) {
-      const term = `%${search}%`;
+    const searchTerm = buildSafeIlikePattern(search);
+    if (searchTerm) {
+      const term = searchTerm;
       query = query.or(`title.ilike.${term},description.ilike.${term},notes.ilike.${term}`);
     }
     if (source_id) query = query.eq('source_transcript_id', source_id);
