@@ -43,7 +43,7 @@ async function verifyAccessJwt(c: Context<{ Bindings: Env }>, accessJwt: string)
       issuer,
       algorithms: ['RS256'],
     });
-    setRequestActor(c, actorFromAccessPayload(payload));
+    setRequestActor(c, actorFromAccessPayload(payload), 'cloudflare_access');
     return true;
   } catch {
     return false;
@@ -57,8 +57,9 @@ function actorFromAccessPayload(payload: JWTPayload): string {
   return ACTOR_PATTERN.test(actor) ? actor : 'access-user';
 }
 
-function setRequestActor(c: Context<{ Bindings: Env }>, actor: string) {
+function setRequestActor(c: Context<{ Bindings: Env }>, actor: string, authKind: 'api_token' | 'cloudflare_access') {
   (c as unknown as { set: (key: string, value: string) => void }).set('atlasActor', actor);
+  (c as unknown as { set: (key: string, value: string) => void }).set('atlasAuthKind', authKind);
 }
 
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
@@ -69,7 +70,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
   if (token && authHeader) {
     const expected = `Bearer ${token}`;
     if (safeTokenCompare(authHeader, expected)) {
-      setRequestActor(c, 'api-client');
+      setRequestActor(c, 'api-client', 'api_token');
       return next();
     }
   }

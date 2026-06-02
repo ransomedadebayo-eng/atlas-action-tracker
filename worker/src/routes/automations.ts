@@ -16,6 +16,11 @@ router.get('/', (c) => c.json({
 }));
 
 router.post('/:job/run', async (c) => {
+  const authKind = (c as unknown as { get: (key: string) => unknown }).get('atlasAuthKind');
+  if (authKind !== 'api_token') {
+    return c.json({ error: 'Automation manual runs require API-token authentication.' }, 403);
+  }
+
   const job = c.req.param('job') as AutomationJobName;
   if (!Object.prototype.hasOwnProperty.call(AUTOMATION_JOBS, job)) {
     return c.json({ error: 'Unknown automation job' }, 404);
