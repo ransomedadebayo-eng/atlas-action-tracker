@@ -20,6 +20,7 @@ const PROTOCOL_FIELDS = [
   'agent_assignment_id',
   'approval_state',
 ];
+const FILTERABLE_WORK_MODES = new Set(['autonomous', 'review_required', 'user_only']);
 
 function sortByPriority(actions: Record<string, unknown>[], direction = 'ASC') {
   return actions.sort((a, b) => {
@@ -68,7 +69,8 @@ function isProtocolStale(action: Record<string, unknown>, today: string): boolea
 
 function filterProtocolSpecialModes(query: any, workMode?: string) {
   if (!workMode) return query;
-  const workModes = workMode.split(',').filter(Boolean);
+  const workModes = workMode.split(',').filter(mode => mode === '__null__' || FILTERABLE_WORK_MODES.has(mode));
+  if (workModes.length === 0) return query;
   if (workModes.includes('__null__')) {
     const concrete = workModes.filter(mode => mode !== '__null__');
     if (concrete.length === 0) return query.is('work_mode', null);

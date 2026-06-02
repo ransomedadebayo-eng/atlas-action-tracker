@@ -68,7 +68,7 @@ const allowedOriginPattern = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOriginPattern.test(origin)) return callback(null, true);
+    if (!isProduction && allowedOriginPattern.test(origin)) return callback(null, true);
     if (TUNNEL_DOMAIN && origin === `https://${TUNNEL_DOMAIN}`) return callback(null, true);
     if (extraOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('CORS: origin not allowed'));

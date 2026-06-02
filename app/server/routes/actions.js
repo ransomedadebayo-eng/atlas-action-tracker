@@ -19,6 +19,7 @@ const PROTOCOL_FIELDS = [
   'agent_assignment_id',
   'approval_state',
 ];
+const FILTERABLE_WORK_MODES = new Set(['autonomous', 'review_required', 'user_only']);
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 };
 
@@ -69,7 +70,8 @@ function isProtocolStale(action, today) {
 
 function filterProtocolSpecialModes(query, workMode) {
   if (!workMode) return query;
-  const workModes = workMode.split(',').filter(Boolean);
+  const workModes = workMode.split(',').filter(mode => mode === '__null__' || FILTERABLE_WORK_MODES.has(mode));
+  if (workModes.length === 0) return query;
   if (workModes.includes('__null__')) {
     const concrete = workModes.filter(mode => mode !== '__null__');
     if (concrete.length === 0) return query.is('work_mode', null);

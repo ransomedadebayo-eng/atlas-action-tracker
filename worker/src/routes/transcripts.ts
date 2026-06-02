@@ -224,6 +224,9 @@ router.post('/:id/commit', async (c) => {
       if (!action.title || !action.business) {
         return c.json({ error: `Action ${i}: title and business are required` }, 400);
       }
+      if (action.status === 'done') {
+        return c.json({ error: `Action ${i}: transcript commits cannot create done actions` }, 400);
+      }
 
       const businessErr = await validateKnownBusinessId(supabase, action.business, `Action ${i} business`);
       const fieldErrors = [

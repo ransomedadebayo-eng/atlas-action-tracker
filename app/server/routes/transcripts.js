@@ -217,6 +217,9 @@ router.post('/:id/commit', async (req, res) => {
       if (!action.title || !action.business) {
         return res.status(400).json({ error: `Action ${i}: title and business are required` });
       }
+      if (action.status === 'done') {
+        return res.status(400).json({ error: `Action ${i}: transcript commits cannot create done actions` });
+      }
 
       const fieldErrors = [
         ...validateActionFields(action),

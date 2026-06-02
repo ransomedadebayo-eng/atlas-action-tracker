@@ -5,6 +5,7 @@ import { timingSafeEqual } from 'crypto';
 const CF_TEAM_DOMAIN = process.env.CF_TEAM_DOMAIN;
 const CF_ACCESS_AUD = process.env.CF_ACCESS_AUD;
 let jwks = null;
+const ACTOR_PATTERN = /^[a-z0-9_-]{2,50}$/i;
 
 function getJWKS() {
   if (!jwks && CF_TEAM_DOMAIN) {
@@ -22,6 +23,13 @@ function safeTokenCompare(provided, expected) {
   return timingSafeEqual(a, b);
 }
 
+function actorFromAccessPayload(payload) {
+  const email = typeof payload.email === 'string' ? payload.email : '';
+  const name = email.split('@')[0] || 'access-user';
+  const actor = name.replace(/[^a-z0-9_-]/gi, '_').slice(0, 50);
+  return ACTOR_PATTERN.test(actor) ? actor : 'access-user';
+}
+
 export default async function authMiddleware(req, res, next) {
   // Path 1: Cloudflare Access JWT (tunnel traffic)
   const cfJwt = req.headers['cf-access-jwt-assertion'];
@@ -33,6 +41,7 @@ export default async function authMiddleware(req, res, next) {
         algorithms: ['RS256'],
       });
       req.user = payload;
+      req.atlasActor = actorFromAccessPayload(payload);
       return next();
     } catch {
       return res.status(401).json({ error: 'Invalid Cloudflare Access token' });
@@ -45,6 +54,7 @@ export default async function authMiddleware(req, res, next) {
   if (token && authHeader) {
     const expected = `Bearer ${token}`;
     if (safeTokenCompare(authHeader, expected)) {
+      req.atlasActor = 'api-client';
       return next();
     }
   }

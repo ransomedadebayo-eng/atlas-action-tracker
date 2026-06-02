@@ -50,12 +50,6 @@ async function verifyAccessJwt(c: Context<{ Bindings: Env }>, accessJwt: string)
   }
 }
 
-function actorFromHeader(c: Context<{ Bindings: Env }>): string {
-  const actor = c.req.header('x-atlas-actor');
-  if (typeof actor === 'string' && ACTOR_PATTERN.test(actor)) return actor;
-  return 'api-client';
-}
-
 function actorFromAccessPayload(payload: JWTPayload): string {
   const email = typeof payload.email === 'string' ? payload.email : '';
   const name = email.split('@')[0] || 'access-user';
@@ -75,7 +69,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
   if (token && authHeader) {
     const expected = `Bearer ${token}`;
     if (safeTokenCompare(authHeader, expected)) {
-      setRequestActor(c, actorFromHeader(c));
+      setRequestActor(c, 'api-client');
       return next();
     }
   }

@@ -14,9 +14,9 @@ const app = new Hono<{ Bindings: Env }>();
 
 // CORS — same-origin in production (Workers Assets serves frontend from same domain)
 app.use('/api/*', cors({
-  origin: ['https://atlas.ransomed.app', 'http://localhost:5173', 'http://localhost:4173'],
+  origin: ['https://atlas.ransomed.app'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowHeaders: ['Content-Type', 'Authorization', 'x-atlas-actor'],
+  allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
 
