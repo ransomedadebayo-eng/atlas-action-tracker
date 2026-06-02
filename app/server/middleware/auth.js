@@ -4,6 +4,8 @@ import { timingSafeEqual } from 'crypto';
 // Cloudflare Access JWT verification
 const CF_TEAM_DOMAIN = process.env.CF_TEAM_DOMAIN;
 const CF_ACCESS_AUD = process.env.CF_ACCESS_AUD;
+const CF_ACCESS_ISSUER = process.env.CF_ACCESS_ISSUER
+  || (CF_TEAM_DOMAIN ? `https://${CF_TEAM_DOMAIN}.cloudflareaccess.com` : undefined);
 let jwks = null;
 const ACTOR_PATTERN = /^[a-z0-9_-]{2,50}$/i;
 
@@ -38,6 +40,7 @@ export default async function authMiddleware(req, res, next) {
       const keys = getJWKS();
       const { payload } = await jwtVerify(cfJwt, keys, {
         audience: CF_ACCESS_AUD,
+        issuer: CF_ACCESS_ISSUER,
         algorithms: ['RS256'],
       });
       req.user = payload;
