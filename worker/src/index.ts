@@ -9,6 +9,8 @@ import viewsRouter from './routes/views';
 import activityRouter from './routes/activity';
 import configRouter from './routes/config';
 import briefingRouter from './routes/briefing';
+import automationsRouter from './routes/automations';
+import { runScheduledProtocolJobs } from './automations/protocolJobs';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -36,6 +38,7 @@ app.route('/api/views', viewsRouter);
 app.route('/api/activity', activityRouter);
 app.route('/api/config', configRouter);
 app.route('/api/briefing', briefingRouter);
+app.route('/api/automations', automationsRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {
@@ -46,4 +49,9 @@ app.notFound((c) => {
   return c.notFound();
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(runScheduledProtocolJobs(env, event.cron));
+  },
+};

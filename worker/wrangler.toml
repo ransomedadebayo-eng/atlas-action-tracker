@@ -10,6 +10,11 @@ routes = [
 [assets]
 directory = "../app/dist"
 
+[triggers]
+crons = [
+  "0 * * * *"
+]
+
 [vars]
 NODE_ENV = "production"
 CF_ACCESS_TEAM_DOMAIN = "ransomedadebayo"
