@@ -9,6 +9,7 @@ import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/refere
 
 const router = Router();
 const BULK_MAX = 50;
+const COMPLETION_EVIDENCE_ERROR = 'Add a completion note or proof before marking an action done.';
 const PROTOCOL_FIELDS = [
   'next_action',
   'definition_of_done',
@@ -361,7 +362,7 @@ router.post('/', async (req, res) => {
     const now = new Date().toISOString();
 
     if (status === 'done' && !hasEvidence(body)) {
-      return res.status(400).json({ error: 'Evidence is required before marking an action done.' });
+      return res.status(400).json({ error: COMPLETION_EVIDENCE_ERROR });
     }
 
     const protocolFields = {};
@@ -433,7 +434,7 @@ router.post('/bulk', async (req, res) => {
         return res.status(400).json({ error: `Item ${i}: ${fieldErrors.join('; ')}` });
       }
       if (action.status === 'done' && !hasEvidence(action)) {
-        return res.status(400).json({ error: `Item ${i}: evidence_json is required before marking an action done` });
+        return res.status(400).json({ error: `Item ${i}: ${COMPLETION_EVIDENCE_ERROR}` });
       }
     }
 
@@ -545,7 +546,7 @@ router.put('/bulk', async (req, res) => {
       if (update.status === 'done' && existing.status !== 'done') {
         const merged = { ...existing, ...fields };
         if (!hasEvidence(merged)) {
-          return res.status(400).json({ error: `Item ${update.id}: evidence_json is required before marking an action done` });
+          return res.status(400).json({ error: `Item ${update.id}: ${COMPLETION_EVIDENCE_ERROR}` });
         }
         fields.completed_at = now;
       } else if (update.status !== undefined && update.status !== 'done' && existing.status === 'done') {
@@ -664,7 +665,7 @@ router.put('/:id', async (req, res) => {
     if (status === 'done' && existing.status !== 'done') {
       const merged = { ...existing, ...updates };
       if (!hasEvidence(merged)) {
-        return res.status(400).json({ error: 'Evidence is required before marking an action done.' });
+        return res.status(400).json({ error: COMPLETION_EVIDENCE_ERROR });
       }
       updates.completed_at = now;
     }

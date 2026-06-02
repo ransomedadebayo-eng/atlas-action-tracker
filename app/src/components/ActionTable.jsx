@@ -8,7 +8,8 @@ import FilterBar from './FilterBar.jsx'
 import StatsStrip from './StatsStrip.jsx'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
-import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
+import { parseJsonArray } from '../utils/parseUtils.js'
+import { completionEvidenceForAction, hasEvidence } from '../utils/evidenceUtils.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
@@ -111,11 +112,16 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
   function markDone(e, action) {
     e.stopPropagation()
-    if (action.status !== 'done' && Object.keys(parseJsonObject(action.evidence_json)).length === 0) {
-      window.alert('Open the action and add evidence before marking it verified done.')
-      return
+    const nextStatus = action.status === 'done' ? 'not_started' : 'done'
+    const payload = { id: action.id, status: nextStatus }
+
+    if (nextStatus === 'done') {
+      const evidence = completionEvidenceForAction(action, 'atlas_table')
+      if (!evidence) return
+      payload.evidence_json = evidence
     }
-    updateAction.mutate({ id: action.id, status: action.status === 'done' ? 'not_started' : 'done' })
+
+    updateAction.mutate(payload)
   }
 
   function handleDelete(e, action) {
@@ -254,7 +260,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               const overdue = isOverdue(action.due_date) && !done
               const owners = parseJsonArray(action.owners)
               const tags = parseJsonArray(action.tags)
-              const hasEvidence = Object.keys(parseJsonObject(action.evidence_json)).length > 0
+              const actionHasEvidence = hasEvidence(action.evidence_json)
 
               return (
                 <div
@@ -280,7 +286,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                         {action.next_action}
                       </span>
                     )}
-                    {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || hasEvidence || action.review_date || (action.approval_state && action.approval_state !== 'not_required')) && (
+                    {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || actionHasEvidence || action.review_date || (action.approval_state && action.approval_state !== 'not_required')) && (
                       <div className="mt-0.5 flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden">
                         {action.recurrence && action.recurrence !== 'none' && (
                           <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
@@ -291,7 +297,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                         {action.approval_state && action.approval_state !== 'not_required' && (
                           <span className="text-[10px] text-text-muted">{action.approval_state.replace(/_/g, ' ')}</span>
                         )}
-                        {hasEvidence && (
+                        {actionHasEvidence && (
                           <span className="text-[10px] text-accent">evidence</span>
                         )}
                         {tags.slice(0, 3).map(tag => (

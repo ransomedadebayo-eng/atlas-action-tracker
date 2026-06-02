@@ -9,6 +9,7 @@ import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/refere
 
 const router = new Hono<{ Bindings: Env }>();
 const BULK_MAX = 50;
+const COMPLETION_EVIDENCE_ERROR = 'Add a completion note or proof before marking an action done.';
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
 const PROTOCOL_FIELDS = [
   'next_action',
@@ -321,7 +322,7 @@ router.post('/', async (c) => {
     const now = new Date().toISOString();
 
     if (status === 'done' && !hasEvidence(body)) {
-      return c.json({ error: 'Evidence is required before marking an action done.' }, 400);
+      return c.json({ error: COMPLETION_EVIDENCE_ERROR }, 400);
     }
 
     const protocolFields: Record<string, unknown> = {};
@@ -363,7 +364,7 @@ router.post('/bulk', async (c) => {
       ];
       if (fieldErrors.length > 0) return c.json({ error: `Item ${i}: ${fieldErrors.join('; ')}` }, 400);
       if (action.status === 'done' && !hasEvidence(action)) {
-        return c.json({ error: `Item ${i}: evidence_json is required before marking an action done` }, 400);
+        return c.json({ error: `Item ${i}: ${COMPLETION_EVIDENCE_ERROR}` }, 400);
       }
     }
 
@@ -458,7 +459,7 @@ router.put('/bulk', async (c) => {
       if (update.status === 'done' && existing.status !== 'done') {
         const merged = { ...existing, ...fields };
         if (!hasEvidence(merged)) {
-          return c.json({ error: `Item ${update.id}: evidence_json is required before marking an action done` }, 400);
+          return c.json({ error: `Item ${update.id}: ${COMPLETION_EVIDENCE_ERROR}` }, 400);
         }
       }
 
@@ -542,7 +543,7 @@ router.put('/:id', async (c) => {
     if (status === 'done' && existing.status !== 'done') {
       const merged = { ...existing, ...updates };
       if (!hasEvidence(merged)) {
-        return c.json({ error: 'Evidence is required before marking an action done.' }, 400);
+        return c.json({ error: COMPLETION_EVIDENCE_ERROR }, 400);
       }
     }
 

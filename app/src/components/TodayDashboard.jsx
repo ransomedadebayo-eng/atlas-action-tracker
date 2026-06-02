@@ -7,7 +7,8 @@ import { PriorityBadge, StatusBadge, WorkModeBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
 import { formatRelativeDate, isOverdue, isToday } from '../utils/dateUtils.js'
 import { PRIORITY_COLORS } from '../utils/colors.js'
-import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
+import { parseJsonArray } from '../utils/parseUtils.js'
+import { completionEvidenceForAction } from '../utils/evidenceUtils.js'
 import TodayFocusBanner from './TodayFocusBanner.jsx'
 import { PRIORITIES, STATUSES, WORK_MODES, canonicalStatus } from '../utils/constants.js'
 
@@ -386,14 +387,19 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
   }, [filters.business, selectedBusiness])
 
   const toggleDone = (action) => {
-    if (action.status !== 'done' && Object.keys(parseJsonObject(action.evidence_json)).length === 0) {
-      window.alert('Open the action and add evidence before marking it verified done.')
-      return
-    }
-    updateAction.mutate({
+    const nextStatus = action.status === 'done' ? 'not_started' : 'done'
+    const payload = {
       id: action.id,
-      status: action.status === 'done' ? 'not_started' : 'done',
-    })
+      status: nextStatus,
+    }
+
+    if (nextStatus === 'done') {
+      const evidence = completionEvidenceForAction(action, 'atlas_today')
+      if (!evidence) return
+      payload.evidence_json = evidence
+    }
+
+    updateAction.mutate(payload)
   }
 
   const handleDelete = (action) => {

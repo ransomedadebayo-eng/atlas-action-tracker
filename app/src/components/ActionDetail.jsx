@@ -13,6 +13,7 @@ import { PRIORITY_COLORS } from '../utils/colors.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatTimestamp } from '../utils/dateUtils.js'
 import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
+import { buildManualCompletionEvidence, evidenceFromText, hasEvidence } from '../utils/evidenceUtils.js'
 import { WorkModeBadge } from './StatusBadge.jsx'
 
 function Select({ label, value, onChange, options }) {
@@ -106,15 +107,13 @@ export default function ActionDetail({ actionId, onClose }) {
     if (payload.agent_assignment_id === '') payload.agent_assignment_id = null
     if (!payload.approval_state) payload.approval_state = 'not_required'
 
-    const evidenceText = (payload.evidence_text || '').trim()
-    if (evidenceText) {
-      const parsed = JSON.parse(evidenceText)
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('Evidence must be a JSON object.')
-      }
-      payload.evidence_json = parsed
-    } else {
-      payload.evidence_json = {}
+    try {
+      payload.evidence_json = evidenceFromText(payload.evidence_text || '', 'atlas_action_detail')
+    } catch {
+      throw new Error('Completion evidence must be plain text or a JSON object.')
+    }
+    if (payload.status === 'done' && !hasEvidence(payload.evidence_json)) {
+      payload.evidence_json = buildManualCompletionEvidence('', 'atlas_action_detail')
     }
     delete payload.evidence_text
     return payload
@@ -149,11 +148,6 @@ export default function ActionDetail({ actionId, onClose }) {
   }
 
   async function handleMarkVerifiedDone() {
-    const hasEvidence = (form.evidence_text || '').trim().length > 2
-    if (!hasEvidence) {
-      setSaveError('Add evidence before marking verified done.')
-      return
-    }
     await savePayload({
       status: 'done',
       approval_state: form.approval_state === 'needs_review' ? 'approved' : form.approval_state,
@@ -424,11 +418,11 @@ export default function ActionDetail({ actionId, onClose }) {
                 <button
                   className="btn-primary flex items-center gap-1.5 text-xs py-1.5"
                   onClick={handleMarkVerifiedDone}
-                  disabled={saving || !(form.evidence_text || '').trim()}
-                  title="Mark done only after evidence is attached"
+                  disabled={saving}
+                  title="Mark done with a saved proof item or an automatic manual completion note"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  Mark Verified Done
+                  Mark Done
                 </button>
               </div>
             </div>
@@ -494,14 +488,14 @@ export default function ActionDetail({ actionId, onClose }) {
 
             <div>
               <label className="label block mb-1.5">
-                Evidence JSON
+                Completion Evidence
               </label>
               <textarea
-                className="input-field w-full text-xs font-mono resize-none"
+                className="input-field w-full text-sm resize-none"
                 rows={6}
                 value={form.evidence_text}
                 onChange={e => patch('evidence_text', e.target.value)}
-                placeholder='{"deploy_url":"https://...", "tests":"passed"}'
+                placeholder="Short note, proof link, deploy URL, test result, or JSON for structured evidence..."
               />
             </div>
           </div>
