@@ -24,13 +24,14 @@ export function StatusBadge({ status }) {
 }
 
 export function PriorityBadge({ priority }) {
-  const info = PRIORITIES[priority];
-  const color = PRIORITY_COLORS[priority];
+  const normalizedPriority = typeof priority === 'string' ? priority.toLowerCase() : priority;
+  const info = PRIORITIES[normalizedPriority];
+  const color = PRIORITY_COLORS[normalizedPriority];
   if (!info) return null;
 
   return (
     <span
-      className={`badge ${priority === 'p0' ? 'animate-pulse-p0' : ''}`}
+      className={`badge ${normalizedPriority === 'p0' ? 'animate-pulse-p0' : ''}`}
       style={{ backgroundColor: `${color}15`, color, borderColor: `${color}30` }}
     >
       <span

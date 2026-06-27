@@ -7,9 +7,10 @@ import CalendarView from './components/CalendarView.jsx'
 import MemberList from './components/MemberList.jsx'
 import TranscriptUpload from './components/TranscriptUpload.jsx'
 import TranscriptHistory from './components/TranscriptHistory.jsx'
-import TodayDashboard from './components/TodayDashboard.jsx'
+import TodayList from './components/TodayList.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
+import ViewErrorBoundary from './components/ViewErrorBoundary.jsx'
 import { useKeyboard } from './hooks/useKeyboard.js'
 
 export default function App() {
@@ -69,10 +70,9 @@ export default function App() {
     switch (currentView) {
       case 'today':
         return (
-          <TodayDashboard
+          <TodayList
             selectedBusiness={selectedBusiness}
             onSelectAction={setSelectedActionId}
-            frozenBusinesses={frozenBusinesses}
             searchQuery={searchQuery}
           />
         )
@@ -140,9 +140,11 @@ export default function App() {
         showFrozen={showFrozen}
         setShowFrozen={setShowFrozen}
       >
-        <div key={currentView} className="view-transition">
-          {renderView()}
-        </div>
+        <ViewErrorBoundary key={currentView}>
+          <div className="view-transition">
+            {renderView()}
+          </div>
+        </ViewErrorBoundary>
       </Layout>
 
       {selectedActionId && (
