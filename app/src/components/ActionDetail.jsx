@@ -13,6 +13,7 @@ import { PRIORITY_COLORS } from '../utils/colors.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatTimestamp } from '../utils/dateUtils.js'
 import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
+import { normalizeMemberRefs } from '../utils/memberUtils.js'
 import { buildManualCompletionEvidence, evidenceFromText, hasEvidence } from '../utils/evidenceUtils.js'
 import { WorkModeBadge } from './StatusBadge.jsx'
 
@@ -76,7 +77,7 @@ export default function ActionDetail({ actionId, onClose }) {
         priority: action.priority || 'p2',
         business: action.business || '',
         due_date: action.due_date || '',
-        owners: parseJsonArray(action.owners),
+        owners: normalizeMemberRefs(parseJsonArray(action.owners)).map(owner => owner.id),
         tags: parseJsonArray(action.tags),
         notes: action.notes || '',
         source_label: action.source_label || '',

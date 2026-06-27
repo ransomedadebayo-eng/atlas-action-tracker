@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, X, Check } from 'lucide-react';
 import { getMemberColor } from '../utils/colors.js';
-import { getInitials } from '../utils/memberUtils.js';
+import { getInitials, normalizeMemberRefs } from '../utils/memberUtils.js';
 
 export default function MemberSelector({ members = [], selected: selectedProp, selectedIds, onChange, placeholder = 'Select members...' }) {
-  const selected = selectedProp || selectedIds || [];
+  const selected = normalizeMemberRefs(selectedProp || selectedIds || []).map(owner => owner.id);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef(null);
@@ -20,8 +20,8 @@ export default function MemberSelector({ members = [], selected: selectedProp, s
   }, []);
 
   const filtered = members.filter(m =>
-    m.name.toLowerCase().includes(search.toLowerCase()) ||
-    m.id.toLowerCase().includes(search.toLowerCase())
+    (m.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (m.id || '').toLowerCase().includes(search.toLowerCase())
   );
 
   function toggle(memberId) {

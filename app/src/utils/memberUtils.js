@@ -13,6 +13,26 @@ export function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+export function normalizeMemberRef(memberRef) {
+  if (typeof memberRef === 'string') {
+    const id = memberRef.trim();
+    return id ? { id, name: id } : null;
+  }
+  if (memberRef && typeof memberRef === 'object') {
+    const id = String(memberRef.id || memberRef.name || '').trim();
+    const name = String(memberRef.name || memberRef.id || '').trim();
+    return id || name ? { id: id || name, name: name || id } : null;
+  }
+  const value = String(memberRef || '').trim();
+  return value ? { id: value, name: value } : null;
+}
+
+export function normalizeMemberRefs(memberRefs) {
+  return (Array.isArray(memberRefs) ? memberRefs : [])
+    .map(normalizeMemberRef)
+    .filter(Boolean);
+}
+
 export function getMemberById(members, id) {
   return members.find(m => m.id === id);
 }

@@ -4,9 +4,11 @@
  */
 export function parseJsonArray(value) {
   if (Array.isArray(value)) return value
+  if (value && typeof value === 'object') return []
   if (value) {
     try {
-      return JSON.parse(value)
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
     } catch {
       const trimmed = String(value).trim()
       if (trimmed.startsWith('[') && trimmed.endsWith(']')) {

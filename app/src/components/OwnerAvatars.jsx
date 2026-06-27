@@ -1,20 +1,9 @@
 import React from 'react';
 import { getMemberColor } from '../utils/colors.js';
-import { getInitials } from '../utils/memberUtils.js';
+import { getInitials, normalizeMemberRefs } from '../utils/memberUtils.js';
 
 export default function OwnerAvatars({ owners = [], members = [], max = 3, size = 'sm' }) {
-  const normalizedOwners = (Array.isArray(owners) ? owners : [])
-    .map((owner) => {
-      if (typeof owner === 'string') return { id: owner, name: owner };
-      if (owner && typeof owner === 'object') {
-        const id = String(owner.id || owner.name || '').trim();
-        const name = String(owner.name || owner.id || '').trim();
-        return id || name ? { id: id || name, name: name || id } : null;
-      }
-      const value = String(owner || '').trim();
-      return value ? { id: value, name: value } : null;
-    })
-    .filter(Boolean);
+  const normalizedOwners = normalizeMemberRefs(owners);
 
   if (!normalizedOwners.length) return <span className="text-text-muted text-xs">Unassigned</span>;
 

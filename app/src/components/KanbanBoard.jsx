@@ -9,6 +9,7 @@ import { STATUS_COLORS, WORK_MODE_COLORS, getMemberColor } from '../utils/colors
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
+import { normalizeMemberRefs } from '../utils/memberUtils.js'
 
 const GROUP_MODES = [
   { id: 'status', label: 'Status', Icon: Columns },
@@ -69,14 +70,14 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
     if (groupBy === 'owner') {
       const ownerMap = new Map()
       for (const action of actions) {
-        const owners = parseJsonArray(action.owners)
+        const owners = normalizeMemberRefs(parseJsonArray(action.owners))
         if (owners.length === 0) {
           if (!ownerMap.has('_unassigned')) ownerMap.set('_unassigned', [])
           ownerMap.get('_unassigned').push(action)
         } else {
-          for (const ownerId of owners) {
-            if (!ownerMap.has(ownerId)) ownerMap.set(ownerId, [])
-            ownerMap.get(ownerId).push(action)
+          for (const owner of owners) {
+            if (!ownerMap.has(owner.id)) ownerMap.set(owner.id, [])
+            ownerMap.get(owner.id).push(action)
           }
         }
       }
