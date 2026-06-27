@@ -4,6 +4,8 @@ export const STATUSES = {
   waiting: { label: 'Waiting', order: 2 },
   blocked: { label: 'Blocked', order: 3 },
   done: { label: 'Done', order: 4 },
+  cancelled: { label: 'Cancelled', order: 5 },
+  unknown: { label: 'Unclassified', order: 6 },
 };
 
 export const STATUS_LIST = Object.entries(STATUSES).map(([id, val]) => ({
@@ -12,11 +14,13 @@ export const STATUS_LIST = Object.entries(STATUSES).map(([id, val]) => ({
 }));
 
 export function canonicalStatus(status) {
-  if (status === 'todo' || status === 'open') return 'not_started';
-  return status;
+  const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (normalized === 'todo' || normalized === 'open') return 'not_started';
+  if (normalized === 'canceled') return 'cancelled';
+  return STATUSES[normalized] ? normalized : 'unknown';
 }
 
-export const KANBAN_COLUMNS = ['not_started', 'in_progress', 'waiting', 'done'];
+export const KANBAN_COLUMNS = ['not_started', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled', 'unknown'];
 
 export const PRIORITIES = {
   p0: { label: 'P0 Urgent', shortLabel: 'P0' },
@@ -29,6 +33,11 @@ export const PRIORITY_LIST = Object.entries(PRIORITIES).map(([id, val]) => ({
   id,
   ...val,
 }));
+
+export function canonicalPriority(priority) {
+  const normalized = typeof priority === 'string' ? priority.trim().toLowerCase() : '';
+  return PRIORITIES[normalized] ? normalized : null;
+}
 
 export const WORK_MODES = {
   autonomous: {

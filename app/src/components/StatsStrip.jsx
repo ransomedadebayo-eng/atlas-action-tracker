@@ -4,6 +4,7 @@ import { useActionStats } from '../hooks/useActions.js';
 
 export default function StatsStrip({ business }) {
   const { data: stats, isLoading } = useActionStats(business ? { business } : {});
+  const safeStats = Array.isArray(stats) ? (stats[0] || {}) : (stats || {});
 
   if (isLoading || !stats) {
     return (
@@ -21,33 +22,33 @@ export default function StatsStrip({ business }) {
   const cards = [
     {
       label: 'Active',
-      value: stats.totalActive,
+      value: Number(safeStats.totalActive ?? safeStats.total_active ?? safeStats.active ?? 0),
       icon: Activity,
       color: '#3b82f6',
     },
     {
       label: 'Overdue',
-      value: stats.overdue,
+      value: Number(safeStats.overdue ?? 0),
       icon: AlertTriangle,
       color: '#ef4444',
-      alert: stats.overdue > 0,
+      alert: Number(safeStats.overdue ?? 0) > 0,
     },
     {
       label: 'Completed (7d)',
-      value: stats.completedThisWeek,
+      value: Number(safeStats.completedThisWeek ?? safeStats.completed_this_week ?? 0),
       icon: CheckCircle2,
       color: '#f4b860',
     },
     {
       label: 'Blocked',
-      value: stats.blocked,
+      value: Number(safeStats.blocked ?? 0),
       icon: Ban,
       color: '#f97316',
-      alert: stats.blocked > 0,
+      alert: Number(safeStats.blocked ?? 0) > 0,
     },
     {
       label: 'Pending Review',
-      value: stats.pendingReview,
+      value: Number(safeStats.pendingReview ?? safeStats.pending_review ?? 0),
       icon: FileText,
       color: '#a855f7',
     },

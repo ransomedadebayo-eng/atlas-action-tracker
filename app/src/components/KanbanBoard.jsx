@@ -28,19 +28,21 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
     ...(hideDone ? { status: NON_DONE_STATUSES } : {}),
   }
-  const { data: actions = [], isLoading } = useActions(queryFilters)
-  const { data: members = [] } = useMembers()
+  const { data: rawActions = [], isLoading } = useActions(queryFilters)
+  const { data: rawMembers = [] } = useMembers()
+  const actions = Array.isArray(rawActions) ? rawActions : []
+  const members = Array.isArray(rawMembers) ? rawMembers : []
   const updateAction = useUpdateAction()
 
   const columns = useMemo(() => {
     if (groupBy === 'status') {
       const visibleColumns = hideDone
-        ? KANBAN_COLUMNS.filter(s => s !== 'done')
+        ? KANBAN_COLUMNS.filter(s => s !== 'done' && s !== 'cancelled')
         : KANBAN_COLUMNS
       return visibleColumns.map(status => ({
         id: status,
         label: STATUSES[status]?.label || status,
-        color: STATUS_COLORS[status],
+        color: STATUS_COLORS[status] || STATUS_COLORS.unknown,
         actions: actions.filter(a => canonicalStatus(a.status) === status),
       }))
     }
@@ -49,12 +51,19 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       const businessIds = selectedBusiness
         ? [selectedBusiness]
         : BUSINESS_LIST.map(b => b.id)
+      const knownBusinessIds = new Set(businessIds)
+      const unclassifiedActions = actions.filter(action => !action.business || !knownBusinessIds.has(action.business))
       return businessIds.map(bizId => ({
         id: bizId,
         label: BUSINESSES[bizId]?.label || bizId,
-        color: BUSINESS_COLORS[bizId],
+        color: BUSINESS_COLORS[bizId] || '#71717a',
         actions: actions.filter(a => a.business === bizId),
-      }))
+      })).concat(unclassifiedActions.length > 0 ? [{
+        id: '_unclassified',
+        label: 'Unclassified',
+        color: '#71717a',
+        actions: unclassifiedActions,
+      }] : [])
     }
 
     if (groupBy === 'owner') {
@@ -89,7 +98,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       const classified = WORK_MODE_LIST.map(mode => ({
         id: mode.id,
         label: mode.label,
-        color: WORK_MODE_COLORS[mode.id],
+        color: WORK_MODE_COLORS[mode.id] || '#71717a',
         actions: actions.filter(a => a.work_mode === mode.id),
       }))
       const unclassified = {
@@ -253,7 +262,10 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                 ) : (
                   column.actions.map(action => {
                     const owners = parseJsonArray(action.owners)
-                    const overdue = isOverdue(action.due_date) && action.status !== 'done'
+                    const normalizedStatus = canonicalStatus(action.status)
+                    const statusColor = STATUS_COLORS[normalizedStatus] || STATUS_COLORS.unknown
+                    const statusLabel = STATUSES[normalizedStatus]?.label || 'Unclassified'
+                    const overdue = isOverdue(action.due_date) && normalizedStatus !== 'done'
                     const isDragging = dragState.actionId === action.id
 
                     return (
@@ -261,7 +273,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                         key={action.id}
                         className={`glass-card p-4 cursor-pointer hover:border-white/10 transition-all group ${
                           isDragging ? 'opacity-40' : ''
-                        } ${action.status === 'done' ? 'opacity-50' : ''}`}
+                        } ${normalizedStatus === 'done' ? 'opacity-50' : ''}`}
                         style={overdue ? { borderLeftColor: '#ef444460', borderLeftWidth: 2 } : {}}
                         draggable
                         onDragStart={(e) => handleDragStart(e, action.id)}
@@ -276,7 +288,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
 
                         {/* Title */}
                         <p className={`text-sm font-medium leading-snug mb-2 ${
-                          action.status === 'done' ? 'line-through text-text-muted' : 'text-text-primary'
+                          normalizedStatus === 'done' ? 'line-through text-text-muted' : 'text-text-primary'
                         }`}>
                           {action.title}
                         </p>
@@ -293,16 +305,16 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                             <span
                               className="badge"
                               style={{
-                                backgroundColor: `${STATUS_COLORS[canonicalStatus(action.status)]}15`,
-                                color: STATUS_COLORS[canonicalStatus(action.status)],
-                                borderColor: `${STATUS_COLORS[canonicalStatus(action.status)]}30`,
+                                backgroundColor: `${statusColor}15`,
+                                color: statusColor,
+                                borderColor: `${statusColor}30`,
                               }}
                             >
                               <span
                                 className="w-1.5 h-1.5 rounded-full mr-1"
-                                style={{ backgroundColor: STATUS_COLORS[canonicalStatus(action.status)] }}
+                                style={{ backgroundColor: statusColor }}
                               />
-                              {STATUSES[canonicalStatus(action.status)]?.label}
+                              {statusLabel}
                             </span>
                           )}
                         </div>

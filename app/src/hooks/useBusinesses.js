@@ -19,11 +19,12 @@ function shortLabel(name) {
 
 export function BusinessesProvider({ children }) {
   const queryClient = useQueryClient()
-  const { data: raw = [], isLoading } = useQuery({
+  const { data: rawData = [], isLoading } = useQuery({
     queryKey: ['businesses'],
     queryFn: configApi.businesses,
     staleTime: 60_000,
   })
+  const raw = Array.isArray(rawData) ? rawData : []
 
   const mutation = useMutation({
     mutationFn: configApi.updateBusinesses,

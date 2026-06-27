@@ -19,7 +19,8 @@ export default function TranscriptHistory() {
     ...(search && search.length >= 2 ? { search } : {}),
   }
 
-  const { data: transcripts = [], isLoading } = useTranscripts(queryParams)
+  const { data: rawTranscripts = [], isLoading } = useTranscripts(queryParams)
+  const transcripts = Array.isArray(rawTranscripts) ? rawTranscripts : []
 
   // Status counts for filter badges
   const statusCounts = useMemo(() => {
@@ -113,9 +114,9 @@ export default function TranscriptHistory() {
         <div className="divide-y divide-border">
           {transcripts.map(transcript => {
             const isExpanded = expandedId === transcript.id
-            const participants = Array.isArray(transcript.participants)
-              ? transcript.participants
-              : []
+            const participants = Array.isArray(transcript.participants) ? transcript.participants : []
+            const decisions = Array.isArray(transcript.decisions) ? transcript.decisions : []
+            const openQuestions = Array.isArray(transcript.open_questions) ? transcript.open_questions : []
 
             return (
               <div key={transcript.id}>
@@ -193,13 +194,13 @@ export default function TranscriptHistory() {
                     )}
 
                     {/* Decisions */}
-                    {transcript.decisions && transcript.decisions.length > 0 && (
+                    {decisions.length > 0 && (
                       <div>
                         <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1">
                           Decisions
                         </p>
                         <ul className="space-y-0.5">
-                          {transcript.decisions.map((d, i) => (
+                          {decisions.map((d, i) => (
                             <li key={i} className="text-text-secondary text-sm flex items-start gap-1.5">
                               <span className="text-accent mt-1">-</span>
                               {d}
@@ -210,13 +211,13 @@ export default function TranscriptHistory() {
                     )}
 
                     {/* Open Questions */}
-                    {transcript.open_questions && transcript.open_questions.length > 0 && (
+                    {openQuestions.length > 0 && (
                       <div>
                         <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1">
                           Open Questions
                         </p>
                         <ul className="space-y-0.5">
-                          {transcript.open_questions.map((q, i) => (
+                          {openQuestions.map((q, i) => (
                             <li key={i} className="text-text-secondary text-sm flex items-start gap-1.5">
                               <span className="text-blue-400 mt-1">?</span>
                               {q}

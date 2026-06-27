@@ -1,12 +1,12 @@
 import React from 'react';
-import { STATUSES, PRIORITIES, WORK_MODES, canonicalStatus } from '../utils/constants.js';
+import { STATUSES, PRIORITIES, WORK_MODES, canonicalPriority, canonicalStatus } from '../utils/constants.js';
 import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js';
 import { useBusinessContext } from '../hooks/useBusinesses.js';
 
 export function StatusBadge({ status }) {
   const normalizedStatus = canonicalStatus(status);
   const info = STATUSES[normalizedStatus];
-  const color = STATUS_COLORS[normalizedStatus];
+  const color = STATUS_COLORS[normalizedStatus] || STATUS_COLORS.unknown;
   if (!info) return null;
 
   return (
@@ -24,7 +24,7 @@ export function StatusBadge({ status }) {
 }
 
 export function PriorityBadge({ priority }) {
-  const normalizedPriority = typeof priority === 'string' ? priority.toLowerCase() : priority;
+  const normalizedPriority = canonicalPriority(priority);
   const info = PRIORITIES[normalizedPriority];
   const color = PRIORITY_COLORS[normalizedPriority];
   if (!info) return null;

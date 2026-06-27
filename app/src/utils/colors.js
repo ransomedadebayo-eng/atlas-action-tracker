@@ -21,6 +21,8 @@ export const STATUS_COLORS = {
   waiting: '#f59e0b',
   blocked: '#ef4444',
   done: '#f4b860',
+  cancelled: '#a1a1aa',
+  unknown: '#71717a',
 };
 
 export const WORK_MODE_COLORS = {

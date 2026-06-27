@@ -12,8 +12,10 @@ export default function MemberList({ onSelectAction }) {
   const [selectedMemberId, setSelectedMemberId] = useState(null)
   const [showChart, setShowChart] = useState(true)
 
-  const { data: members = [], isLoading: membersLoading } = useMembers()
-  const { data: memberStats = [], isLoading: statsLoading } = useMemberStats()
+  const { data: rawMembers = [], isLoading: membersLoading } = useMembers()
+  const { data: rawMemberStats = [], isLoading: statsLoading } = useMemberStats()
+  const members = Array.isArray(rawMembers) ? rawMembers : []
+  const memberStats = Array.isArray(rawMemberStats) ? rawMemberStats : []
 
   // Build a map of member_id -> stats
   const statsMap = useMemo(() => {
@@ -29,7 +31,7 @@ export default function MemberList({ onSelectAction }) {
     if (!search.trim()) return members
     const q = search.toLowerCase()
     return members.filter(m =>
-      m.name.toLowerCase().includes(q) ||
+      (m.name || '').toLowerCase().includes(q) ||
       (m.full_name && m.full_name.toLowerCase().includes(q)) ||
       (m.role && m.role.toLowerCase().includes(q))
     )
@@ -153,7 +155,7 @@ export default function MemberList({ onSelectAction }) {
 
                   {/* Business tags */}
                   <div className="flex items-center gap-1 mt-2 flex-wrap">
-                    {(member.businesses || []).map(bizId => (
+                    {(Array.isArray(member.businesses) ? member.businesses : []).map(bizId => (
                       <BusinessBadge key={bizId} business={bizId} />
                     ))}
                   </div>

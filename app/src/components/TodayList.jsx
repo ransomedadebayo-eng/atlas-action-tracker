@@ -5,12 +5,12 @@ import { useMembers } from '../hooks/useMembers.js';
 import { useUpdateAction } from '../hooks/useActions.js';
 import { PriorityBadge, BusinessBadge, StatusBadge } from './StatusBadge.jsx';
 import OwnerAvatars from './OwnerAvatars.jsx';
-import { formatRelativeDate } from '../utils/dateUtils.js';
+import { formatRelativeDate, getISODate } from '../utils/dateUtils.js';
 import { parseJsonArray } from '../utils/parseUtils.js';
 import { completionEvidenceForAction } from '../utils/evidenceUtils.js';
 
 function todayDateString() {
-  return new Date().toISOString().slice(0, 10);
+  return getISODate();
 }
 
 function getAction(item) {
@@ -81,7 +81,8 @@ function TodayTask({ item, members, onSelectAction, onToggleDone }) {
 export default function TodayList({ selectedBusiness, onSelectAction, searchQuery = '' }) {
   const today = todayDateString();
   const { data, isLoading, isError, error } = useTodayPlan(today);
-  const { data: members = [] } = useMembers();
+  const { data: rawMembers = [] } = useMembers();
+  const members = Array.isArray(rawMembers) ? rawMembers : [];
   const updateAction = useUpdateAction();
 
   const items = useMemo(() => {
@@ -143,7 +144,7 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
         <div className="rounded-lg border border-dashed border-border bg-bg-surface p-8 text-center">
           <ListTodo className="mx-auto mb-3 h-8 w-8 text-text-muted" />
           <p className="text-sm font-semibold text-text-primary">No tasks selected for today.</p>
-          <p className="mt-1 text-sm text-text-muted">Dashboard and Kanban still hold the full backlog.</p>
+          <p className="mt-1 text-sm text-text-muted">All Tasks and Kanban still hold the full backlog.</p>
         </div>
       ) : (
         <div className="space-y-3">

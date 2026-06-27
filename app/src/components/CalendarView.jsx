@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useActions } from '../hooks/useActions.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
+import { canonicalStatus } from '../utils/constants.js'
 import { getDaysInMonth, getFirstDayOfMonth, isToday } from '../utils/dateUtils.js'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -28,7 +29,8 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
   const [month, setMonth] = useState(now.getMonth())
 
   const queryFilters = selectedBusiness ? { business: selectedBusiness } : {}
-  const { data: actions = [], isLoading } = useActions(queryFilters)
+  const { data: rawActions = [], isLoading } = useActions(queryFilters)
+  const actions = Array.isArray(rawActions) ? rawActions : []
 
   // Group actions by due_date
   const actionsByDate = useMemo(() => {
@@ -100,7 +102,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
   }
 
   // Count unscheduled
-  const unscheduledCount = actions.filter(a => !a.due_date && a.status !== 'done').length
+  const unscheduledCount = actions.filter(a => !a.due_date && canonicalStatus(a.status) !== 'done').length
 
   if (isLoading) {
     return (
@@ -256,7 +258,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
               <div className="px-1 pb-1 space-y-0.5 overflow-hidden hidden md:block">
                 {dayActions.slice(0, 3).map(action => {
                   const color = BUSINESS_COLORS[action.business] || '#71717a'
-                  const done = action.status === 'done'
+                  const done = canonicalStatus(action.status) === 'done'
 
                   return (
                     <button

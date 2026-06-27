@@ -8,6 +8,7 @@ import FilterBar from './FilterBar.jsx'
 import StatsStrip from './StatsStrip.jsx'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
+import { canonicalPriority, canonicalStatus } from '../utils/constants.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
 import { completionEvidenceForAction, hasEvidence } from '../utils/evidenceUtils.js'
 
@@ -51,8 +52,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
   }
 
-  const { data: actions = [], isLoading } = useActions(queryFilters)
-  const { data: members = [] } = useMembers()
+  const { data: rawActions = [], isLoading } = useActions(queryFilters)
+  const { data: rawMembers = [] } = useMembers()
+  const actions = Array.isArray(rawActions) ? rawActions : []
+  const members = Array.isArray(rawMembers) ? rawMembers : []
   const updateAction = useUpdateAction()
   const deleteAction = useDeleteAction()
 
@@ -62,10 +65,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       let cmp = 0
       switch (sort.by) {
         case 'priority':
-          cmp = (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
+          cmp = (PRIORITY_ORDER[canonicalPriority(a.priority)] ?? 9) - (PRIORITY_ORDER[canonicalPriority(b.priority)] ?? 9)
           break
         case 'status':
-          cmp = (a.status || '').localeCompare(b.status || '')
+          cmp = canonicalStatus(a.status).localeCompare(canonicalStatus(b.status))
           break
         case 'title':
           cmp = (a.title || '').localeCompare(b.title || '')
@@ -112,7 +115,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
   function markDone(e, action) {
     e.stopPropagation()
-    const nextStatus = action.status === 'done' ? 'not_started' : 'done'
+    const nextStatus = canonicalStatus(action.status) === 'done' ? 'not_started' : 'done'
     const payload = { id: action.id, status: nextStatus }
 
     if (nextStatus === 'done') {
@@ -256,7 +259,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
         ) : (
           <div className="divide-y divide-white/5">
             {visibleActions.map(action => {
-              const done = action.status === 'done'
+              const done = canonicalStatus(action.status) === 'done'
               const overdue = isOverdue(action.due_date) && !done
               const owners = parseJsonArray(action.owners)
               const tags = parseJsonArray(action.tags)
@@ -362,7 +365,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           </div>
         ) : (
           visibleActions.map(action => {
-            const done = action.status === 'done'
+            const done = canonicalStatus(action.status) === 'done'
             const overdue = isOverdue(action.due_date) && !done
             const owners = parseJsonArray(action.owners)
 
