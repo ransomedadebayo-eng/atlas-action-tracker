@@ -11,7 +11,6 @@ import { parseJsonArray } from '../utils/parseUtils.js'
 import { completionEvidenceForAction } from '../utils/evidenceUtils.js'
 import TodayFocusBanner from './TodayFocusBanner.jsx'
 import { PRIORITIES, STATUSES, WORK_MODES, canonicalStatus } from '../utils/constants.js'
-import { useTodayPlan } from '../hooks/useTodayPlan.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open'
@@ -360,129 +359,148 @@ function TodayFilters({
   )
 }
 
-function labelize(value) {
-  return String(value || 'unknown').replace(/_/g, ' ')
-}
-
-function planItemsFrom(data) {
-  return Array.isArray(data?.items) ? data.items : []
-}
-
-function countItems(items, status) {
-  return items.filter(item => item.item_status === status).length
-}
-
-function PlanTaskCard({ item, onSelectAction }) {
-  const evidence = item.source_evidence && typeof item.source_evidence === 'object' ? item.source_evidence : {}
-
-  return (
-    <button
-      type="button"
-      onClick={() => item.source_action_id && onSelectAction?.(item.source_action_id)}
-      className="w-full rounded-2xl border border-border bg-bg-surface p-4 text-left transition-all duration-150 hover:border-accent/40 hover:scale-[1.005] active:scale-[0.995]"
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="inline-flex rounded-md border border-accent/25 bg-accent/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-accent">
-              Today
-            </span>
-            {item.estimated_effort ? (
-              <span className="inline-flex rounded-md border border-border bg-bg-elevated px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
-                {item.estimated_effort}
-              </span>
-            ) : null}
-            {item.review_gate ? (
-              <span className="inline-flex rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-warning">
-                {labelize(item.review_gate)}
-              </span>
-            ) : null}
-          </div>
-
-          <h2 className="break-words text-base font-bold leading-snug text-text-primary">
-            {item.title}
-          </h2>
-          {item.summary ? (
-            <p className="mt-2 max-w-[78ch] break-words text-sm leading-6 text-text-secondary">
-              {item.summary}
-            </p>
-          ) : null}
-
-          {item.reason ? (
-            <p className="mt-3 max-w-[78ch] text-xs leading-5 text-text-muted">
-              {item.reason}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="w-full shrink-0 rounded-xl border border-border bg-bg-elevated p-3 lg:w-52">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Score</p>
-          <p className="mt-1 font-mono text-2xl font-bold text-text-primary">{item.score ?? 0}</p>
-          <dl className="mt-3 space-y-1.5 text-xs">
-            {['priority', 'due_date', 'business'].map(key => (
-              <div key={key} className="flex items-start justify-between gap-3">
-                <dt className="text-text-muted">{labelize(key)}</dt>
-                <dd className="min-w-0 break-words text-right text-text-secondary">{String(evidence[key] ?? 'none')}</dd>
-              </div>
-            ))}
-          </dl>
-          {item.source_action_id ? (
-            <span className="btn-secondary mt-3 inline-flex w-full justify-center">
-              Open action
-            </span>
-          ) : null}
-        </div>
-      </div>
-    </button>
-  )
-}
-
-function AggregateRow({ item, onSelectAction }) {
-  const statusTone = item.item_status === 'suppressed'
-    ? 'border-text-muted/20 bg-bg-elevated text-text-muted'
-    : 'border-border bg-bg-surface text-text-secondary'
-
-  return (
-    <button
-      type="button"
-      onClick={() => item.source_action_id && onSelectAction?.(item.source_action_id)}
-      className={`w-full rounded-xl border p-3 text-left transition-colors hover:border-accent/30 ${statusTone}`}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-[10px] font-bold uppercase tracking-widest">
-              {labelize(item.item_status)}
-            </span>
-            {item.review_gate ? (
-              <span className="rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-warning">
-                review gate
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-2 break-words text-sm font-semibold text-text-primary">{item.title}</p>
-          <p className="mt-1 break-words text-xs leading-5 text-text-muted">{item.reason}</p>
-        </div>
-        <p className="font-mono text-lg font-bold text-text-secondary">{item.score ?? 0}</p>
-      </div>
-    </button>
-  )
-}
-
 export default function TodayDashboard({ selectedBusiness, onSelectAction, frozenBusinesses = new Set(), searchQuery = '' }) {
-  const [activeTab, setActiveTab] = useState('today')
-  const { data, isLoading, isError, error } = useTodayPlan()
-  const items = planItemsFrom(data)
-  const selectedItems = items.filter(item => item.item_status === 'selected')
-  const aggregateItems = items.filter(item => item.item_status !== 'selected')
-  const plan = data?.plan && typeof data.plan === 'object' ? data.plan : null
-  const sourceCoverage = plan?.source_coverage && typeof plan.source_coverage === 'object' ? plan.source_coverage : {}
-  const stats = {
-    selected: countItems(items, 'selected'),
-    review: items.filter(item => item.item_status === 'review' || item.review_gate).length,
-    deferred: countItems(items, 'deferred'),
-    suppressed: countItems(items, 'suppressed'),
+  const [filters, setFilters] = useState({})
+  const [overdueOnly, setOverdueOnly] = useState(false)
+  const { BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
+  const effectiveBusiness = selectedBusiness || filters.business
+  const queryFilters = {
+    ...(effectiveBusiness ? { business: effectiveBusiness } : {}),
+    status: filters.status || NON_DONE_STATUSES,
+    ...(filters.priority ? { priority: filters.priority } : {}),
+    ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
+    ...(filters.work_mode ? { work_mode: filters.work_mode } : {}),
+    ...(overdueOnly ? { due_before: getYesterdayDateString() } : {}),
+    ...(searchQuery ? { search: searchQuery } : {}),
   }
+  const { data: actions = [], isLoading, isError, error } = useActions(queryFilters)
+  const { data: members = [] } = useMembers()
+  const updateAction = useUpdateAction()
+  const deleteAction = useDeleteAction()
+
+  useEffect(() => {
+    if (!selectedBusiness || !filters.business) return
+    setFilters(current => {
+      const { business, ...rest } = current
+      return rest
+    })
+  }, [filters.business, selectedBusiness])
+
+  const toggleDone = (action) => {
+    const nextStatus = action.status === 'done' ? 'not_started' : 'done'
+    const payload = {
+      id: action.id,
+      status: nextStatus,
+    }
+
+    if (nextStatus === 'done') {
+      const evidence = completionEvidenceForAction(action, 'atlas_today')
+      if (!evidence) return
+      payload.evidence_json = evidence
+    }
+
+    updateAction.mutate(payload)
+  }
+
+  const handleDelete = (action) => {
+    if (window.confirm(`Delete "${action.title}"? This cannot be undone.`)) {
+      deleteAction.mutate(action.id)
+    }
+  }
+
+  const hasFilters = Boolean(
+    filters.business
+      || filters.status
+      || filters.priority
+      || filters.owner_id
+      || filters.work_mode
+      || overdueOnly
+  )
+
+  function clearFilters() {
+    setFilters({})
+    setOverdueOnly(false)
+  }
+
+  const { onFire, dueToday, reviewRequired, inProgress, upNext, stats } = useMemo(() => {
+    // Filter out frozen businesses
+    const scoped = effectiveBusiness
+      ? actions
+      : actions.filter(a => !frozenBusinesses.has(a.business))
+    const visible = overdueOnly
+      ? scoped.filter(a => isOverdue(a.due_date) && a.status !== 'done')
+      : scoped
+
+    const fire = []
+    const today = []
+    const review = []
+    const active = []
+    const notStarted = []
+
+    for (const action of visible) {
+      const isP0 = action.priority === 'p0'
+      const overdue = isOverdue(action.due_date) && action.status !== 'done'
+      const due = isToday(action.due_date)
+      const status = canonicalStatus(action.status)
+      const isActive = ACTIVE_STATUSES.has(status)
+      const needsReview = action.work_mode === 'review_required'
+
+      // On Fire: P0 or overdue (avoid duplicating in other sections)
+      if (isP0 || overdue) {
+        fire.push(action)
+      } else if (due) {
+        today.push(action)
+      } else if (needsReview) {
+        review.push(action)
+      } else if (isActive) {
+        active.push(action)
+      } else if (status === 'not_started') {
+        notStarted.push(action)
+      }
+    }
+
+    // Sort On Fire: P0 first, then by days overdue descending
+    fire.sort((a, b) => {
+      const aP0 = a.priority === 'p0' ? 0 : 1
+      const bP0 = b.priority === 'p0' ? 0 : 1
+      if (aP0 !== bP0) return aP0 - bP0
+      return getDaysOverdue(b.due_date) - getDaysOverdue(a.due_date)
+    })
+
+    // Sort Due Today by priority
+    today.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
+
+    // Sort active work by priority
+    active.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
+    review.sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9))
+
+    // Sort Up Next by priority then due_date
+    notStarted.sort((a, b) => {
+      const pDiff = (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9)
+      if (pDiff !== 0) return pDiff
+      return (a.due_date || 'zzzz').localeCompare(b.due_date || 'zzzz')
+    })
+
+    // Count overdue across all visible for stats (including those in fire)
+    const overdueCount = visible.filter(a => isOverdue(a.due_date) && a.status !== 'done').length
+    const dueTodayCount = visible.filter(a => isToday(a.due_date)).length
+    const inProgressCount = visible.filter(a => ACTIVE_STATUSES.has(canonicalStatus(a.status))).length
+    const reviewCount = visible.filter(a => a.work_mode === 'review_required' && a.status !== 'done').length
+
+    return {
+      onFire: fire,
+      dueToday: today,
+      reviewRequired: review,
+      inProgress: active,
+      upNext: notStarted.slice(0, 10),
+      stats: {
+        overdue: overdueCount,
+        dueToday: dueTodayCount,
+        reviewRequired: reviewCount,
+        inProgress: inProgressCount,
+      },
+    }
+  }, [actions, effectiveBusiness, frozenBusinesses, overdueOnly])
 
   if (isLoading) {
     return (
@@ -513,15 +531,18 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             Data unavailable
           </p>
           <p className="text-white/80 text-sm">
-            {error?.message || 'ATLAS could not load the Today plan.'}
+            {error?.message || 'ATLAS could not load actions.'}
           </p>
         </div>
       </div>
     )
   }
 
+  const totalFocus = onFire.length + dueToday.length + reviewRequired.length + inProgress.length
+
   return (
     <div className="px-2 md:px-6 py-6 md:py-8 max-w-6xl mx-auto">
+      {/* Header */}
       <div className="mb-8">
         <p className="text-white/30 text-xs uppercase tracking-widest font-semibold mb-2">
           {getGreeting()}
@@ -530,96 +551,180 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
           {getTodayFormatted()}
         </h1>
         <p className="text-white/40 text-sm">
-          {selectedItems.length === 0
-            ? 'No tasks were selected for today.'
-            : `${selectedItems.length} selected task${selectedItems.length === 1 ? '' : 's'} for today.`}
+          {totalFocus === 0
+            ? 'Nothing urgent. Pull from Up Next or take a break.'
+            : `${totalFocus} action${totalFocus === 1 ? '' : 's'} need${totalFocus === 1 ? 's' : ''} your attention today.`}
         </p>
       </div>
 
+      {/* Today's Focus — briefing banner */}
       <TodayFocusBanner />
 
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="inline-flex rounded-xl border border-border bg-bg-elevated p-1">
-          {[
-            ['today', `Today (${stats.selected})`],
-            ['aggregate', `Aggregate (${aggregateItems.length})`],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors ${
-                activeTab === id
-                  ? 'bg-accent text-bg-base'
-                  : 'text-text-muted hover:text-text-primary'
-              }`}
-              onClick={() => setActiveTab(id)}
-            >
-              {label}
-            </button>
-          ))}
+      <TodayFilters
+        filters={filters}
+        onChange={setFilters}
+        overdueOnly={overdueOnly}
+        onToggleOverdue={() => setOverdueOnly(value => !value)}
+        selectedBusiness={selectedBusiness}
+        businesses={BUSINESS_LIST}
+        members={members}
+        hasFilters={hasFilters}
+        onClear={clearFilters}
+      />
+
+      {/* Stats row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.overdue > 0 ? 'border-danger/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
+            Overdue
+          </p>
+          <p className={`text-3xl font-bold ${stats.overdue > 0 ? 'text-danger' : 'text-text-muted'}`}>
+            {stats.overdue}
+          </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            {plan?.status || 'no plan'}
-          </span>
-          <span className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-text-muted">
-            iMessage: {labelize(sourceCoverage.imessage || 'unavailable')}
-          </span>
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.dueToday > 0 ? 'border-accent/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
+            Due Today
+          </p>
+          <p className={`text-3xl font-bold ${stats.dueToday > 0 ? 'text-accent' : 'text-text-muted'}`}>
+            {stats.dueToday}
+          </p>
+        </div>
+
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.inProgress > 0 ? 'border-status-in_progress/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
+            Active
+          </p>
+          <p className={`text-3xl font-bold ${stats.inProgress > 0 ? 'text-status-in_progress' : 'text-text-muted'}`}>
+            {stats.inProgress}
+          </p>
+        </div>
+
+        <div className={`rounded-2xl p-4 border bg-bg-surface ${stats.reviewRequired > 0 ? 'border-accent/30' : 'border-border'}`}>
+          <p className="text-text-muted text-[10px] uppercase tracking-widest font-semibold mb-1">
+            Review
+          </p>
+          <p className={`text-3xl font-bold ${stats.reviewRequired > 0 ? 'text-accent' : 'text-text-muted'}`}>
+            {stats.reviewRequired}
+          </p>
         </div>
       </div>
 
-      {activeTab === 'today' ? (
-        <section className="space-y-3">
-          {selectedItems.length ? (
-            selectedItems.map(item => (
-              <PlanTaskCard key={item.id || item.source_action_id || item.title} item={item} onSelectAction={onSelectAction} />
-            ))
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border bg-bg-surface p-8 text-center">
-              <p className="text-sm text-text-muted">
-                No tasks were selected for today. Run the nightly retriage or check the Aggregate tab.
-              </p>
-            </div>
-          )}
-        </section>
-      ) : (
-        <section className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ['Selected', stats.selected],
-              ['Review gates', stats.review],
-              ['Deferred', stats.deferred],
-              ['Suppressed', stats.suppressed],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-border bg-bg-surface p-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">{label}</p>
-                <p className="mt-1 font-mono text-3xl font-bold text-text-primary">{value}</p>
-              </div>
-            ))}
-          </div>
+      {/* Sections */}
+      <Section
+        icon={Flame}
+        title="On Fire"
+        subtitle="P0 actions and overdue items"
+        count={onFire.length}
+        accentColor="#ef4444"
+        emptyMessage="Nothing on fire. Nice."
+      >
+        {onFire.map(action => (
+          <ActionCard
+            key={action.id}
+            action={action}
+            onSelect={onSelectAction}
+            businessColors={BUSINESS_COLORS}
+            members={members}
+            onToggleDone={toggleDone}
+            onDelete={handleDelete}
+          />
+        ))}
+      </Section>
 
-          <div className="space-y-3">
-            {aggregateItems.length ? (
-              aggregateItems.map(item => (
-                <AggregateRow key={item.id || `${item.source_action_id}-${item.item_status}-${item.rank}`} item={item} onSelectAction={onSelectAction} />
-              ))
-            ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-bg-surface p-8 text-center">
-                <p className="text-sm text-text-muted">No aggregate context is attached to this plan.</p>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+      <Section
+        icon={Clock}
+        title="Due Today"
+        subtitle="Ship these before midnight"
+        count={dueToday.length}
+        accentColor="#f59e0b"
+        emptyMessage="Nothing due today."
+      >
+        {dueToday.map(action => (
+          <ActionCard
+            key={action.id}
+            action={action}
+            onSelect={onSelectAction}
+            businessColors={BUSINESS_COLORS}
+            members={members}
+            onToggleDone={toggleDone}
+            onDelete={handleDelete}
+          />
+        ))}
+      </Section>
 
-      {!plan ? (
-        <div className="mt-6 rounded-2xl border border-warning/30 bg-warning/10 p-4">
-          <p className="text-sm text-warning">
-            Atlas did not find an active daily plan for today.
+      <Section
+        icon={Bot}
+        title="Needs Review"
+        subtitle="Agent-prepared work waiting for approval or a decision"
+        count={reviewRequired.length}
+        accentColor="#f4b860"
+      >
+        {reviewRequired.map(action => (
+          <ActionCard
+            key={action.id}
+            action={action}
+            onSelect={onSelectAction}
+            businessColors={BUSINESS_COLORS}
+            members={members}
+            onToggleDone={toggleDone}
+            onDelete={handleDelete}
+          />
+        ))}
+      </Section>
+
+      <Section
+        icon={Play}
+        title="Active"
+        subtitle="In progress, blocked, or waiting"
+        count={inProgress.length}
+        accentColor="#3b82f6"
+      >
+        {inProgress.map(action => (
+          <ActionCard
+            key={action.id}
+            action={action}
+            onSelect={onSelectAction}
+            businessColors={BUSINESS_COLORS}
+            members={members}
+            onToggleDone={toggleDone}
+            onDelete={handleDelete}
+          />
+        ))}
+      </Section>
+
+      <Section
+        icon={ArrowRight}
+        title="Up Next"
+        subtitle="Top 10 not-started actions to pull from"
+        count={upNext.length}
+        accentColor="#71717a"
+      >
+        {upNext.map(action => (
+          <ActionCard
+            key={action.id}
+            action={action}
+            onSelect={onSelectAction}
+            businessColors={BUSINESS_COLORS}
+            members={members}
+            onToggleDone={toggleDone}
+            onDelete={handleDelete}
+          />
+        ))}
+      </Section>
+
+      {/* Empty state when absolutely nothing */}
+      {totalFocus === 0 && upNext.length === 0 && (
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-7 h-7 text-white/20" />
+          </div>
+          <p className="text-white/30 text-sm">
+            No active actions found. Create some or check your filters.
           </p>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }
