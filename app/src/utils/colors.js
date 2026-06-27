@@ -39,9 +39,15 @@ export const MEMBER_COLORS = [
 ];
 
 export function getMemberColor(memberId) {
+  const key = typeof memberId === 'string'
+    ? memberId
+    : memberId && typeof memberId === 'object'
+      ? String(memberId.id || memberId.name || '')
+      : String(memberId || '');
+  if (!key) return '#71717a';
   let hash = 0;
-  for (let i = 0; i < memberId.length; i++) {
-    hash = memberId.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < key.length; i++) {
+    hash = key.charCodeAt(i) + ((hash << 5) - hash);
   }
   return MEMBER_COLORS[Math.abs(hash) % MEMBER_COLORS.length];
 }

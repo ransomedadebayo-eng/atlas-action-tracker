@@ -2,7 +2,13 @@ import { getMemberColor } from './colors.js';
 
 export function getInitials(name) {
   if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
+  const value = typeof name === 'string'
+    ? name
+    : name && typeof name === 'object'
+      ? String(name.name || name.id || '')
+      : String(name);
+  if (!value.trim()) return '?';
+  const parts = value.trim().split(/\s+/);
   if (parts.length === 1) return parts[0][0].toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
