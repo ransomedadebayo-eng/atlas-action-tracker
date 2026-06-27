@@ -8,6 +8,7 @@ import MemberList from './components/MemberList.jsx'
 import TranscriptUpload from './components/TranscriptUpload.jsx'
 import TranscriptHistory from './components/TranscriptHistory.jsx'
 import TodayList from './components/TodayList.jsx'
+import TodayReview from './components/TodayReview.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
 import ViewErrorBoundary from './components/ViewErrorBoundary.jsx'
@@ -71,6 +72,14 @@ export default function App() {
       case 'today':
         return (
           <TodayList
+            selectedBusiness={selectedBusiness}
+            onSelectAction={setSelectedActionId}
+            searchQuery={searchQuery}
+          />
+        )
+      case 'review':
+        return (
+          <TodayReview
             selectedBusiness={selectedBusiness}
             onSelectAction={setSelectedActionId}
             searchQuery={searchQuery}

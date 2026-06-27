@@ -13,6 +13,8 @@ function todayDateString() {
   return getISODate();
 }
 
+const HIDDEN_TODAY_STATUSES = new Set(['done', 'closed', 'cancelled', 'archived']);
+
 function getAction(item) {
   return item.action || item;
 }
@@ -91,6 +93,7 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
       .filter((item) => {
         const action = getAction(item);
         if (!action?.id) return false;
+        if (HIDDEN_TODAY_STATUSES.has(String(action.status || '').toLowerCase())) return false;
         if (selectedBusiness && action.business !== selectedBusiness) return false;
         if (!searchQuery) return true;
         const haystack = `${item.title || ''} ${item.summary || ''} ${action.title || ''} ${action.description || ''}`.toLowerCase();

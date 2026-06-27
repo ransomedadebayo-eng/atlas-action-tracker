@@ -4,6 +4,8 @@ import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { useTheme } from '../hooks/useTheme.js'
 
 const VIEW_TITLES = {
+  today: 'Today',
+  review: 'Review',
   dashboard: 'All Tasks',
   kanban: 'Kanban Board',
   calendar: 'Calendar',
