@@ -114,6 +114,11 @@ export const activityApi = {
   get: (actionId) => request(`/activity/${actionId}`),
 };
 
+// Today plan
+export const todayApi = {
+  get: (date) => request(`/today${date ? `?date=${encodeURIComponent(date)}` : ''}`),
+};
+
 // Config
 export const configApi = {
   businesses: () => request('/config/businesses'),

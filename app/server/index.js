@@ -13,6 +13,7 @@ import transcriptsRouter from './routes/transcripts.js';
 import membersRouter from './routes/members.js';
 import viewsRouter from './routes/views.js';
 import activityRouter from './routes/activity.js';
+import todayRouter from './routes/today.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -139,6 +140,7 @@ app.use('/api/transcripts', transcriptsRouter);
 app.use('/api/members', membersRouter);
 app.use('/api/views', viewsRouter);
 app.use('/api/activity', activityRouter);
+app.use('/api/today', todayRouter);
 
 // Config — dynamic businesses list from DB
 app.get('/api/config/businesses', async (req, res) => {
