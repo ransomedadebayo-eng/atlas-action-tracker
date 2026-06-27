@@ -119,6 +119,29 @@ export const todayApi = {
   get: (date) => request(`/today${date ? `?date=${encodeURIComponent(date)}` : ''}`),
 };
 
+// Journal
+export const journalApi = {
+  list: (params = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') query.set(k, v);
+    });
+    const qs = query.toString();
+    return request(`/journal${qs ? `?${qs}` : ''}`);
+  },
+  create: (data) => request('/journal', { method: 'POST', body: data }),
+  update: (id, data) => request(`/journal/${id}`, { method: 'PUT', body: data }),
+  archive: (id) => request(`/journal/${id}/archive`, { method: 'POST', body: {} }),
+  promote: (id, data) => request(`/journal/${id}/promote`, { method: 'POST', body: data }),
+  delete: (id) => request(`/journal/${id}`, { method: 'DELETE' }),
+};
+
+// Decide
+export const decideApi = {
+  get: () => request('/decide'),
+  decideProposal: (id, data) => request(`/decide/proposals/${id}/decision`, { method: 'POST', body: data }),
+};
+
 // Config
 export const configApi = {
   businesses: () => request('/config/businesses'),

@@ -11,6 +11,8 @@ import configRouter from './routes/config';
 import briefingRouter from './routes/briefing';
 import automationsRouter from './routes/automations';
 import todayRouter from './routes/today';
+import journalRouter from './routes/journal';
+import decideRouter from './routes/decide';
 import { runScheduledProtocolJobs } from './automations/protocolJobs';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -41,6 +43,8 @@ app.route('/api/config', configRouter);
 app.route('/api/briefing', briefingRouter);
 app.route('/api/automations', automationsRouter);
 app.route('/api/today', todayRouter);
+app.route('/api/journal', journalRouter);
+app.route('/api/decide', decideRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {

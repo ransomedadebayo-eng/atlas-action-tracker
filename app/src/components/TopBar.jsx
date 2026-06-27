@@ -6,6 +6,8 @@ import { useTheme } from '../hooks/useTheme.js'
 const VIEW_TITLES = {
   today: 'Today',
   review: 'Review',
+  decide: 'Decide',
+  journal: 'Journal',
   dashboard: 'All Tasks',
   kanban: 'Kanban Board',
   calendar: 'Calendar',

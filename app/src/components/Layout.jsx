@@ -2,6 +2,8 @@ import React from 'react'
 import {
   Sun,
   ClipboardCheck,
+  ListChecks,
+  BookOpenText,
   LayoutDashboard,
   Columns,
   CalendarDays,
@@ -19,6 +21,8 @@ import { useBusinessContext } from '../hooks/useBusinesses.js'
 const NAV_LINKS = [
   { id: 'today', label: 'Today', Icon: Sun },
   { id: 'review', label: 'Review', Icon: ClipboardCheck },
+  { id: 'decide', label: 'Decide', Icon: ListChecks },
+  { id: 'journal', label: 'Journal', Icon: BookOpenText },
   { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
   { id: 'kanban', label: 'Kanban', Icon: Columns },
   { id: 'calendar', label: 'Calendar', Icon: CalendarDays },

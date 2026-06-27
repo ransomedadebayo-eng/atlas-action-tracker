@@ -9,6 +9,8 @@ import TranscriptUpload from './components/TranscriptUpload.jsx'
 import TranscriptHistory from './components/TranscriptHistory.jsx'
 import TodayList from './components/TodayList.jsx'
 import TodayReview from './components/TodayReview.jsx'
+import JournalPage from './components/JournalPage.jsx'
+import DecidePage from './components/DecidePage.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
 import ViewErrorBoundary from './components/ViewErrorBoundary.jsx'
@@ -85,6 +87,10 @@ export default function App() {
             searchQuery={searchQuery}
           />
         )
+      case 'decide':
+        return <DecidePage />
+      case 'journal':
+        return <JournalPage searchQuery={searchQuery} />
       case 'dashboard':
         return (
           <ActionTable
