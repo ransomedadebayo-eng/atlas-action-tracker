@@ -114,16 +114,6 @@ export const activityApi = {
   get: (actionId) => request(`/activity/${actionId}`),
 };
 
-// Today plan
-export const todayApi = {
-  get: (date) => request(`/today${date ? `?date=${encodeURIComponent(date)}` : ''}`),
-  rules: () => request('/today/rules'),
-  dryRun: (data = {}) => request('/today/dry-run', { method: 'POST', body: data }),
-  upsert: (data) => request('/today', { method: 'POST', body: data }),
-  proposeRuleChange: (data) => request('/today/rule-proposals', { method: 'POST', body: data }),
-  activateRuleProposal: (id) => request(`/today/rule-proposals/${id}/activate`, { method: 'POST' }),
-};
-
 // Config
 export const configApi = {
   businesses: () => request('/config/businesses'),
