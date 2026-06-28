@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Users,
   FileText,
+  Workflow,
   Command,
   Zap,
   X,
@@ -20,14 +21,15 @@ import { useBusinessContext } from '../hooks/useBusinesses.js'
 
 const NAV_LINKS = [
   { id: 'today', label: 'Today', Icon: Sun },
+  { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
+  { id: 'kanban', label: 'Kanban', Icon: Columns },
   { id: 'review', label: 'Review', Icon: ClipboardCheck },
   { id: 'decide', label: 'Decide', Icon: ListChecks },
   { id: 'journal', label: 'Journal', Icon: BookOpenText },
-  { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
-  { id: 'kanban', label: 'Kanban', Icon: Columns },
   { id: 'calendar', label: 'Calendar', Icon: CalendarDays },
   { id: 'members', label: 'Team', Icon: Users },
   { id: 'transcripts', label: 'Transcripts', Icon: FileText },
+  { id: 'automations', label: 'Automations', Icon: Workflow },
 ]
 
 export default function Layout({

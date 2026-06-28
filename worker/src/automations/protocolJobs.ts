@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Env, getDb } from '../db';
+import { generateAtlasTodayPlan } from './atlasToday';
 
 type Supabase = ReturnType<typeof getDb>;
 
@@ -545,6 +546,7 @@ export async function evidenceIntegrityCheck(env: Env) {
 }
 
 export const AUTOMATION_JOBS = {
+  'atlas-nightly-retriage': generateAtlasTodayPlan,
   'atlas-stewardship-daily': atlasStewardshipDaily,
   'agent-work-pull': agentWorkPull,
   'review-packet-digest': reviewPacketDigest,
@@ -566,6 +568,7 @@ export async function runScheduledProtocolJobs(env: Env, cron: string) {
   const utcDay = now.getUTCDay();
   if (cron === '0 * * * *') {
     jobs.push('agent-work-pull');
+    if (utcHour === 8) jobs.push('atlas-nightly-retriage');
     if (utcHour === 15) jobs.push('atlas-stewardship-daily', 'review-packet-digest', 'evidence-integrity-check');
     if (utcDay === 0 && utcHour === 18) jobs.push('journal-review-weekly', 'protocol-learning-weekly');
   }

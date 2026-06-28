@@ -13,6 +13,7 @@ import automationsRouter from './routes/automations';
 import todayRouter from './routes/today';
 import journalRouter from './routes/journal';
 import decideRouter from './routes/decide';
+import atlasOsRouter from './routes/atlasOs';
 import { runScheduledProtocolJobs } from './automations/protocolJobs';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -45,6 +46,7 @@ app.route('/api/automations', automationsRouter);
 app.route('/api/today', todayRouter);
 app.route('/api/journal', journalRouter);
 app.route('/api/decide', decideRouter);
+app.route('/api/atlas-os', atlasOsRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {

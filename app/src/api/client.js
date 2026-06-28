@@ -147,3 +147,18 @@ export const configApi = {
   businesses: () => request('/config/businesses'),
   updateBusinesses: (businesses) => request('/config/businesses', { method: 'PUT', body: businesses }),
 };
+
+// Atlas-native PEOS surfaces
+export const atlasOsApi = {
+  review: () => request('/atlas-os/review'),
+  decide: () => request('/atlas-os/decide'),
+  journal: () => request('/atlas-os/journal'),
+  createJournalEntry: (data) => request('/atlas-os/journal', { method: 'POST', body: data }),
+};
+
+// Automations
+export const automationsApi = {
+  list: () => request('/automations'),
+  registry: () => request('/automations/registry'),
+  run: (job) => request(`/automations/${job}/run`, { method: 'POST', body: {} }),
+};

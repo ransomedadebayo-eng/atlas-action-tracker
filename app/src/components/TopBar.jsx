@@ -5,14 +5,15 @@ import { useTheme } from '../hooks/useTheme.js'
 
 const VIEW_TITLES = {
   today: 'Today',
+  dashboard: 'All Tasks',
+  kanban: 'Kanban Board',
   review: 'Review',
   decide: 'Decide',
   journal: 'Journal',
-  dashboard: 'All Tasks',
-  kanban: 'Kanban Board',
   calendar: 'Calendar',
   members: 'Team',
   transcripts: 'Transcripts',
+  automations: 'Automations',
 }
 
 export default function TopBar({

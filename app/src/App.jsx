@@ -11,6 +11,7 @@ import TodayList from './components/TodayList.jsx'
 import TodayReview from './components/TodayReview.jsx'
 import JournalPage from './components/JournalPage.jsx'
 import DecidePage from './components/DecidePage.jsx'
+import AutomationRegistry from './components/AutomationRegistry.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
 import ViewErrorBoundary from './components/ViewErrorBoundary.jsx'
@@ -103,6 +104,8 @@ export default function App() {
             showFrozen={showFrozen}
           />
         )
+      case 'automations':
+        return <AutomationRegistry />
       case 'kanban':
         return (
           <KanbanBoard
