@@ -43,6 +43,7 @@ export function useCreateAction() {
       queryClient.invalidateQueries({ queryKey: ['actionStats'] });
       queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
       queryClient.invalidateQueries({ queryKey: ['memberStats'] });
+      queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
     },
   });
 }
@@ -57,6 +58,7 @@ export function useUpdateAction() {
       queryClient.invalidateQueries({ queryKey: ['actionStats'] });
       queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
       queryClient.invalidateQueries({ queryKey: ['memberStats'] });
+      queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
     },
   });
 }
@@ -82,6 +84,7 @@ export function useDeleteAction() {
       queryClient.invalidateQueries({ queryKey: ['actionStats'] });
       queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
       queryClient.invalidateQueries({ queryKey: ['memberStats'] });
+      queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
     },
   });
 }
@@ -95,6 +98,7 @@ export function useBulkUpdateActions() {
       queryClient.invalidateQueries({ queryKey: ['actionStats'] });
       queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
       queryClient.invalidateQueries({ queryKey: ['memberStats'] });
+      queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
     },
   });
 }
