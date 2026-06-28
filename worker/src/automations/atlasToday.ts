@@ -508,10 +508,25 @@ export async function readAtlasTodayPlan(env: Env, date = isoDate()) {
   if (itemsError) throw itemsError;
 
   const rows = items || [];
-  const selected = rows.filter(item => item.item_status === 'selected');
-  const review = rows.filter(item => item.item_status === 'review');
-  const deferred = rows.filter(item => item.item_status === 'deferred');
-  const suppressed = rows.filter(item => item.item_status === 'suppressed');
+  const actionIds = Array.from(new Set(rows.map(item => item.source_action_id).filter(Boolean)));
+  let actionById = new Map<string, Record<string, unknown>>();
+  if (actionIds.length > 0) {
+    const { data: actions, error: actionsError } = await supabase
+      .from('atlas_actions')
+      .select('*')
+      .in('id', actionIds);
+    if (actionsError) throw actionsError;
+    actionById = new Map((actions || []).map(action => [String(action.id), action as Record<string, unknown>]));
+  }
+
+  const hydratedRows = rows.map(item => ({
+    ...item,
+    action: item.source_action_id ? actionById.get(String(item.source_action_id)) || null : null,
+  }));
+  const selected = hydratedRows.filter(item => item.item_status === 'selected');
+  const review = hydratedRows.filter(item => item.item_status === 'review');
+  const deferred = hydratedRows.filter(item => item.item_status === 'deferred');
+  const suppressed = hydratedRows.filter(item => item.item_status === 'suppressed');
   return {
     date,
     plan,
