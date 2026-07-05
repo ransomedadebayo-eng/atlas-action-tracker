@@ -43,6 +43,8 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       : undefined
 
   const queryFilters = {
+    limit: 200,
+    show_blocked: true,
     ...(effectiveBusiness ? { business: effectiveBusiness } : {}),
     ...(statusFilter ? { status: statusFilter } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),

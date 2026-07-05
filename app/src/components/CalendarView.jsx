@@ -7,6 +7,7 @@ import { getDaysInMonth, getFirstDayOfMonth, isToday } from '../utils/dateUtils.
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open'
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -27,8 +28,14 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
+  const [selectedDate, setSelectedDate] = useState(null)
 
-  const queryFilters = selectedBusiness ? { business: selectedBusiness } : {}
+  const queryFilters = {
+    limit: 200,
+    show_blocked: true,
+    status: NON_DONE_STATUSES,
+    ...(selectedBusiness ? { business: selectedBusiness } : {}),
+  }
   const { data: rawActions = [], isLoading } = useActions(queryFilters)
   const actions = Array.isArray(rawActions) ? rawActions : []
 
@@ -42,6 +49,15 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
     }
     return map
   }, [actions])
+
+  const selectedActions = selectedDate ? (actionsByDate[selectedDate] || []) : []
+  const selectedDateLabel = selectedDate
+    ? new Date(`${selectedDate}T00:00:00`).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    })
+    : ''
 
   // Calendar grid
   const calendarDays = useMemo(() => {
@@ -79,6 +95,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
   }, [year, month])
 
   function goToPrev() {
+    setSelectedDate(null)
     if (month === 0) {
       setMonth(11)
       setYear(y => y - 1)
@@ -88,6 +105,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
   }
 
   function goToNext() {
+    setSelectedDate(null)
     if (month === 11) {
       setMonth(0)
       setYear(y => y + 1)
@@ -99,6 +117,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
   function goToToday() {
     setYear(now.getFullYear())
     setMonth(now.getMonth())
+    setSelectedDate(null)
   }
 
   // Count unscheduled
@@ -191,6 +210,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
       <div className="grid grid-cols-7 gap-1">
         {calendarDays.map((cell, idx) => {
           const dayActions = actionsByDate[cell.dateStr] || []
+          const selected = selectedDate === cell.dateStr
           const today = isToday(cell.dateStr)
           const isPast = new Date(cell.dateStr + 'T00:00:00') < new Date(new Date().toISOString().split('T')[0] + 'T00:00:00')
 
@@ -208,15 +228,13 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
                 cell.isCurrentMonth
                   ? 'bg-bg-surface border-border hover:border-border-hover'
                   : 'bg-bg-primary/50 border-transparent'
-              } ${today ? 'ring-2 ring-accent/60 bg-accent/5' : ''} ${densityBg}`}
+              } ${today ? 'ring-2 ring-accent/60 bg-accent/5' : ''} ${selected ? 'border-accent/60 bg-accent/10' : ''} ${densityBg}`}
               onClick={() => {
-                // On mobile, tap a day to quick-add
-                if (window.innerWidth < 768 && cell.isCurrentMonth) {
-                  if (dayActions.length > 0) {
-                    onSelectAction(dayActions[0].id)
-                  } else {
-                    onOpenQuickCapture(cell.dateStr)
-                  }
+                if (!cell.isCurrentMonth) return
+                if (dayActions.length > 0) {
+                  setSelectedDate(cell.dateStr)
+                } else if (window.innerWidth < 768) {
+                  onOpenQuickCapture(cell.dateStr)
                 }
               }}
               onKeyDown={(e) => {
@@ -224,7 +242,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
                   e.preventDefault()
                   if (cell.isCurrentMonth) {
                     if (dayActions.length > 0) {
-                      onSelectAction(dayActions[0].id)
+                      setSelectedDate(cell.dateStr)
                     } else {
                       onOpenQuickCapture(cell.dateStr)
                     }
@@ -240,16 +258,23 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
                   {cell.day}
                 </span>
                 {cell.isCurrentMonth && (
-                  <button
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-bg-elevated hidden md:block"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onOpenQuickCapture(cell.dateStr)
-                    }}
-                    title="Add action"
-                  >
-                    <Plus className="w-3 h-3 text-text-muted hover:text-accent" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {dayActions.length > 0 && (
+                      <span className="rounded-full bg-bg-elevated px-1.5 py-0.5 text-[9px] font-mono text-text-secondary">
+                        {dayActions.length}
+                      </span>
+                    )}
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-bg-elevated hidden md:block"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onOpenQuickCapture(cell.dateStr)
+                      }}
+                      title="Add action"
+                    >
+                      <Plus className="w-3 h-3 text-text-muted hover:text-accent" />
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -271,7 +296,10 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
                         color,
                         borderLeft: `2px solid ${color}`,
                       }}
-                      onClick={() => onSelectAction(action.id)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelectAction(action.id)
+                      }}
                       title={action.title}
                     >
                       {action.title}
@@ -279,9 +307,16 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
                   )
                 })}
                 {dayActions.length > 3 && (
-                  <span className="text-[10px] text-text-muted px-1.5 block">
+                  <button
+                    type="button"
+                    className="text-[10px] text-text-muted px-1.5 block hover:text-accent"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedDate(cell.dateStr)
+                    }}
+                  >
                     +{dayActions.length - 3} more
-                  </span>
+                  </button>
                 )}
               </div>
               {/* Mobile dots */}
@@ -303,6 +338,56 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
           )
         })}
       </div>
+
+      {selectedDate && (
+        <section className="glass-card p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="label">Due on</p>
+              <h3 className="text-base font-semibold text-text-primary">{selectedDateLabel}</h3>
+            </div>
+            <span className="text-xs font-mono text-text-muted">
+              {selectedActions.length} action{selectedActions.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {selectedActions.length === 0 ? (
+            <p className="text-sm text-text-muted">No active actions due on this date.</p>
+          ) : (
+            <div className="max-h-80 divide-y divide-white/5 overflow-y-auto">
+              {selectedActions.map(action => {
+                const color = BUSINESS_COLORS[action.business] || '#71717a'
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    className="flex w-full items-start gap-3 py-3 text-left hover:bg-white/[0.02]"
+                    onClick={() => onSelectAction(action.id)}
+                  >
+                    <span
+                      className="mt-1 h-2 w-2 flex-shrink-0 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-text-primary">
+                        {action.title}
+                      </span>
+                      {action.next_action && (
+                        <span className="mt-0.5 block truncate text-xs text-text-muted">
+                          {action.next_action}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex-shrink-0 rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-bold uppercase text-text-secondary">
+                      {action.priority || 'p2'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   )
 }

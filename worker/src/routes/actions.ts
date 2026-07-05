@@ -12,6 +12,8 @@ const router = new Hono<{ Bindings: Env }>();
 const BULK_MAX = 50;
 const COMPLETION_EVIDENCE_ERROR = 'Add a completion note or proof before marking an action done.';
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
+const ACTIVE_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'todo', 'open'];
+const NON_BLOCKED_ACTIVE_STATUSES = ['not_started', 'in_progress', 'waiting', 'todo', 'open'];
 const PROTOCOL_FIELDS = [
   'next_action',
   'definition_of_done',
@@ -21,6 +23,33 @@ const PROTOCOL_FIELDS = [
   'approval_state',
 ];
 const FILTERABLE_WORK_MODES = new Set(['autonomous', 'review_required', 'user_only']);
+
+function getAtlasLocalDate(date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function withBusinessFilter(query: any, business?: string | null) {
+  return business ? query.eq('business', business) : query;
+}
+
+async function countActions(
+  supabase: ReturnType<typeof getDb>,
+  business: string | null,
+  buildQuery: (query: any) => any,
+): Promise<number> {
+  const base = supabase.from('atlas_actions').select('id', { count: 'exact', head: true });
+  const query = buildQuery(withBusinessFilter(base, business));
+  const { count, error } = await query;
+  if (error) throw error;
+  return count || 0;
+}
 
 function sortByPriority(actions: Record<string, unknown>[], direction = 'ASC') {
   return actions.sort((a, b) => {
@@ -202,9 +231,49 @@ router.get('/stats', async (c) => {
   try {
     const supabase = getDb(c.env);
     const { business } = c.req.query() as Record<string, string>;
-    const { data, error } = await supabase.rpc('atlas_action_stats', { business_filter: business || null });
-    if (error) throw error;
-    return c.json(data);
+    const businessFilter = business || null;
+    const today = getAtlasLocalDate();
+    const completedSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [active, overdue, completedThisWeek, blocked, pendingReview] = await Promise.all([
+      countActions(
+        supabase,
+        businessFilter,
+        query => query.in('status', NON_BLOCKED_ACTIVE_STATUSES).or(`due_date.is.null,due_date.gte.${today}`),
+      ),
+      countActions(
+        supabase,
+        businessFilter,
+        query => query.in('status', ACTIVE_STATUSES).lt('due_date', today),
+      ),
+      countActions(
+        supabase,
+        businessFilter,
+        query => query.eq('status', 'done').gte('completed_at', completedSince),
+      ),
+      countActions(
+        supabase,
+        businessFilter,
+        query => query.eq('status', 'blocked'),
+      ),
+      countActions(
+        supabase,
+        businessFilter,
+        query => query.eq('approval_state', 'needs_review'),
+      ),
+    ]);
+
+    return c.json({
+      active,
+      totalActive: active,
+      total_active: active,
+      overdue,
+      completedThisWeek,
+      completed_this_week: completedThisWeek,
+      blocked,
+      pendingReview,
+      pending_review: pendingReview,
+    });
   } catch (err) {
     console.error(`[actions] stats error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);

@@ -11,6 +11,8 @@ import { buildSafeIlikePattern } from '../utils/search.js';
 const router = Router();
 const BULK_MAX = 50;
 const COMPLETION_EVIDENCE_ERROR = 'Add a completion note or proof before marking an action done.';
+const ACTIVE_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'todo', 'open'];
+const NON_BLOCKED_ACTIVE_STATUSES = ['not_started', 'in_progress', 'waiting', 'todo', 'open'];
 const PROTOCOL_FIELDS = [
   'next_action',
   'definition_of_done',
@@ -22,6 +24,29 @@ const PROTOCOL_FIELDS = [
 const FILTERABLE_WORK_MODES = new Set(['autonomous', 'review_required', 'user_only']);
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 };
+
+function getAtlasLocalDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function withBusinessFilter(query, business) {
+  return business ? query.eq('business', business) : query;
+}
+
+async function countActions(business, buildQuery) {
+  const base = supabase.from('atlas_actions').select('id', { count: 'exact', head: true });
+  const query = buildQuery(withBusinessFilter(base, business));
+  const { count, error } = await query;
+  if (error) throw error;
+  return count || 0;
+}
 
 function sortByPriority(actions, direction = 'ASC') {
   return actions.sort((a, b) => {
@@ -221,11 +246,44 @@ router.get('/', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     const { business } = req.query;
-    const { data, error } = await supabase.rpc('atlas_action_stats', {
-      business_filter: business || null,
+    const businessFilter = business || null;
+    const today = getAtlasLocalDate();
+    const completedSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [active, overdue, completedThisWeek, blocked, pendingReview] = await Promise.all([
+      countActions(
+        businessFilter,
+        query => query.in('status', NON_BLOCKED_ACTIVE_STATUSES).or(`due_date.is.null,due_date.gte.${today}`)
+      ),
+      countActions(
+        businessFilter,
+        query => query.in('status', ACTIVE_STATUSES).lt('due_date', today)
+      ),
+      countActions(
+        businessFilter,
+        query => query.eq('status', 'done').gte('completed_at', completedSince)
+      ),
+      countActions(
+        businessFilter,
+        query => query.eq('status', 'blocked')
+      ),
+      countActions(
+        businessFilter,
+        query => query.eq('approval_state', 'needs_review')
+      ),
+    ]);
+
+    res.json({
+      active,
+      totalActive: active,
+      total_active: active,
+      overdue,
+      completedThisWeek,
+      completed_this_week: completedThisWeek,
+      blocked,
+      pendingReview,
+      pending_review: pendingReview,
     });
-    if (error) throw error;
-    res.json(data);
   } catch (err) {
     console.error(`[actions] stats error: ${err.message}`);
     res.status(500).json({ error: 'Internal server error' });
