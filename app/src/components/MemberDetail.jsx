@@ -6,7 +6,7 @@ import OwnerAvatars from './OwnerAvatars.jsx'
 import { getMemberColor, STATUS_COLORS } from '../utils/colors.js'
 import { getInitials } from '../utils/memberUtils.js'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
-import { STATUSES, STATUS_LIST } from '../utils/constants.js'
+import { canonicalStatus, STATUSES, STATUS_LIST } from '../utils/constants.js'
 
 export default function MemberDetail({ memberId, onBack, onSelectAction }) {
   const [statusFilter, setStatusFilter] = useState('all')
@@ -18,16 +18,17 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
 
   const actions = useMemo(() => {
     if (statusFilter === 'all') return allActions
-    return allActions.filter(a => a.status === statusFilter)
+    return allActions.filter(a => canonicalStatus(a.status) === statusFilter)
   }, [allActions, statusFilter])
 
   const color = getMemberColor(memberId)
   const stats = useMemo(() => {
-    const counts = { not_started: 0, in_progress: 0, waiting: 0, blocked: 0, done: 0 }
+    const counts = Object.fromEntries(Object.keys(STATUSES).map(status => [status, 0]))
     let overdueCount = 0
     for (const a of allActions) {
-      if (counts[a.status] !== undefined) counts[a.status]++
-      if (isOverdue(a.due_date) && !['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'].includes(a.status)) {
+      const status = canonicalStatus(a.status)
+      counts[status]++
+      if (isOverdue(a.due_date) && !['done', 'cancelled'].includes(status)) {
         overdueCount++
       }
     }
@@ -206,7 +207,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <p className="text-text-primary font-medium">No actions</p>
           <p className="text-text-muted text-sm mt-1">
-            {statusFilter !== 'all' ? 'No actions in this status' : 'No actions assigned to this member'}
+            {statusFilter !== 'all' ? 'No actions in this status' : 'No actions assigned to this principal'}
           </p>
         </div>
       ) : (
@@ -219,13 +220,15 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
               : JSON.parse(action.owners || '[]')
 
             return (
-              <div
+              <button
+                type="button"
                 key={action.id}
-                className={`card px-4 py-3 cursor-pointer hover:border-border-hover transition-colors flex items-center gap-3 ${
+                className={`card w-full px-4 py-3 cursor-pointer hover:border-border-hover transition-colors flex items-center gap-3 text-left ${
                   done ? 'opacity-50' : ''
                 }`}
                 style={overdue ? { borderLeft: `2px solid #ef444460` } : {}}
                 onClick={() => onSelectAction(action.id)}
+                aria-label={`Open action: ${action.title}`}
               >
                 <PriorityBadge priority={action.priority} />
                 <StatusBadge status={action.status} />
@@ -243,7 +246,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
                   </span>
                 )}
                 <OwnerAvatars owners={owners} members={allMembers} max={2} size="xs" />
-              </div>
+              </button>
             )
           })}
         </div>

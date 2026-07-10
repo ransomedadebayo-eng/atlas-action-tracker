@@ -55,7 +55,7 @@ export const WORK_MODES = {
   user_only: {
     label: 'User Only',
     shortLabel: 'User',
-    description: 'Agent can prep, but Ransomed or another person must perform the final action.',
+    description: 'Agent can prepare the work, but Ransomed must perform the final action.',
     order: 2,
   },
 };

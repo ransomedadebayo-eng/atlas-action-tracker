@@ -17,6 +17,12 @@ function shortLabel(name) {
   return words.map(w => w[0]).join('').toUpperCase()
 }
 
+function displayName(id, name) {
+  if (id === 'wealth-os') return 'Wealth OS'
+  if (id === 'healthos') return 'HealthOS'
+  return name
+}
+
 export function BusinessesProvider({ children }) {
   const queryClient = useQueryClient()
   const { data: rawData = [], isLoading } = useQuery({
@@ -42,8 +48,9 @@ export function BusinessesProvider({ children }) {
   const frozenSet = new Set()
 
   for (const b of raw) {
-    BUSINESSES[b.id] = { label: b.name, shortLabel: shortLabel(b.name) }
-    BUSINESS_LIST.push({ id: b.id, label: b.name, shortLabel: shortLabel(b.name) })
+    const label = displayName(b.id, b.name)
+    BUSINESSES[b.id] = { label, shortLabel: shortLabel(label) }
+    BUSINESS_LIST.push({ id: b.id, label, shortLabel: shortLabel(label) })
     BUSINESS_COLORS[b.id] = b.color
     if (b.frozen) frozenSet.add(b.id)
   }
