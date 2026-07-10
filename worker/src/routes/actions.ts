@@ -188,7 +188,7 @@ router.get('/', async (c) => {
     if (business) query = query.eq('business', business);
     if (priority) query = query.in('priority', priority.split(','));
     query = filterProtocolSpecialModes(query, work_mode);
-    if (owner_id) query = query.contains('owners', [owner_id]);
+    if (owner_id) query = query.filter('owners', 'cs', JSON.stringify([owner_id]));
     if (due_before) query = query.lte('due_date', due_before);
     if (due_after) query = query.gte('due_date', due_after);
     const searchTerm = buildSafeIlikePattern(search);
@@ -309,7 +309,10 @@ router.get('/stats', async (c) => {
 router.get('/by-owner/:id', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { data, error } = await supabase.from('atlas_actions').select('*').contains('owners', [c.req.param('id')]);
+    const { data, error } = await supabase
+      .from('atlas_actions')
+      .select('*')
+      .filter('owners', 'cs', JSON.stringify([c.req.param('id')]));
     if (error) throw error;
     return c.json(sortByPriority((data || []) as Record<string, unknown>[]));
   } catch (err) {

@@ -27,7 +27,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
     let overdueCount = 0
     for (const a of allActions) {
       if (counts[a.status] !== undefined) counts[a.status]++
-      if (isOverdue(a.due_date) && a.status !== 'done' && a.status !== 'blocked') {
+      if (isOverdue(a.due_date) && !['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'].includes(a.status)) {
         overdueCount++
       }
     }
@@ -52,7 +52,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
   if (!member) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <p className="text-text-primary font-medium">Member not found</p>
+        <p className="text-text-primary font-medium">Principal not found</p>
         <button className="btn-ghost text-sm mt-2" onClick={onBack}>
           Go back
         </button>
@@ -61,7 +61,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
   }
 
   const statCards = [
-    { label: 'Active', value: stats.not_started + stats.in_progress + stats.waiting, color: '#3b82f6', icon: Clock },
+    { label: 'Active', value: stats.not_started + stats.in_progress + stats.waiting + stats.blocked, color: '#3b82f6', icon: Clock },
     { label: 'Overdue', value: stats.overdue, color: '#ef4444', icon: AlertTriangle, alert: stats.overdue > 0 },
     { label: 'Done', value: stats.done, color: '#f4b860', icon: CheckCircle2 },
     { label: 'Total', value: stats.total, color: '#71717a', icon: Circle },
@@ -75,7 +75,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
         onClick={onBack}
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to Team
+        Back to Principals
       </button>
 
       {/* Member header */}

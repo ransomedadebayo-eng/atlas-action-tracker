@@ -64,8 +64,7 @@ app.notFound((c) => {
   if (c.req.path.startsWith('/api/')) {
     return apiError(c, 404, 'NOT_FOUND', 'The requested ATLAS API route does not exist.');
   }
-  // Non-API 404s are handled by Workers Assets (serves index.html for SPA routing)
-  return c.notFound();
+  return c.text('Not found', 404);
 });
 
 app.onError((error, c) => {

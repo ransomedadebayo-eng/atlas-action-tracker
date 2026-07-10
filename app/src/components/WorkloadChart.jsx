@@ -136,7 +136,7 @@ export default function WorkloadChart({ stats = [], members = [] }) {
       {/* Summary footer */}
       <div className="flex items-center gap-4 px-5 py-2.5 border-t border-border bg-bg-elevated">
         <span className="text-[11px] text-text-muted font-mono">
-          {sorted.length} member{sorted.length !== 1 ? 's' : ''} with actions
+          {sorted.length} principal{sorted.length !== 1 ? 's' : ''} with actions
         </span>
         <span className="text-[11px] text-text-muted font-mono">
           {sorted.reduce((sum, s) => sum + s.active, 0)} total active

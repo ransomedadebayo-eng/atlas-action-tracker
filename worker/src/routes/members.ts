@@ -120,7 +120,7 @@ router.get('/:id/actions', async (c) => {
     let query = supabase
       .from('atlas_actions')
       .select('*')
-      .contains('owners', [id]);
+      .filter('owners', 'cs', JSON.stringify([id]));
 
     if (status) {
       const statuses = status.split(',');
