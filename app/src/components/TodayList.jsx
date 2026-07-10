@@ -6,6 +6,7 @@ import { PriorityBadge, BusinessBadge, StatusBadge } from './StatusBadge.jsx';
 import OwnerAvatars from './OwnerAvatars.jsx';
 import { formatRelativeDate, getISODate } from '../utils/dateUtils.js';
 import { parseJsonArray } from '../utils/parseUtils.js';
+import ActionCardControls from './ActionCardControls.jsx';
 
 function todayDateString() {
   return getISODate();
@@ -64,6 +65,10 @@ function TodayTask({ item, members, onSelectAction }) {
           </div>
         </button>
       </div>
+      <ActionCardControls
+        action={action}
+        className="mt-3 border-t border-white/10 pt-3 md:hidden"
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
 import { normalizeMemberRefs } from '../utils/memberUtils.js'
+import ActionCardControls from './ActionCardControls.jsx'
 
 const GROUP_MODES = [
   { id: 'status', label: 'Status', Icon: Columns },
@@ -282,86 +283,89 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                     const isDragging = dragState.actionId === action.id
 
                     return (
-                      <div
+                      <article
                         key={action.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Open action: ${action.title}`}
-                        className={`glass-card p-4 cursor-pointer hover:border-white/10 transition-all group ${
+                        className={`glass-card overflow-hidden hover:border-white/10 transition-all group ${
                           isDragging ? 'opacity-40' : ''
                         } ${normalizedStatus === 'done' ? 'opacity-50' : ''}`}
                         style={overdue ? { borderLeftColor: '#ef444460', borderLeftWidth: 2 } : {}}
                         draggable={!['done', 'cancelled', 'archived'].includes(normalizedStatus)}
                         onDragStart={(e) => handleDragStart(e, action.id)}
                         onDragEnd={handleDragEnd}
-                        onClick={() => onSelectAction(action.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            onSelectAction(action.id)
-                          }
-                        }}
                       >
-                        {/* Top row: priority + grip */}
-                        <div className="flex items-center justify-between mb-2">
-                          <PriorityBadge priority={action.priority} />
-                          <GripVertical className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
-                        </div>
+                        <button
+                          type="button"
+                          aria-label={`Open action: ${action.title}`}
+                          className="w-full cursor-pointer p-4 text-left"
+                          onClick={() => onSelectAction(action.id)}
+                        >
+                          {/* Top row: priority + grip */}
+                          <div className="flex items-center justify-between mb-2">
+                            <PriorityBadge priority={action.priority} />
+                            <GripVertical className="w-3.5 h-3.5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
+                          </div>
 
-                        {/* Title */}
-                        <p className={`text-sm font-medium leading-snug mb-2 ${
-                          normalizedStatus === 'done' ? 'line-through text-text-muted' : 'text-text-primary'
-                        }`}>
-                          {action.title}
-                        </p>
+                          {/* Title */}
+                          <p className={`text-sm font-medium leading-snug mb-2 ${
+                            normalizedStatus === 'done' ? 'line-through text-text-muted' : 'text-text-primary'
+                          }`}>
+                            {action.title}
+                          </p>
 
-                        {/* Tags row */}
-                        <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                          {groupBy !== 'business' && action.business && (
-                            <BusinessBadge business={action.business} />
-                          )}
-                          {groupBy !== 'work_mode' && (
-                            <WorkModeBadge workMode={action.work_mode} />
-                          )}
-                          {groupBy !== 'status' && (
-                            <span
-                              className="badge"
-                              style={{
-                                backgroundColor: `${statusColor}15`,
-                                color: statusColor,
-                                borderColor: `${statusColor}30`,
-                              }}
-                            >
+                          {/* Tags row */}
+                          <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                            {groupBy !== 'business' && action.business && (
+                              <BusinessBadge business={action.business} />
+                            )}
+                            {groupBy !== 'work_mode' && (
+                              <WorkModeBadge workMode={action.work_mode} />
+                            )}
+                            {groupBy !== 'status' && (
                               <span
-                                className="w-1.5 h-1.5 rounded-full mr-1"
-                                style={{ backgroundColor: statusColor }}
-                              />
-                              {statusLabel}
-                            </span>
-                          )}
-                        </div>
+                                className="badge"
+                                style={{
+                                  backgroundColor: `${statusColor}15`,
+                                  color: statusColor,
+                                  borderColor: `${statusColor}30`,
+                                }}
+                              >
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full mr-1"
+                                  style={{ backgroundColor: statusColor }}
+                                />
+                                {statusLabel}
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Recurrence indicator */}
-                        {action.recurrence && action.recurrence !== 'none' && (
-                          <span className="text-[10px] text-text-muted mt-0.5" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
+                          {/* Recurrence indicator */}
+                          {action.recurrence && action.recurrence !== 'none' && (
+                            <span className="text-[10px] text-text-muted mt-0.5" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
+                          )}
+
+                          {/* Bottom row: due date + owners */}
+                          <div className="flex items-center justify-between mt-1">
+                            {action.due_date ? (
+                              <span
+                                className={`text-[11px] font-mono ${
+                                  overdue ? 'text-red-400 font-semibold' : 'text-text-muted'
+                                }`}
+                              >
+                                {formatRelativeDate(action.due_date)}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
+                          </div>
+                        </button>
+                        {normalizedStatus !== 'done' && (
+                          <ActionCardControls
+                            action={action}
+                            className="border-t border-white/10 px-3 py-2.5 md:hidden"
+                          />
                         )}
-
-                        {/* Bottom row: due date + owners */}
-                        <div className="flex items-center justify-between mt-1">
-                          {action.due_date ? (
-                            <span
-                              className={`text-[11px] font-mono ${
-                                overdue ? 'text-red-400 font-semibold' : 'text-text-muted'
-                              }`}
-                            >
-                              {formatRelativeDate(action.due_date)}
-                            </span>
-                          ) : (
-                            <span />
-                          )}
-                          <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
-                        </div>
-                      </div>
+                      </article>
                     )
                   })
                 )}

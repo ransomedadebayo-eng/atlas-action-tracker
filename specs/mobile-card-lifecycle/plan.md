@@ -6,7 +6,7 @@
 - Keep lifecycle mutations separate from card navigation.
 - Present a compact bottom action row and an accessible confirmation sheet.
 - Use `expected_revision` when present to preserve optimistic concurrency.
-- Integrate first with the mobile All Tasks card, the reported regression surface.
+- Integrate with every primary mobile card surface: Today, All Tasks, and Kanban.
 
 ## Test Strategy
 

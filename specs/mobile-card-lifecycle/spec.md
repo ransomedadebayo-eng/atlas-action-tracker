@@ -6,7 +6,7 @@ Mobile ATLAS cards expose task details but no visible lifecycle controls. The ow
 
 ## Requirements
 
-1. Active mobile task cards show visible `Complete` and `Archive` actions with at least 44px touch targets.
+1. Active mobile task cards in Today, All Tasks, and Kanban show visible `Complete` and `Archive` actions with at least 44px touch targets.
 2. Completion requires a non-empty owner attestation and uses the existing atomic completion endpoint.
 3. Removal is an audited archive transition, never a hard delete, and requires explicit confirmation.
 4. Lifecycle actions do not accidentally open the task detail drawer.
@@ -16,7 +16,7 @@ Mobile ATLAS cards expose task details but no visible lifecycle controls. The ow
 
 ## Acceptance Criteria
 
-- The mobile All Tasks card visibly exposes both controls.
+- Mobile Today, All Tasks, and Kanban cards visibly expose both controls.
 - Tapping `Complete` opens a completion-note dialog and refuses an empty note.
 - Tapping `Archive` explains that the task remains recoverable and requires confirmation.
 - Component tests cover both guarded mutations and event isolation.
