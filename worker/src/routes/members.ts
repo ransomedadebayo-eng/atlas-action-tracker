@@ -7,6 +7,51 @@ const router = new Hono<{ Bindings: Env }>();
 
 const TEXT_FIELDS = ['name', 'full_name', 'email', 'role'];
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
+const ACTIVE_PRINCIPALS = new Set(['ransomed', 'codex', 'claude']);
+const CLOSED_STATUSES = new Set(['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived']);
+
+function atlasLocalDate(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function computeActivePrincipalStats(actions: Record<string, unknown>[], today: string) {
+  const stats = new Map(Array.from(ACTIVE_PRINCIPALS, memberId => [memberId, {
+    member_id: memberId,
+    not_started: 0,
+    in_progress: 0,
+    waiting: 0,
+    blocked: 0,
+    done: 0,
+    active: 0,
+    overdue: 0,
+    total: 0,
+  }]));
+
+  for (const action of actions) {
+    const status = String(action.status || 'not_started').toLowerCase();
+    const owners = coerceJsonArray(action.owners).filter((owner): owner is string => typeof owner === 'string');
+    for (const owner of new Set(owners)) {
+      const member = stats.get(owner);
+      if (!member) continue;
+      member.total += 1;
+      if (status === 'done' || status === 'completed' || status === 'closed') member.done += 1;
+      else if (Object.prototype.hasOwnProperty.call(member, status)) member[status as 'not_started' | 'in_progress' | 'waiting' | 'blocked'] += 1;
+      if (!CLOSED_STATUSES.has(status)) {
+        member.active += 1;
+        if (typeof action.due_date === 'string' && action.due_date < today) member.overdue += 1;
+      }
+    }
+  }
+
+  return Array.from(stats.values());
+}
 
 function validateMemberArrays(body: Record<string, unknown>): string[] {
   const errors: string[] = [];
@@ -54,9 +99,12 @@ router.get('/', async (c) => {
 router.get('/stats', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { data, error } = await supabase.rpc('atlas_member_stats');
+    const { data: actions, error } = await supabase
+      .from('atlas_actions')
+      .select('status,due_date,owners');
     if (error) throw error;
-    return c.json(data || []);
+
+    return c.json(computeActivePrincipalStats(actions || [], atlasLocalDate()));
   } catch (err: unknown) {
     console.error(`[members] stats error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);
@@ -112,14 +160,6 @@ router.get('/:id', async (c) => {
       .eq('id', id)
       .single();
     if (error || !member) return c.json({ error: 'Member not found' }, 404);
-
-    const { data: statsData, error: statsErr } = await supabase.rpc('atlas_member_detail_stats', {
-      member_id_param: id,
-    });
-    if (statsErr) throw statsErr;
-
-    member.actionStats = (statsData as Record<string, unknown>)?.actionStats || [];
-    member.overdueCount = (statsData as Record<string, unknown>)?.overdueCount || 0;
 
     return c.json(member);
   } catch (err: unknown) {
