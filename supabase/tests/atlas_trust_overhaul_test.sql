@@ -176,6 +176,13 @@ create temporary table atlas_rpc_test_results (
   payload jsonb not null
 ) on commit drop;
 
+create temporary table atlas_rpc_test_state (
+  base_revision bigint not null
+) on commit drop;
+
+insert into atlas_rpc_test_state (base_revision)
+select revision from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__';
+
 insert into atlas_rpc_test_results (phase, payload)
 values (
   'complete',
@@ -183,7 +190,7 @@ values (
     '__atlas_trust_overhaul_rpc_test__',
     '{"kind":"manual_attestation","summary":"Test completion"}'::jsonb,
     'ransomed',
-    0
+    (select base_revision from atlas_rpc_test_state)
   )
 );
 
@@ -194,7 +201,7 @@ select is(
 );
 select is(
   (select revision from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
-  1::bigint,
+  (select base_revision + 1 from atlas_rpc_test_state),
   'completion RPC increments revision exactly once'
 );
 select is(
@@ -203,25 +210,33 @@ select is(
   'completion RPC stores typed evidence'
 );
 select throws_ok(
-  $$select public.complete_atlas_action('__atlas_trust_overhaul_rpc_test__', '{"kind":"manual_attestation"}'::jsonb, 'ransomed', 0)$$,
+  format(
+    $$select public.complete_atlas_action('__atlas_trust_overhaul_rpc_test__', '{"kind":"manual_attestation"}'::jsonb, 'ransomed', %s)$$,
+    (select base_revision from atlas_rpc_test_state)
+  ),
   '40001',
   'ATLAS_REVISION_CONFLICT',
   'stale completion revisions raise the concurrency error'
 );
 select is(
   (select revision from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
-  1::bigint,
+  (select base_revision + 1 from atlas_rpc_test_state),
   'a rejected stale completion leaves revision unchanged'
 );
 
 insert into atlas_rpc_test_results (phase, payload)
 values (
   'archive',
-  public.archive_atlas_action('__atlas_trust_overhaul_rpc_test__', 'ransomed', 1)
+  public.archive_atlas_action(
+    '__atlas_trust_overhaul_rpc_test__',
+    'ransomed',
+    (select base_revision + 1 from atlas_rpc_test_state)
+  )
 );
 
 select ok(
-  (select status = 'archived' and revision = 2 from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
+  (select status = 'archived' and revision = (select base_revision + 2 from atlas_rpc_test_state)
+   from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
   'archive RPC transitions and increments atomically'
 );
 select ok(
@@ -232,11 +247,16 @@ select ok(
 insert into atlas_rpc_test_results (phase, payload)
 values (
   'restore',
-  public.restore_atlas_action('__atlas_trust_overhaul_rpc_test__', 'ransomed', 2)
+  public.restore_atlas_action(
+    '__atlas_trust_overhaul_rpc_test__',
+    'ransomed',
+    (select base_revision + 2 from atlas_rpc_test_state)
+  )
 );
 
 select ok(
-  (select status = 'done' and revision = 3 from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
+  (select status = 'done' and revision = (select base_revision + 3 from atlas_rpc_test_state)
+   from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
   'restore returns to the pre-archive status and increments atomically'
 );
 select ok(
@@ -244,14 +264,17 @@ select ok(
   'restoring a completed action restores its completion timestamp'
 );
 select throws_ok(
-  $$select public.complete_atlas_action('__atlas_trust_overhaul_rpc_test__', '{}'::jsonb, 'ransomed', 3)$$,
+  format(
+    $$select public.complete_atlas_action('__atlas_trust_overhaul_rpc_test__', '{}'::jsonb, 'ransomed', %s)$$,
+    (select base_revision + 3 from atlas_rpc_test_state)
+  ),
   '22023',
   'ATLAS_COMPLETION_EVIDENCE_REQUIRED',
   'empty completion evidence is rejected'
 );
 select is(
   (select revision from public.atlas_actions where id = '__atlas_trust_overhaul_rpc_test__'),
-  3::bigint,
+  (select base_revision + 3 from atlas_rpc_test_state),
   'invalid completion evidence cannot partially mutate the action'
 );
 select is(
