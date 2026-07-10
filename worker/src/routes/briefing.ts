@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { createClient } from '@supabase/supabase-js';
 import { Env } from '../db';
-import { readAtlasTodayPlan } from '../automations/atlasToday';
+import { atlasTodayIsoDate, readAtlasTodayPlan } from '../automations/atlasToday';
 
 const router = new Hono<{ Bindings: Env }>();
 
 router.get('/today', async (c) => {
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_SERVICE_ROLE_KEY);
-  const today = new Date().toISOString().split('T')[0];
+  const today = atlasTodayIsoDate();
   const todayPlan = await readAtlasTodayPlan(c.env, today).catch(() => null);
 
   const { data, error } = await supabase
