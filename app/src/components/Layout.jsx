@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   Sun,
   ClipboardCheck,
@@ -49,6 +49,28 @@ export default function Layout({
   children,
 }) {
   const { BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+  const menuButtonRef = useRef(null)
+  const closeMenuRef = useRef(null)
+  const wasSidebarOpen = useRef(false)
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    const handleChange = event => setIsMobile(event.matches)
+    setIsMobile(media.matches)
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [])
+
+  useEffect(() => {
+    if (!isMobile) {
+      wasSidebarOpen.current = sidebarOpen
+      return
+    }
+    if (sidebarOpen) closeMenuRef.current?.focus()
+    else if (wasSidebarOpen.current) menuButtonRef.current?.focus()
+    wasSidebarOpen.current = sidebarOpen
+  }, [isMobile, sidebarOpen])
 
   function handleNavClick(viewId) {
     setCurrentView(viewId)
@@ -59,7 +81,9 @@ export default function Layout({
     <div className="flex h-full w-full overflow-hidden">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Dismiss navigation"
           className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
@@ -68,6 +92,8 @@ export default function Layout({
       {/* Sidebar */}
       <aside
         aria-label="Sidebar"
+        aria-hidden={isMobile && !sidebarOpen ? 'true' : undefined}
+        inert={isMobile && !sidebarOpen ? '' : undefined}
         className={`
           flex flex-col h-full border-r border-white/10 flex-shrink-0
           fixed inset-y-0 left-0 z-50 w-[240px] transition-transform duration-200 ease-out
@@ -94,6 +120,7 @@ export default function Layout({
             </span>
             {/* Close button on mobile */}
             <button
+              ref={closeMenuRef}
               type="button"
               className="md:hidden ml-1 p-1 text-text-muted hover:text-text-primary"
               onClick={() => setSidebarOpen(false)}
@@ -202,6 +229,7 @@ export default function Layout({
           onNewAction={onOpenQuickCapture}
           onViewTranscripts={() => setCurrentView('transcripts')}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
+          menuButtonRef={menuButtonRef}
         />
         <main id="main-content" className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 bg-bg-primary">
           {children}

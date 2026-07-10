@@ -24,6 +24,7 @@ export default function TopBar({
   onNewAction,
   onViewTranscripts,
   onToggleSidebar,
+  menuButtonRef,
 }) {
   const { BUSINESSES, BUSINESS_COLORS } = useBusinessContext()
   const { theme, toggleTheme } = useTheme()
@@ -41,6 +42,7 @@ export default function TopBar({
     >
       {/* Hamburger */}
       <button
+        ref={menuButtonRef}
         className="md:hidden p-1.5 -ml-1 text-text-muted hover:text-text-primary"
         onClick={onToggleSidebar}
         aria-label="Open menu"
