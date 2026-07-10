@@ -4,6 +4,8 @@
 
 Ransomed is the only human allowed through Cloudflare Access. `ATLAS_OWNER_EMAILS` is an exact, comma-separated allowlist. Codex and Claude use entries in `ATLAS_API_PRINCIPALS_JSON`; each entry has its own secret and explicit scopes. Never share the owner session or one machine token across agents.
 
+The custom domain is the owner UI route. Machine principals call the Workers.dev hostname with their bearer credential; every `/api` request is still rejected unless it passes Worker authentication and scope authorization.
+
 ## Secret handling
 
 Store Worker secrets with `wrangler secret put`. Keep local values in `worker/.dev.vars` and browser-proxy values in `app/.env`; both are ignored. Never place Supabase credentials in Vite-prefixed variables or client code.

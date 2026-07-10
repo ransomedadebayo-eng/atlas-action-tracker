@@ -2,6 +2,8 @@ name = "atlas-action-tracker"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = false
 
 routes = [
   { pattern = "atlas.ransomed.app", custom_domain = true }

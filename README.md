@@ -12,6 +12,8 @@ ATLAS is the owner-only execution surface for AEGIS. Ransomed is the sole human 
 
 The AEGIS Supabase project `vdezxdeushxaacyfjeeh` and `public.atlas_actions` are canonical. The Worker is the only application backend; browser code never receives Supabase or machine-principal secrets.
 
+The owner UI uses `atlas.ransomed.app` behind Cloudflare Access. Codex and Claude use the authenticated Workers.dev API endpoint because Cloudflare Access intentionally intercepts non-owner traffic on the custom domain before Worker authentication.
+
 ## Local development
 
 1. Copy `worker/.dev.vars.example` to `worker/.dev.vars` and provide local secrets.
