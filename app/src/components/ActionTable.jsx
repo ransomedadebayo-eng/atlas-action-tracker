@@ -11,6 +11,7 @@ import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { canonicalPriority, canonicalStatus } from '../utils/constants.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
 import { hasEvidence } from '../utils/evidenceUtils.js'
+import ActionCardControls from './ActionCardControls.jsx'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
@@ -349,41 +350,49 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
             const owners = parseJsonArray(action.owners)
 
             return (
-              <div
+              <article
                 key={action.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open action: ${action.title}`}
-                className={`glass-card p-4 cursor-pointer active:bg-white/[0.04] transition-colors ${done ? 'opacity-50' : ''}`}
+                className={`glass-card overflow-hidden transition-colors ${done ? 'opacity-50' : ''}`}
                 style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
-                onClick={() => onSelectAction(action.id)}
-                onKeyDown={event => handleRowKeyDown(event, action.id)}
               >
-                {/* Top: priority + status + done toggle */}
-                <div className="flex items-center gap-2 mb-1.5">
-                  <PriorityBadge priority={action.priority} />
-                  <StatusBadge status={action.status} />
-                  <div className="ml-auto flex items-center gap-2">
-                    <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
+                <button
+                  type="button"
+                  aria-label={`Open action: ${action.title}`}
+                  className="w-full cursor-pointer p-4 text-left active:bg-white/[0.04]"
+                  onClick={() => onSelectAction(action.id)}
+                >
+                  {/* Top: priority + status */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <PriorityBadge priority={action.priority} />
+                    <StatusBadge status={action.status} />
+                    <div className="ml-auto flex items-center gap-2">
+                      <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
+                    </div>
                   </div>
-                </div>
 
-                {/* Title */}
-                <p className={`text-sm font-medium leading-snug ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
-                  {action.title}
-                </p>
+                  {/* Title */}
+                  <p className={`text-sm font-medium leading-snug ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
+                    {action.title}
+                  </p>
 
-                {/* Bottom: business + due date */}
-                <div className="flex items-center gap-2 mt-2">
-                  <BusinessBadge business={action.business} />
-                  <WorkModeBadge workMode={action.work_mode} />
-                  {action.due_date && (
-                    <span className={`text-[11px] font-mono ml-auto ${overdue ? 'text-red-400 font-semibold' : 'text-text-muted'}`}>
-                      {formatRelativeDate(action.due_date)}
-                    </span>
-                  )}
-                </div>
-              </div>
+                  {/* Bottom: business + due date */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <BusinessBadge business={action.business} />
+                    <WorkModeBadge workMode={action.work_mode} />
+                    {action.due_date && (
+                      <span className={`text-[11px] font-mono ml-auto ${overdue ? 'text-red-400 font-semibold' : 'text-text-muted'}`}>
+                        {formatRelativeDate(action.due_date)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+                {!done && (
+                  <ActionCardControls
+                    action={action}
+                    className="border-t border-white/10 px-3 py-2.5"
+                  />
+                )}
+              </article>
             )
           })
         )}
