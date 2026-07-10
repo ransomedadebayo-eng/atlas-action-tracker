@@ -165,6 +165,11 @@ function annotateBlocked(actions: Record<string, unknown>[]): Record<string, unk
   return actions.map(a => ({ ...a, is_blocked: isBlocked(a) }));
 }
 
+export function filterByOwner(actions: Record<string, unknown>[], ownerId?: string) {
+  if (!ownerId) return actions;
+  return actions.filter(action => Array.isArray(action.owners) && action.owners.includes(ownerId));
+}
+
 function assignmentPriority(priority: unknown): string {
   if (priority === 'p0') return 'critical';
   if (priority === 'p1') return 'high';
@@ -188,7 +193,6 @@ router.get('/', async (c) => {
     if (business) query = query.eq('business', business);
     if (priority) query = query.in('priority', priority.split(','));
     query = filterProtocolSpecialModes(query, work_mode);
-    if (owner_id) query = query.filter('owners', 'cs', JSON.stringify([owner_id]));
     if (due_before) query = query.lte('due_date', due_before);
     if (due_after) query = query.gte('due_date', due_after);
     const searchTerm = buildSafeIlikePattern(search);
@@ -206,7 +210,7 @@ router.get('/', async (c) => {
     const asOf = new Date().toISOString();
 
     if (sortField === 'priority') {
-      let results = annotateBlocked(await loadAllRows(query));
+      let results = filterByOwner(annotateBlocked(await loadAllRows(query)), owner_id);
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       const sorted = sortByPriority(results, direction);
@@ -221,7 +225,7 @@ router.get('/', async (c) => {
       });
     } else {
       query = query.order(sortField, { ascending: direction === 'ASC', nullsFirst: false });
-      let results = annotateBlocked(await loadAllRows(query));
+      let results = filterByOwner(annotateBlocked(await loadAllRows(query)), owner_id);
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       const items = results.slice(offset, offset + limit);
