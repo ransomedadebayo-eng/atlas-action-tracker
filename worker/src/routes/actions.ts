@@ -2,15 +2,17 @@ import { Hono } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
 import { Env, getDb } from '../db';
 import { validateStringLengths, sanitizeBody, parsePagination } from '../middleware/validate';
-import { getActor } from '../utils/actors';
-import { computeNextDueDate, validateActionFields, ACTION_TEXT_FIELDS, coerceActionBody } from '../utils/actionUtils';
-import { coerceJsonArray, serializeJsonArray, serializeJsonObject } from '../utils/json';
+import { getActor, getAuthKind } from '../utils/actors';
+import { hasRequestScope } from '../middleware/authorize';
+import { validateActionFields, ACTION_TEXT_FIELDS, coerceActionBody } from '../utils/actionUtils';
+import { serializeJsonArray, serializeJsonObject } from '../utils/json';
 import { validateKnownBusinessId, validateKnownMemberIds } from '../utils/referenceData';
 import { buildSafeIlikePattern } from '../utils/search';
+import { buildCompletionEvidence } from '../utils/evidence';
+import { apiError } from '../utils/http';
 
 const router = new Hono<{ Bindings: Env }>();
 const BULK_MAX = 50;
-const COMPLETION_EVIDENCE_ERROR = 'Add a completion note or proof before marking an action done.';
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
 const ACTIVE_STATUSES = ['not_started', 'in_progress', 'waiting', 'blocked', 'todo', 'open'];
 const NON_BLOCKED_ACTIVE_STATUSES = ['not_started', 'in_progress', 'waiting', 'todo', 'open'];
@@ -23,6 +25,34 @@ const PROTOCOL_FIELDS = [
   'approval_state',
 ];
 const FILTERABLE_WORK_MODES = new Set(['autonomous', 'review_required', 'user_only']);
+const EXPLICIT_TRANSITION_STATUSES = new Set(['done', 'archived']);
+
+function parseExpectedRevision(value: unknown): { value: number | null; error: string | null } {
+  if (value === undefined || value === null) return { value: null, error: null };
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    return { value: null, error: 'expected_revision must be a non-negative integer.' };
+  }
+  return { value, error: null };
+}
+
+function rpcErrorResponse(c: Parameters<typeof apiError>[0], error: { code?: string; message?: string }, operation: string) {
+  if (error.code === '40001' || error.message?.includes('ATLAS_REVISION_CONFLICT')) {
+    return apiError(c, 409, 'REVISION_CONFLICT', 'The action changed since it was loaded. Refresh it and retry.');
+  }
+  if (error.code === 'P0002' || error.message?.includes('ATLAS_ACTION_NOT_FOUND')) {
+    return apiError(c, 404, 'ACTION_NOT_FOUND', 'Action not found.');
+  }
+  if (error.code === '22023') {
+    return apiError(c, 400, 'INVALID_ACTION_TRANSITION', error.message || `Unable to ${operation} the action.`);
+  }
+  console.error(`[actions] ${operation} RPC error: ${error.message || error.code || 'unknown error'}`);
+  return apiError(c, 500, 'ACTION_TRANSITION_FAILED', `Unable to ${operation} the action.`);
+}
+
+export function includesAssignmentFields(body: Record<string, unknown>): boolean {
+  return Object.prototype.hasOwnProperty.call(body, 'owners')
+    || Object.prototype.hasOwnProperty.call(body, 'agent_assignment_id');
+}
 
 function getAtlasLocalDate(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -51,6 +81,20 @@ async function countActions(
   return count || 0;
 }
 
+async function loadAllRows(query: any): Promise<Record<string, unknown>[]> {
+  const rows: Record<string, unknown>[] = [];
+  const batchSize = 1000;
+  let offset = 0;
+  while (true) {
+    const { data, error } = await query.range(offset, offset + batchSize - 1);
+    if (error) throw error;
+    const batch = (data || []) as Record<string, unknown>[];
+    rows.push(...batch);
+    if (batch.length < batchSize) return rows;
+    offset += batchSize;
+  }
+}
+
 function sortByPriority(actions: Record<string, unknown>[], direction = 'ASC') {
   return actions.sort((a, b) => {
     const pa = PRIORITY_ORDER[a.priority as string] ?? 3;
@@ -68,11 +112,6 @@ function parseBulkPayload(body: unknown, key: string): unknown[] | undefined {
   if (Array.isArray(body)) return body;
   if (body && typeof body === 'object') return (body as Record<string, unknown>)[key] as unknown[];
   return undefined;
-}
-
-function hasEvidence(action: Record<string, unknown>): boolean {
-  const evidence = action.evidence_json;
-  return !!evidence && typeof evidence === 'object' && !Array.isArray(evidence) && Object.keys(evidence).length > 0;
 }
 
 function applyProtocolFields(target: Record<string, unknown>, source: Record<string, unknown>) {
@@ -114,44 +153,6 @@ async function validateActionReferences(supabase: ReturnType<typeof getDb>, acti
   if (businessError) errors.push(businessError);
   errors.push(...(await validateKnownMemberIds(supabase, action.owners)));
   return errors;
-}
-
-function buildNextRecurringAction(existing: Record<string, unknown>, incoming: Record<string, unknown>, now: string) {
-  const recurrence = incoming.recurrence !== undefined ? incoming.recurrence : existing.recurrence;
-  if (incoming.status !== 'done' || existing.status === 'done' || !recurrence || recurrence === 'none') return null;
-
-  const baseDueDate = incoming.due_date !== undefined ? incoming.due_date as string : existing.due_date as string;
-  const nextDueDate = computeNextDueDate(baseDueDate, recurrence as string);
-  if (!nextDueDate) return null;
-
-  return {
-    id: uuidv4(),
-    title: incoming.title !== undefined ? incoming.title : existing.title,
-    description: incoming.description !== undefined ? incoming.description : (existing.description || ''),
-    business: incoming.business !== undefined ? incoming.business : existing.business,
-    priority: incoming.priority !== undefined ? incoming.priority : existing.priority,
-    due_date: nextDueDate,
-    owners: incoming.owners !== undefined ? serializeJsonArray(incoming.owners) : coerceJsonArray(existing.owners),
-    source_transcript_id: incoming.source_transcript_id !== undefined ? incoming.source_transcript_id : existing.source_transcript_id,
-    source_label: incoming.source_label !== undefined ? incoming.source_label : existing.source_label,
-    tags: incoming.tags !== undefined ? serializeJsonArray(incoming.tags) : coerceJsonArray(existing.tags),
-    notes: '',
-    recurrence,
-    work_mode: incoming.work_mode !== undefined ? incoming.work_mode : existing.work_mode,
-    status: 'not_started',
-    created_at: now,
-    updated_at: now,
-  };
-}
-
-async function insertRecurringAction(supabase: ReturnType<typeof getDb>, action: Record<string, unknown>) {
-  await supabase.from('atlas_actions').insert(action);
-  await supabase.from('atlas_activity_log').insert({
-    action_id: action.id,
-    event: 'created',
-    new_value: action.title,
-    actor: 'system',
-  });
 }
 
 function isBlocked(action: Record<string, unknown>): boolean {
@@ -201,24 +202,37 @@ router.get('/', async (c) => {
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
-    const hideBlocked = show_blocked !== 'true';
+    const hideBlocked = show_blocked === 'false';
+    const asOf = new Date().toISOString();
 
     if (sortField === 'priority') {
-      const { data, error } = await query;
-      if (error) throw error;
-      let results = annotateBlocked((data || []) as Record<string, unknown>[]);
+      let results = annotateBlocked(await loadAllRows(query));
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       const sorted = sortByPriority(results, direction);
-      return c.json(sorted.slice(offset, offset + limit));
+      const items = sorted.slice(offset, offset + limit);
+      return c.json({
+        items,
+        page: Math.floor(offset / limit) + 1,
+        page_size: limit,
+        total: sorted.length,
+        has_more: offset + items.length < sorted.length,
+        as_of: asOf,
+      });
     } else {
       query = query.order(sortField, { ascending: direction === 'ASC', nullsFirst: false });
-      const { data, error } = await query;
-      if (error) throw error;
-      let results = annotateBlocked((data || []) as Record<string, unknown>[]);
+      let results = annotateBlocked(await loadAllRows(query));
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
-      return c.json(results.slice(offset, offset + limit));
+      const items = results.slice(offset, offset + limit);
+      return c.json({
+        items,
+        page: Math.floor(offset / limit) + 1,
+        page_size: limit,
+        total: results.length,
+        has_more: offset + items.length < results.length,
+        as_of: asOf,
+      });
     }
   } catch (err) {
     console.error(`[actions] GET error: ${(err as Error).message}`);
@@ -235,7 +249,12 @@ router.get('/stats', async (c) => {
     const today = getAtlasLocalDate();
     const completedSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [active, overdue, completedThisWeek, blocked, pendingReview] = await Promise.all([
+    const [activeTotal, readyNotOverdue, overdueActive, completedThisWeek, blockedActive, needsReviewActive] = await Promise.all([
+      countActions(
+        supabase,
+        businessFilter,
+        query => query.in('status', ACTIVE_STATUSES),
+      ),
       countActions(
         supabase,
         businessFilter,
@@ -259,20 +278,26 @@ router.get('/stats', async (c) => {
       countActions(
         supabase,
         businessFilter,
-        query => query.eq('approval_state', 'needs_review'),
+        query => query.in('status', ACTIVE_STATUSES).eq('approval_state', 'needs_review'),
       ),
     ]);
 
     return c.json({
-      active,
-      totalActive: active,
-      total_active: active,
-      overdue,
+      active_total: activeTotal,
+      ready_not_overdue: readyNotOverdue,
+      overdue_active: overdueActive,
+      blocked_active: blockedActive,
+      needs_review_active: needsReviewActive,
       completedThisWeek,
       completed_this_week: completedThisWeek,
-      blocked,
-      pendingReview,
-      pending_review: pendingReview,
+      // Compatibility aliases for one frontend release.
+      active: readyNotOverdue,
+      totalActive: activeTotal,
+      total_active: activeTotal,
+      overdue: overdueActive,
+      blocked: blockedActive,
+      pendingReview: needsReviewActive,
+      pending_review: needsReviewActive,
     });
   } catch (err) {
     console.error(`[actions] stats error: ${(err as Error).message}`);
@@ -378,11 +403,17 @@ router.post('/', async (c) => {
     const actor = getActor(c);
     const {
       title, description = '', status = 'not_started', business, priority = 'p2',
-      due_date = null, owners = [], source_transcript_id = null, source_label = null,
+      due_date = null, owners = ['ransomed'], source_transcript_id = null, source_label = null,
       tags = [], notes = '', recurrence = 'none', work_mode = null,
     } = body as Record<string, unknown>;
 
     if (!title || !business) return c.json({ error: 'title and business are required' }, 400);
+    if (EXPLICIT_TRANSITION_STATUSES.has(String(status))) {
+      return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', 'Create the action first, then use its completion or archive endpoint.');
+    }
+    if (includesAssignmentFields(body) && !hasRequestScope(c, 'actions:assign')) {
+      return apiError(c, 403, 'ASSIGNMENT_SCOPE_REQUIRED', 'Changing owners or assignment links requires actions:assign.');
+    }
 
     const validationErrors = [
       ...validateActionFields(body),
@@ -393,10 +424,6 @@ router.post('/', async (c) => {
 
     const id = uuidv4();
     const now = new Date().toISOString();
-
-    if (status === 'done' && !hasEvidence(body)) {
-      return c.json({ error: COMPLETION_EVIDENCE_ERROR }, 400);
-    }
 
     const protocolFields: Record<string, unknown> = {};
     applyProtocolFields(protocolFields, body);
@@ -430,15 +457,18 @@ router.post('/bulk', async (c) => {
     for (let i = 0; i < actionsList.length; i++) {
       const action = actionsList[i];
       if (!action.title || !action.business) return c.json({ error: `Item ${i}: title and business are required` }, 400);
+      if (EXPLICIT_TRANSITION_STATUSES.has(String(action.status))) {
+        return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', `Item ${i}: completion and archiving require their explicit action endpoints.`);
+      }
+      if (includesAssignmentFields(action) && !hasRequestScope(c, 'actions:assign')) {
+        return apiError(c, 403, 'ASSIGNMENT_SCOPE_REQUIRED', `Item ${i}: changing owners or assignment links requires actions:assign.`);
+      }
       const fieldErrors = [
         ...validateActionFields(action),
         ...(await validateActionReferences(supabase, action)),
         ...validateStringLengths(action),
       ];
       if (fieldErrors.length > 0) return c.json({ error: `Item ${i}: ${fieldErrors.join('; ')}` }, 400);
-      if (action.status === 'done' && !hasEvidence(action)) {
-        return c.json({ error: `Item ${i}: ${COMPLETION_EVIDENCE_ERROR}` }, 400);
-      }
     }
 
     const actor = getActor(c);
@@ -450,7 +480,7 @@ router.post('/bulk', async (c) => {
       business: action.business,
       priority: action.priority || 'p2',
       due_date: action.due_date || null,
-      owners: serializeJsonArray(action.owners),
+      owners: serializeJsonArray(action.owners === undefined ? ['ransomed'] : action.owners),
       source_transcript_id: action.source_transcript_id || null,
       source_label: action.source_label || null,
       tags: serializeJsonArray(action.tags),
@@ -489,6 +519,12 @@ router.put('/bulk', async (c) => {
 
     const updates = rawUpdates.map((item: unknown) => coerceActionBody(sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS)));
     for (let i = 0; i < updates.length; i++) {
+      if (EXPLICIT_TRANSITION_STATUSES.has(String(updates[i].status))) {
+        return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', `Item ${i}: completion and archiving require their explicit action endpoints.`);
+      }
+      if (includesAssignmentFields(updates[i]) && !hasRequestScope(c, 'actions:assign')) {
+        return apiError(c, 403, 'ASSIGNMENT_SCOPE_REQUIRED', `Item ${i}: changing owners or assignment links requires actions:assign.`);
+      }
       const fieldErrors = [
         ...validateActionFields(updates[i]),
         ...(await validateActionReferences(supabase, updates[i])),
@@ -507,6 +543,9 @@ router.put('/bulk', async (c) => {
     for (const update of updates) {
       const { data: existing, error: fetchErr } = await supabase.from('atlas_actions').select('*').eq('id', update.id).single();
       if (fetchErr || !existing) continue;
+      if (existing.status === 'archived') {
+        return apiError(c, 409, 'ACTION_ARCHIVED', `Item ${update.id}: restore the action before editing it.`);
+      }
 
       const fields: Record<string, unknown> = {};
       const appendNote = update.append_note;
@@ -529,16 +568,6 @@ router.put('/bulk', async (c) => {
 
       if (Object.keys(fields).length === 0) continue;
 
-      if (update.status === 'done' && existing.status !== 'done') {
-        const merged = { ...existing, ...fields };
-        if (!hasEvidence(merged)) {
-          return c.json({ error: `Item ${update.id}: ${COMPLETION_EVIDENCE_ERROR}` }, 400);
-        }
-      }
-
-      if (update.status === 'done' && existing.status !== 'done') fields.completed_at = now;
-      else if (update.status !== undefined && update.status !== 'done' && existing.status === 'done') fields.completed_at = null;
-
       fields.updated_at = now;
 
       const { error: updateErr } = await supabase.from('atlas_actions').update(fields).eq('id', update.id);
@@ -552,12 +581,6 @@ router.put('/bulk', async (c) => {
       }
       if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined || update.work_mode !== undefined || PROTOCOL_FIELDS.some(field => update[field] !== undefined)) {
         await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'updated', new_value: JSON.stringify(Object.keys(update).filter(k => k !== 'id')), actor });
-      }
-
-      const recurringAction = buildNextRecurringAction(existing, update, now);
-      if (recurringAction) {
-        await insertRecurringAction(supabase, recurringAction);
-        await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'recurrence_spawned', new_value: recurringAction.id, actor: 'system' });
       }
 
       updatedCount += 1;
@@ -579,6 +602,16 @@ router.put('/:id', async (c) => {
 
     const rawBody = await c.req.json();
     const body = coerceActionBody(sanitizeBody(rawBody, ACTION_TEXT_FIELDS));
+
+    if (EXPLICIT_TRANSITION_STATUSES.has(String(body.status))) {
+      return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', 'Use the action completion or archive endpoint for this status change.');
+    }
+    if (existing.status === 'archived') {
+      return apiError(c, 409, 'ACTION_ARCHIVED', 'Restore the action before editing it.');
+    }
+    if (includesAssignmentFields(body) && !hasRequestScope(c, 'actions:assign')) {
+      return apiError(c, 403, 'ASSIGNMENT_SCOPE_REQUIRED', 'Changing owners or assignment links requires actions:assign.');
+    }
 
     const validationErrors = [
       ...validateActionFields(body),
@@ -613,15 +646,6 @@ router.put('/:id', async (c) => {
     const mutableKeys = Object.keys(updates);
     if (mutableKeys.length === 0) return c.json({ error: 'No fields to update' }, 400);
 
-    if (status === 'done' && existing.status !== 'done') {
-      const merged = { ...existing, ...updates };
-      if (!hasEvidence(merged)) {
-        return c.json({ error: COMPLETION_EVIDENCE_ERROR }, 400);
-      }
-    }
-
-    if (status === 'done' && existing.status !== 'done') updates.completed_at = now;
-    if (status && status !== 'done' && existing.status === 'done') updates.completed_at = null;
     updates.updated_at = now;
 
     const { data: action, error: updateErr } = await supabase.from('atlas_actions').update(updates).eq('id', c.req.param('id')).select().single();
@@ -637,12 +661,6 @@ router.put('/:id', async (c) => {
       await supabase.from('atlas_activity_log').insert({ action_id: c.req.param('id'), event: 'updated', new_value: JSON.stringify(mutableKeys), actor });
     }
 
-    const recurringAction = buildNextRecurringAction(existing, body, now);
-    if (recurringAction) {
-      await insertRecurringAction(supabase, recurringAction);
-      await supabase.from('atlas_activity_log').insert({ action_id: c.req.param('id'), event: 'recurrence_spawned', new_value: recurringAction.id, actor: 'system' });
-    }
-
     return c.json(action);
   } catch (err) {
     console.error(`[actions] PUT/:id error: ${(err as Error).message}`);
@@ -650,21 +668,74 @@ router.put('/:id', async (c) => {
   }
 });
 
-// DELETE /:id
-router.delete('/:id', async (c) => {
+router.post('/:id/complete', async (c) => {
   try {
+    const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+    const revision = parseExpectedRevision(body.expected_revision);
+    if (revision.error) return apiError(c, 400, 'INVALID_REVISION', revision.error);
+
+    const actor = getActor(c);
+    const validated = buildCompletionEvidence(body.evidence, actor, getAuthKind(c));
+    if (validated.error) return apiError(c, 400, 'INVALID_EVIDENCE', validated.error);
+
     const supabase = getDb(c.env);
-    const { data: existing, error: fetchErr } = await supabase.from('atlas_actions').select('id').eq('id', c.req.param('id')).single();
-    if (fetchErr || !existing) return c.json({ error: 'Action not found' }, 404);
-
-    await supabase.from('atlas_activity_log').delete().eq('action_id', c.req.param('id'));
-    await supabase.from('atlas_actions').delete().eq('id', c.req.param('id'));
-
-    return c.json({ deleted: true });
+    const { data, error } = await supabase.rpc('complete_atlas_action', {
+      p_action_id: c.req.param('id'),
+      p_evidence: validated.evidence,
+      p_actor: actor,
+      p_expected_revision: revision.value,
+    });
+    if (error) return rpcErrorResponse(c, error, 'complete');
+    return c.json(data);
   } catch (err) {
-    console.error(`[actions] DELETE error: ${(err as Error).message}`);
-    return c.json({ error: 'Internal server error' }, 500);
+    console.error(`[actions] complete error: ${(err as Error).message}`);
+    return apiError(c, 500, 'ACTION_TRANSITION_FAILED', 'Unable to complete the action.');
   }
+});
+
+router.post('/:id/archive', async (c) => {
+  try {
+    const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+    const revision = parseExpectedRevision(body.expected_revision);
+    if (revision.error) return apiError(c, 400, 'INVALID_REVISION', revision.error);
+
+    const supabase = getDb(c.env);
+    const { data, error } = await supabase.rpc('archive_atlas_action', {
+      p_action_id: c.req.param('id'),
+      p_actor: getActor(c),
+      p_expected_revision: revision.value,
+    });
+    if (error) return rpcErrorResponse(c, error, 'archive');
+    return c.json(data);
+  } catch (err) {
+    console.error(`[actions] archive error: ${(err as Error).message}`);
+    return apiError(c, 500, 'ACTION_TRANSITION_FAILED', 'Unable to archive the action.');
+  }
+});
+
+router.post('/:id/restore', async (c) => {
+  try {
+    const body: Record<string, unknown> = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+    const revision = parseExpectedRevision(body.expected_revision);
+    if (revision.error) return apiError(c, 400, 'INVALID_REVISION', revision.error);
+
+    const supabase = getDb(c.env);
+    const { data, error } = await supabase.rpc('restore_atlas_action', {
+      p_action_id: c.req.param('id'),
+      p_actor: getActor(c),
+      p_expected_revision: revision.value,
+    });
+    if (error) return rpcErrorResponse(c, error, 'restore');
+    return c.json(data);
+  } catch (err) {
+    console.error(`[actions] restore error: ${(err as Error).message}`);
+    return apiError(c, 500, 'ACTION_TRANSITION_FAILED', 'Unable to restore the action.');
+  }
+});
+
+router.delete('/:id', async (c) => {
+  c.header('Allow', 'GET, PUT, POST');
+  return apiError(c, 405, 'HARD_DELETE_DISABLED', 'Actions cannot be deleted. Use POST /api/actions/:id/archive.');
 });
 
 export default router;

@@ -4,6 +4,7 @@ import { Env, getDb } from '../db';
 import { getActor } from '../utils/actors';
 import { buildSafeIlikePattern } from '../utils/search';
 import { coerceJsonArray, coerceJsonObject } from '../utils/json';
+import { apiError } from '../utils/http';
 
 const router = new Hono<{ Bindings: Env }>();
 
@@ -155,6 +156,24 @@ router.post('/:id/archive', async (c) => {
   }
 });
 
+router.post('/:id/restore', async (c) => {
+  try {
+    const supabase = getDb(c.env);
+    const { data, error } = await supabase
+      .from('peos_journal_entries')
+      .update({ review_state: 'unreviewed', archived_at: null })
+      .eq('id', c.req.param('id'))
+      .eq('review_state', 'archived')
+      .select('*')
+      .single();
+    if (error) throw error;
+    return c.json(data);
+  } catch (err) {
+    console.error(`[journal] restore error: ${(err as Error).message}`);
+    return c.json({ error: 'Could not restore journal entry.' }, 500);
+  }
+});
+
 router.post('/:id/promote', async (c) => {
   try {
     const supabase = getDb(c.env);
@@ -191,7 +210,7 @@ router.post('/:id/promote', async (c) => {
         business: typeof body.business === 'string' && body.business ? body.business : 'personal',
         priority: typeof body.priority === 'string' && body.priority ? body.priority : 'p2',
         status: 'not_started',
-        owners: [],
+        owners: ['ransomed'],
         tags: coerceJsonArray(entry.tags),
         notes: 'Promoted from Atlas Journal.',
         source_label: 'Atlas Journal',
@@ -243,15 +262,8 @@ router.post('/:id/promote', async (c) => {
 });
 
 router.delete('/:id', async (c) => {
-  try {
-    const supabase = getDb(c.env);
-    const { error } = await supabase.from('peos_journal_entries').delete().eq('id', c.req.param('id'));
-    if (error) throw error;
-    return c.json({ ok: true });
-  } catch (err) {
-    console.error(`[journal] DELETE error: ${(err as Error).message}`);
-    return c.json({ error: 'Could not delete journal entry.' }, 500);
-  }
+  c.header('Allow', 'GET, PUT, POST');
+  return apiError(c, 405, 'HARD_DELETE_DISABLED', 'Journal entries cannot be deleted. Use the archive endpoint.');
 });
 
 export default router;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useBusinessContext } from './hooks/useBusinesses.js'
 import Layout from './components/Layout.jsx'
 import ActionTable from './components/ActionTable.jsx'
@@ -17,10 +17,37 @@ import QuickCapture from './components/QuickCapture.jsx'
 import ViewErrorBoundary from './components/ViewErrorBoundary.jsx'
 import { useKeyboard } from './hooks/useKeyboard.js'
 
+const VIEW_PATHS = {
+  today: '/today',
+  dashboard: '/tasks',
+  kanban: '/tasks?view=kanban',
+  review: '/review',
+  decide: '/decide',
+  journal: '/journal',
+  calendar: '/calendar',
+  members: '/settings/principals',
+  transcripts: '/transcripts',
+  automations: '/automations',
+}
+
+function routeFromLocation() {
+  const path = window.location.pathname.replace(/\/$/, '') || '/today'
+  const actionMatch = path.match(/^\/actions\/([^/]+)$/)
+  if (actionMatch) {
+    return { view: 'dashboard', actionId: decodeURIComponent(actionMatch[1]) }
+  }
+  if (path === '/tasks') {
+    return { view: new URLSearchParams(window.location.search).get('view') === 'kanban' ? 'kanban' : 'dashboard', actionId: null }
+  }
+  const match = Object.entries(VIEW_PATHS).find(([, routePath]) => routePath.split('?')[0] === path)
+  return { view: match?.[0] || 'today', actionId: null }
+}
+
 export default function App() {
-  const [currentView, setCurrentView] = useState('today')
+  const initialRoute = useMemo(routeFromLocation, [])
+  const [currentView, setCurrentView] = useState(initialRoute.view)
   const [selectedBusiness, setSelectedBusiness] = useState(null)
-  const [selectedActionId, setSelectedActionId] = useState(null)
+  const [selectedActionId, setSelectedActionId] = useState(initialRoute.actionId)
   const [showQuickCapture, setShowQuickCapture] = useState(false)
   const [quickCaptureDate, setQuickCaptureDate] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -37,6 +64,39 @@ export default function App() {
 
   const { frozenSet: frozenBusinesses, toggleFreezeInDB: toggleFreezeBusiness } = useBusinessContext()
   const [showFrozen, setShowFrozen] = useState(false)
+
+  const navigateView = useCallback((view, { replace = false } = {}) => {
+    const path = VIEW_PATHS[view] || VIEW_PATHS.today
+    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: view }, '', path)
+    setCurrentView(view)
+    setSelectedActionId(null)
+    setSearchQuery('')
+  }, [])
+
+  const openAction = useCallback((actionId) => {
+    const backgroundPath = VIEW_PATHS[currentView] || VIEW_PATHS.dashboard
+    window.history.pushState({ atlasAction: true, backgroundPath }, '', `/actions/${encodeURIComponent(actionId)}`)
+    setSelectedActionId(actionId)
+  }, [currentView])
+
+  const closeAction = useCallback(() => {
+    const backgroundPath = window.history.state?.backgroundPath || VIEW_PATHS[currentView] || VIEW_PATHS.dashboard
+    window.history.replaceState({ atlasView: currentView }, '', backgroundPath)
+    setSelectedActionId(null)
+  }, [currentView])
+
+  useEffect(() => {
+    function handlePopState() {
+      const route = routeFromLocation()
+      setCurrentView(route.view)
+      setSelectedActionId(route.actionId)
+      setSearchQuery('')
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    if (window.location.pathname === '/') navigateView('today', { replace: true })
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [navigateView])
 
   const shortcuts = useMemo(() => [
     {
@@ -57,11 +117,11 @@ export default function App() {
         } else if (sidebarOpen) {
           setSidebarOpen(false)
         } else if (selectedActionId) {
-          setSelectedActionId(null)
+          closeAction()
         }
       },
     },
-  ], [showQuickCapture, selectedActionId, sidebarOpen])
+  ], [showQuickCapture, selectedActionId, sidebarOpen, closeAction])
 
   useKeyboard(shortcuts)
 
@@ -76,7 +136,7 @@ export default function App() {
         return (
           <TodayList
             selectedBusiness={selectedBusiness}
-            onSelectAction={setSelectedActionId}
+            onSelectAction={openAction}
             searchQuery={searchQuery}
           />
         )
@@ -84,7 +144,7 @@ export default function App() {
         return (
           <TodayReview
             selectedBusiness={selectedBusiness}
-            onSelectAction={setSelectedActionId}
+            onSelectAction={openAction}
             searchQuery={searchQuery}
           />
         )
@@ -96,7 +156,7 @@ export default function App() {
         return (
           <ActionTable
             selectedBusiness={selectedBusiness}
-            onSelectAction={setSelectedActionId}
+            onSelectAction={openAction}
             searchQuery={searchQuery}
             hideDone={hideDone}
             onToggleHideDone={toggleHideDone}
@@ -110,7 +170,7 @@ export default function App() {
         return (
           <KanbanBoard
             selectedBusiness={selectedBusiness}
-            onSelectAction={setSelectedActionId}
+            onSelectAction={openAction}
             hideDone={hideDone}
             onToggleHideDone={toggleHideDone}
           />
@@ -119,12 +179,12 @@ export default function App() {
         return (
           <CalendarView
             selectedBusiness={selectedBusiness}
-            onSelectAction={setSelectedActionId}
+            onSelectAction={openAction}
             onOpenQuickCapture={handleOpenQuickCapture}
           />
         )
       case 'members':
-        return <MemberList onSelectAction={setSelectedActionId} />
+        return <MemberList onSelectAction={openAction} />
       case 'transcripts':
         return (
           <div className="flex flex-col gap-6">
@@ -141,11 +201,7 @@ export default function App() {
     <div className="h-screen flex overflow-hidden bg-bg-primary">
       <Layout
         currentView={currentView}
-        setCurrentView={(view) => {
-          setCurrentView(view)
-          setSelectedActionId(null)
-          setSearchQuery('')
-        }}
+        setCurrentView={navigateView}
         selectedBusiness={selectedBusiness}
         setSelectedBusiness={setSelectedBusiness}
         onOpenQuickCapture={() => handleOpenQuickCapture(null)}
@@ -168,7 +224,7 @@ export default function App() {
       {selectedActionId && (
         <ActionDetail
           actionId={selectedActionId}
-          onClose={() => setSelectedActionId(null)}
+          onClose={closeAction}
         />
       )}
 

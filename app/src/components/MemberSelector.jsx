@@ -1,13 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useId, useRef, useEffect } from 'react';
 import { Search, X, Check } from 'lucide-react';
 import { getMemberColor } from '../utils/colors.js';
-import { getInitials, normalizeMemberRefs } from '../utils/memberUtils.js';
+import { activePrincipals, getInitials, normalizeMemberRefs } from '../utils/memberUtils.js';
 
 export default function MemberSelector({ members = [], selected: selectedProp, selectedIds, onChange, placeholder = 'Select members...' }) {
   const selected = normalizeMemberRefs(selectedProp || selectedIds || []).map(owner => owner.id);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef(null);
+  const listboxId = useId();
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -19,7 +20,7 @@ export default function MemberSelector({ members = [], selected: selectedProp, s
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filtered = members.filter(m =>
+  const filtered = activePrincipals(members).filter(m =>
     (m.name || '').toLowerCase().includes(search.toLowerCase()) ||
     (m.id || '').toLowerCase().includes(search.toLowerCase())
   );
@@ -41,7 +42,20 @@ export default function MemberSelector({ members = [], selected: selectedProp, s
       <div
         className="input-field cursor-pointer min-h-[38px] flex flex-wrap items-center gap-1"
         onClick={() => setIsOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            setIsOpen(true);
+          } else if (event.key === 'Escape') {
+            setIsOpen(false);
+          }
+        }}
+        role="combobox"
+        tabIndex={0}
         aria-expanded={isOpen}
+        aria-controls={listboxId}
+        aria-haspopup="listbox"
+        aria-label={placeholder}
       >
         {selected.length === 0 && (
           <span className="text-text-muted text-sm">{placeholder}</span>
@@ -57,24 +71,29 @@ export default function MemberSelector({ members = [], selected: selectedProp, s
               style={{ backgroundColor: `${color}20`, color }}
             >
               {name}
-              <X
-                className="w-3 h-3 cursor-pointer hover:opacity-70"
+              <button
+                type="button"
+                className="rounded p-0.5 hover:opacity-70"
                 onClick={(e) => { e.stopPropagation(); remove(id); }}
-              />
+                aria-label={`Remove ${name}`}
+              >
+                <X className="w-3 h-3" />
+              </button>
             </span>
           );
         })}
       </div>
 
       {isOpen && (
-        <div role="listbox" className="absolute z-50 top-full left-0 right-0 mt-1 bg-bg-surface border border-border rounded-lg shadow-xl max-h-60 overflow-hidden">
+        <div id={listboxId} role="listbox" aria-multiselectable="true" className="absolute z-50 top-full left-0 right-0 mt-1 bg-bg-surface border border-border rounded-lg shadow-xl max-h-60 overflow-hidden">
           <div className="p-2 border-b border-border">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
               <input
                 type="text"
+                aria-label="Search principals"
                 className="w-full bg-bg-primary border border-border rounded-md pl-7 pr-3 py-1.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
-                placeholder="Search members..."
+                placeholder="Search principals..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 autoFocus
@@ -111,7 +130,7 @@ export default function MemberSelector({ members = [], selected: selectedProp, s
             })}
             {filtered.length === 0 && (
               <div className="px-3 py-4 text-center text-text-muted text-sm">
-                No members found
+                No principals found
               </div>
             )}
           </div>

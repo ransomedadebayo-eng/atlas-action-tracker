@@ -12,8 +12,8 @@ export default function MemberList({ onSelectAction }) {
   const [selectedMemberId, setSelectedMemberId] = useState(null)
   const [showChart, setShowChart] = useState(true)
 
-  const { data: rawMembers = [], isLoading: membersLoading } = useMembers()
-  const { data: rawMemberStats = [], isLoading: statsLoading } = useMemberStats()
+  const { data: rawMembers = [], isLoading: membersLoading, isError: membersError, error: membersQueryError } = useMembers()
+  const { data: rawMemberStats = [], isLoading: statsLoading, isError: statsError, error: statsQueryError } = useMemberStats()
   const members = Array.isArray(rawMembers) ? rawMembers : []
   const memberStats = Array.isArray(rawMemberStats) ? rawMemberStats : []
 
@@ -47,7 +47,7 @@ export default function MemberList({ onSelectAction }) {
     )
   }
 
-  if (membersLoading) {
+  if (membersLoading || statsLoading) {
     return (
       <div className="space-y-4">
         <div className="h-10 bg-bg-elevated rounded animate-pulse w-64" />
@@ -68,6 +68,14 @@ export default function MemberList({ onSelectAction }) {
     )
   }
 
+  if (membersError || statsError) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+        {membersQueryError?.message || statsQueryError?.message || 'Principals could not be loaded.'}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Workload Chart */}
@@ -79,10 +87,10 @@ export default function MemberList({ onSelectAction }) {
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <h2 className="text-text-primary font-semibold">
-            Team Directory
+            Active Principals
           </h2>
           <span className="text-text-muted text-xs font-mono">
-            {filtered.length} member{filtered.length !== 1 ? 's' : ''}
+            {filtered.length} principal{filtered.length !== 1 ? 's' : ''}
           </span>
         </div>
 
@@ -101,8 +109,9 @@ export default function MemberList({ onSelectAction }) {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
             <input
               type="text"
+              aria-label="Search active principals"
               className="input-field pl-8 pr-3 py-1.5 text-sm w-56"
-              placeholder="Search team..."
+              placeholder="Search principals..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -121,9 +130,10 @@ export default function MemberList({ onSelectAction }) {
           const totalCount = stats?.total || 0
 
           return (
-            <div
+            <button
+              type="button"
               key={member.id}
-              className="card p-4 cursor-pointer hover:border-border-hover transition-colors group"
+              className="card w-full p-4 text-left hover:border-border-hover transition-colors group"
               onClick={() => setSelectedMemberId(member.id)}
             >
               <div className="flex items-start gap-3">
@@ -231,16 +241,16 @@ export default function MemberList({ onSelectAction }) {
                   )}
                 </div>
               </div>
-            </div>
+            </button>
           )
         })}
       </div>
 
       {filtered.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-text-primary font-medium">No members found</p>
+          <p className="text-text-primary font-medium">No principals found</p>
           <p className="text-text-muted text-sm mt-1">
-            {search ? 'Try a different search term' : 'No team members yet'}
+            {search ? 'Try a different search term' : 'No active principals are configured'}
           </p>
         </div>
       )}

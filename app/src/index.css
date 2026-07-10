@@ -238,6 +238,15 @@
   animation: view-enter 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Mobile: hide scrollbars in horizontal scroll areas */
 @media (max-width: 767px) {
   .snap-x::-webkit-scrollbar {

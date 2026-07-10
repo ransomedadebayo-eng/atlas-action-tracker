@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useId, useRef } from 'react'
 import {
-  X, Trash2, FileText, ChevronDown,
-  AlertCircle, Save, Activity, CheckCircle2, ClipboardCheck, Bot,
+  X, Archive, ArchiveRestore, FileText, ChevronDown,
+  Save, Activity, CheckCircle2, ClipboardCheck, Bot,
 } from 'lucide-react'
-import { useAction, useUpdateAction, useDeleteAction, useCreateAgentAssignment } from '../hooks/useActions.js'
+import { useAction, useUpdateAction, useArchiveAction, useRestoreAction, useCompleteAction, useCreateAgentAssignment } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useQuery } from '@tanstack/react-query'
 import { activityApi } from '../api/client.js'
@@ -14,24 +14,38 @@ import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { formatTimestamp } from '../utils/dateUtils.js'
 import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
 import { normalizeMemberRefs } from '../utils/memberUtils.js'
-import { buildManualCompletionEvidence, evidenceFromText, hasEvidence } from '../utils/evidenceUtils.js'
+import { evidenceFromText } from '../utils/evidenceUtils.js'
 import { WorkModeBadge } from './StatusBadge.jsx'
 
+function evidencePresentation(value) {
+  const evidence = parseJsonObject(value)
+  if (Object.keys(evidence).length === 0) return null
+  return {
+    kind: evidence.kind || (evidence.manual_completion ? 'manual_attestation' : 'legacy_unverified'),
+    summary: evidence.summary
+      || evidence.completion_note?.note
+      || evidence.manual_completion?.note
+      || 'Structured evidence is attached. Open audit details to inspect it.',
+  }
+}
+
 function Select({ label, value, onChange, options }) {
+  const id = useId()
   return (
     <div>
-      <label className="label block mb-1.5">
+      <label htmlFor={id} className="label block mb-1.5">
         {label}
       </label>
       <div className="relative">
         <select
+          id={id}
           className="input-field w-full appearance-none pr-8 text-sm"
           value={value || ''}
           onChange={e => onChange(e.target.value)}
         >
           <option value="">-- None --</option>
           {options.map(o => (
-            <option key={o.id} value={o.id}>{o.label}</option>
+            <option key={o.id} value={o.id} disabled={o.disabled}>{o.label}</option>
           ))}
         </select>
         <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
@@ -42,10 +56,12 @@ function Select({ label, value, onChange, options }) {
 
 export default function ActionDetail({ actionId, onClose }) {
   const { BUSINESSES, BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
-  const { data: action, isLoading } = useAction(actionId)
+  const { data: action, isLoading, isError, error } = useAction(actionId)
   const { data: members = [] } = useMembers()
   const updateAction = useUpdateAction()
-  const deleteAction = useDeleteAction()
+  const archiveAction = useArchiveAction()
+  const restoreAction = useRestoreAction()
+  const completeAction = useCompleteAction()
   const createAgentAssignment = useCreateAgentAssignment()
 
   const { data: activityLog = [] } = useQuery({
@@ -58,8 +74,7 @@ export default function ActionDetail({ actionId, onClose }) {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [tagInput, setTagInput] = useState('')
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleteError, setDeleteError] = useState('')
+  const [completionNote, setCompletionNote] = useState('')
   const [saveError, setSaveError] = useState('')
   const panelRef = useRef(null)
 
@@ -73,7 +88,7 @@ export default function ActionDetail({ actionId, onClose }) {
       setForm({
         title: action.title || '',
         description: action.description || '',
-        status: canonicalStatus(action.status) || 'not_started',
+        status: action.status === 'archived' ? 'archived' : (canonicalStatus(action.status) || 'not_started'),
         priority: action.priority || 'p2',
         business: action.business || '',
         due_date: action.due_date || '',
@@ -113,9 +128,6 @@ export default function ActionDetail({ actionId, onClose }) {
     } catch {
       throw new Error('Completion evidence must be plain text or a JSON object.')
     }
-    if (payload.status === 'done' && !hasEvidence(payload.evidence_json)) {
-      payload.evidence_json = buildManualCompletionEvidence('', 'atlas_action_detail')
-    }
     delete payload.evidence_text
     return payload
   }
@@ -125,9 +137,10 @@ export default function ActionDetail({ actionId, onClose }) {
     setSaveError('')
     try {
       const payload = buildPayload(overrides)
-      await updateAction.mutateAsync({ id: actionId, ...payload })
+      const saved = await updateAction.mutateAsync({ id: actionId, ...payload })
       setForm(prev => ({ ...prev, ...overrides }))
       if (!keepDirty) setDirty(false)
+      return saved
     } catch (err) {
       setSaveError(err?.message || 'Failed to save')
     } finally {
@@ -148,11 +161,35 @@ export default function ActionDetail({ actionId, onClose }) {
     })
   }
 
-  async function handleMarkVerifiedDone() {
-    await savePayload({
-      status: 'done',
-      approval_state: form.approval_state === 'needs_review' ? 'approved' : form.approval_state,
-    })
+  async function handleComplete() {
+    const summary = completionNote.trim()
+    if (!summary) {
+      setSaveError('Enter a completion note before marking this action done.')
+      return
+    }
+
+    setSaving(true)
+    setSaveError('')
+    try {
+      const expectedRevision = Number.isInteger(action.revision) ? action.revision : null
+      await completeAction.mutateAsync({
+        id: actionId,
+        ...(expectedRevision ? { expected_revision: expectedRevision } : {}),
+        evidence: {
+          version: 2,
+          kind: 'manual_attestation',
+          summary,
+          sources: [],
+          verification: { status: 'attested' },
+        },
+      })
+      setCompletionNote('')
+      setDirty(false)
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to complete action')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleCreateAgentAssignment() {
@@ -171,14 +208,36 @@ export default function ActionDetail({ actionId, onClose }) {
     }
   }
 
-  async function handleDelete() {
-    setDeleteError('')
+  async function handleArchive() {
+    setSaveError('')
     try {
-      await deleteAction.mutateAsync(actionId)
+      const expectedRevision = Number.isInteger(action.revision) ? action.revision : null
+      await archiveAction.mutateAsync({
+        id: actionId,
+        ...(expectedRevision ? { expected_revision: expectedRevision } : {}),
+      })
       onClose()
     } catch (err) {
-      setDeleteError(err.message || 'Failed to delete action')
+      setSaveError(err?.message || 'Failed to archive action')
     }
+  }
+
+  async function handleRestore() {
+    setSaveError('')
+    try {
+      const expectedRevision = Number.isInteger(action.revision) ? action.revision : null
+      await restoreAction.mutateAsync({
+        id: actionId,
+        ...(expectedRevision ? { expected_revision: expectedRevision } : {}),
+      })
+      onClose()
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to restore action')
+    }
+  }
+
+  function requestClose() {
+    if (!dirty || window.confirm('Discard your unsaved changes?')) onClose()
   }
 
   function handleTagAdd(e) {
@@ -226,6 +285,19 @@ export default function ActionDetail({ actionId, onClose }) {
     }
   }, [])
 
+  if (isError) {
+    return (
+      <div className="fixed inset-0 z-40 flex items-stretch" role="dialog" aria-modal="true" aria-label="Action details unavailable">
+        <button type="button" className="flex-1 bg-black/60" aria-label="Close action details" onClick={onClose} />
+        <div className="w-full md:w-[520px] border-l border-white/10 bg-bg-surface p-6">
+          <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+            {error?.message || 'Action details could not be loaded.'}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (isLoading || !form) {
     return (
       <div className="fixed inset-0 z-40 flex items-stretch pointer-events-none">
@@ -246,6 +318,13 @@ export default function ActionDetail({ actionId, onClose }) {
 
   const priorityColor = PRIORITY_COLORS[form.priority]
   const businessColor = BUSINESS_COLORS[form.business]
+  const existingEvidence = evidencePresentation(action.evidence_json)
+  const isArchived = action.status === 'archived'
+  const statusOptions = STATUS_LIST
+    .filter(option => !['done', 'cancelled', 'unknown'].includes(option.id))
+    .concat(!['not_started', 'in_progress', 'waiting', 'blocked'].includes(form.status)
+      ? [{ id: form.status, label: form.status.replace(/_/g, ' '), disabled: true }]
+      : [])
 
   return (
     <div
@@ -255,7 +334,7 @@ export default function ActionDetail({ actionId, onClose }) {
       aria-label="Action details"
     >
       {/* Dim overlay */}
-      <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <button type="button" className="flex-1 bg-black/60 backdrop-blur-sm" aria-label="Close action details" onClick={requestClose} />
 
       {/* Panel */}
       <div
@@ -287,12 +366,13 @@ export default function ActionDetail({ actionId, onClose }) {
           </div>
           <div className="flex items-center gap-2">
             {saveError && (
-              <span className="text-danger text-xs max-w-[240px] truncate" title={saveError}>
+              <span role="alert" className="text-danger text-xs max-w-[240px] truncate" title={saveError}>
                 {saveError}
               </span>
             )}
             {dirty && (
               <button
+                type="button"
                 className="btn-primary flex items-center gap-1.5 text-xs py-1.5"
                 onClick={handleSave}
                 disabled={saving}
@@ -301,16 +381,34 @@ export default function ActionDetail({ actionId, onClose }) {
                 {saving ? 'Saving...' : 'Save'}
               </button>
             )}
+            {isArchived ? (
+              <button
+                type="button"
+                className="btn-ghost p-1.5 text-text-muted hover:text-accent"
+                onClick={handleRestore}
+                disabled={restoreAction.isPending}
+                aria-label="Restore action"
+                title="Restore action"
+              >
+                <ArchiveRestore className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-ghost p-1.5 text-text-muted hover:text-accent"
+                onClick={handleArchive}
+                disabled={dirty || archiveAction.isPending}
+                aria-label="Archive action"
+                title={dirty ? 'Save or discard changes before archiving' : 'Archive action'}
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+            )}
             <button
-              className="btn-ghost p-1.5 text-text-muted hover:text-red-400"
-              onClick={() => setShowDeleteConfirm(true)}
-              title="Delete action"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-            <button
+              type="button"
               className="btn-ghost p-1.5 text-text-muted hover:text-text-primary"
-              onClick={onClose}
+              onClick={requestClose}
+              aria-label="Close action details"
             >
               <X className="w-4 h-4" />
             </button>
@@ -322,6 +420,7 @@ export default function ActionDetail({ actionId, onClose }) {
           {/* Title */}
           <div>
             <textarea
+              aria-label="Action title"
               className="input-field w-full text-base font-headline font-semibold text-text-primary resize-none"
               rows={2}
               value={form.title}
@@ -336,7 +435,7 @@ export default function ActionDetail({ actionId, onClose }) {
               label="Status"
               value={form.status}
               onChange={val => patch('status', val)}
-              options={STATUS_LIST}
+              options={statusOptions}
             />
             <Select
               label="Priority"
@@ -360,6 +459,7 @@ export default function ActionDetail({ actionId, onClose }) {
               </label>
               <input
                 type="date"
+                aria-label="Due date"
                 className="input-field w-full text-sm"
                 value={form.due_date || ''}
                 onChange={e => patch('due_date', e.target.value)}
@@ -418,9 +518,9 @@ export default function ActionDetail({ actionId, onClose }) {
                 </button>
                 <button
                   className="btn-primary flex items-center gap-1.5 text-xs py-1.5"
-                  onClick={handleMarkVerifiedDone}
-                  disabled={saving}
-                  title="Mark done with a saved proof item or an automatic manual completion note"
+                  onClick={handleComplete}
+                  disabled={saving || isArchived || dirty}
+                  title={dirty ? 'Save or discard changes before completing' : 'Mark done with the completion note entered below'}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Mark Done
@@ -433,6 +533,7 @@ export default function ActionDetail({ actionId, onClose }) {
                 Next Action
               </label>
               <textarea
+                aria-label="Next action"
                 className="input-field w-full text-sm resize-none"
                 rows={2}
                 value={form.next_action}
@@ -446,6 +547,7 @@ export default function ActionDetail({ actionId, onClose }) {
                 Definition of Done
               </label>
               <textarea
+                aria-label="Definition of done"
                 className="input-field w-full text-sm resize-none"
                 rows={3}
                 value={form.definition_of_done}
@@ -461,6 +563,7 @@ export default function ActionDetail({ actionId, onClose }) {
                 </label>
                 <input
                   type="date"
+                  aria-label="Review date"
                   className="input-field w-full text-sm"
                   value={form.review_date || ''}
                   onChange={e => patch('review_date', e.target.value)}
@@ -480,6 +583,7 @@ export default function ActionDetail({ actionId, onClose }) {
               </label>
               <input
                 type="text"
+                aria-label="Agent assignment ID"
                 className="input-field w-full text-sm font-mono"
                 value={form.agent_assignment_id || ''}
                 onChange={e => patch('agent_assignment_id', e.target.value)}
@@ -489,16 +593,36 @@ export default function ActionDetail({ actionId, onClose }) {
 
             <div>
               <label className="label block mb-1.5">
-                Completion Evidence
+                Completion Note
               </label>
               <textarea
+                aria-label="Completion note"
                 className="input-field w-full text-sm resize-none"
+                rows={3}
+                value={completionNote}
+                onChange={e => setCompletionNote(e.target.value)}
+                placeholder="Required before manual completion: describe what was completed and how you know."
+              />
+            </div>
+
+            {existingEvidence && (
+              <div className="rounded-xl border border-border bg-bg-surface p-3" aria-label="Existing completion evidence">
+                <span className="badge border-border text-text-secondary">{existingEvidence.kind.replace(/_/g, ' ')}</span>
+                <p className="mt-2 text-sm leading-relaxed text-text-secondary">{existingEvidence.summary}</p>
+              </div>
+            )}
+
+            <details className="rounded-xl border border-border bg-bg-surface p-3">
+              <summary className="cursor-pointer text-xs font-semibold text-text-secondary">Audit evidence details</summary>
+              <textarea
+                aria-label="Evidence details"
+                className="input-field mt-3 w-full text-sm resize-none"
                 rows={6}
                 value={form.evidence_text}
                 onChange={e => patch('evidence_text', e.target.value)}
-                placeholder="Short note, proof link, deploy URL, test result, or JSON for structured evidence..."
+                placeholder="Proof links, deploy URLs, test results, or structured evidence..."
               />
-            </div>
+            </details>
           </div>
 
           {/* Dependencies */}
@@ -536,6 +660,7 @@ export default function ActionDetail({ actionId, onClose }) {
               Description
             </label>
             <textarea
+              aria-label="Action description"
               className="input-field w-full text-sm resize-none"
               rows={3}
               value={form.description}
@@ -550,6 +675,7 @@ export default function ActionDetail({ actionId, onClose }) {
               Notes
             </label>
             <textarea
+              aria-label="Action notes"
               className="input-field w-full text-sm resize-none"
               rows={3}
               value={form.notes}
@@ -580,8 +706,10 @@ export default function ActionDetail({ actionId, onClose }) {
                 >
                   #{tag}
                   <button
+                    type="button"
                     onClick={() => handleTagRemove(tag)}
                     className="hover:opacity-70 ml-0.5"
+                    aria-label={`Remove tag ${tag}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -590,6 +718,7 @@ export default function ActionDetail({ actionId, onClose }) {
             </div>
             <input
               type="text"
+              aria-label="Add tag"
               className="input-field w-full text-sm"
               placeholder="Add tag -- press Enter or comma"
               value={tagInput}
@@ -648,35 +777,6 @@ export default function ActionDetail({ actionId, onClose }) {
           )}
         </div>
 
-        {/* Delete confirm */}
-        {showDeleteConfirm && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-10">
-            <div className="glass-card p-6 w-72 space-y-4">
-              <div className="flex items-center gap-2 text-red-400">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <p className="font-headline font-semibold text-sm">Delete this action?</p>
-              </div>
-              <p className="text-text-muted text-xs">This cannot be undone.</p>
-              {deleteError && (
-                <p className="text-red-400 text-xs">{deleteError}</p>
-              )}
-              <div className="flex gap-2">
-                <button
-                  className="btn-ghost flex-1 text-sm"
-                  onClick={() => setShowDeleteConfirm(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="flex-1 text-sm py-2 px-3 rounded-xl font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors border border-red-500/20"
-                  onClick={handleDelete}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

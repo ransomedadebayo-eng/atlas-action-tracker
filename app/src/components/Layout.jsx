@@ -27,7 +27,7 @@ const NAV_LINKS = [
   { id: 'decide', label: 'Decide', Icon: ListChecks },
   { id: 'journal', label: 'Journal', Icon: BookOpenText },
   { id: 'calendar', label: 'Calendar', Icon: CalendarDays },
-  { id: 'members', label: 'Team', Icon: Users },
+  { id: 'members', label: 'Principals', Icon: Users },
   { id: 'transcripts', label: 'Transcripts', Icon: FileText },
   { id: 'automations', label: 'Automations', Icon: Workflow },
 ]
@@ -94,8 +94,10 @@ export default function Layout({
             </span>
             {/* Close button on mobile */}
             <button
+              type="button"
               className="md:hidden ml-1 p-1 text-text-muted hover:text-text-primary"
               onClick={() => setSidebarOpen(false)}
+              aria-label="Close menu"
             >
               <X className="w-4 h-4" />
             </button>

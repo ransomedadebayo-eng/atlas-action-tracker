@@ -1,13 +1,11 @@
 import React, { useMemo } from 'react';
-import { CheckCircle2, Clock, Info, ListTodo } from 'lucide-react';
+import { Clock, Info, ListTodo } from 'lucide-react';
 import { useTodayPlan } from '../hooks/useTodayPlan.js';
 import { useMembers } from '../hooks/useMembers.js';
-import { useUpdateAction } from '../hooks/useActions.js';
 import { PriorityBadge, BusinessBadge, StatusBadge } from './StatusBadge.jsx';
 import OwnerAvatars from './OwnerAvatars.jsx';
 import { formatRelativeDate, getISODate } from '../utils/dateUtils.js';
 import { parseJsonArray } from '../utils/parseUtils.js';
-import { completionEvidenceForAction } from '../utils/evidenceUtils.js';
 
 function todayDateString() {
   return getISODate();
@@ -26,23 +24,13 @@ function taskReason(item, action) {
   return 'Selected for today.';
 }
 
-function TodayTask({ item, members, onSelectAction, onToggleDone }) {
+function TodayTask({ item, members, onSelectAction }) {
   const action = getAction(item);
   const owners = parseJsonArray(action.owners);
 
   return (
     <div className="rounded-lg border border-border bg-bg-surface px-4 py-3 transition-colors hover:border-border-hover">
       <div className="flex items-start gap-3">
-        <button
-          type="button"
-          className="mt-0.5 rounded-md p-1 text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent"
-          onClick={() => onToggleDone(action)}
-          aria-label="Mark done"
-          title="Mark done"
-        >
-          <CheckCircle2 className="h-5 w-5" />
-        </button>
-
         <button
           type="button"
           className="min-w-0 flex-1 text-left"
@@ -83,9 +71,9 @@ function TodayTask({ item, members, onSelectAction, onToggleDone }) {
 export default function TodayList({ selectedBusiness, onSelectAction, searchQuery = '' }) {
   const today = todayDateString();
   const { data, isLoading, isError, error } = useTodayPlan(today);
-  const { data: rawMembers = [] } = useMembers();
+  const membersQuery = useMembers();
+  const rawMembers = membersQuery.data || [];
   const members = Array.isArray(rawMembers) ? rawMembers : [];
-  const updateAction = useUpdateAction();
 
   const items = useMemo(() => {
     const rawItems = Array.isArray(data?.items) ? data.items : [];
@@ -102,18 +90,20 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
       .slice(0, 5);
   }, [data?.items, selectedBusiness, searchQuery]);
 
-  function toggleDone(action) {
-    const evidence = completionEvidenceForAction(action, 'atlas_today');
-    if (!evidence) return;
-    updateAction.mutate({ id: action.id, status: 'done', evidence_json: evidence });
-  }
-
   if (isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-3">
         {[1, 2, 3].map((key) => (
           <div key={key} className="h-24 animate-pulse rounded-lg bg-bg-surface" />
         ))}
+      </div>
+    );
+  }
+
+  if (isError || membersQuery.isError) {
+    return (
+      <div className="mx-auto max-w-3xl rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+        {error?.message || membersQuery.error?.message || 'Today could not load.'}
       </div>
     );
   }
@@ -129,12 +119,6 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
           {items.length} item{items.length === 1 ? '' : 's'}
         </span>
       </div>
-
-      {isError && (
-        <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-text-secondary">
-          {error?.message || 'Today could not load.'}
-        </div>
-      )}
 
       {data?.source === 'due_date_fallback' && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-bg-surface p-3 text-xs text-text-muted">
@@ -157,7 +141,6 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
               item={item}
               members={members}
               onSelectAction={onSelectAction}
-              onToggleDone={toggleDone}
             />
           ))}
         </div>

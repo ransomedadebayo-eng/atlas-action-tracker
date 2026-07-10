@@ -1,10 +1,15 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { actionsApi } from '../api/client.js';
 
+function actionItems(data) {
+  return Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+}
+
 export function useActions(filters = {}) {
   return useQuery({
     queryKey: ['actions', filters],
     queryFn: () => actionsApi.list(filters),
+    select: actionItems,
     staleTime: 30000,
     placeholderData: keepPreviousData,
   });
@@ -31,6 +36,7 @@ export function useActionsByOwner(ownerId) {
     queryKey: ['actionsByOwner', ownerId],
     queryFn: () => actionsApi.byOwner(ownerId),
     enabled: !!ownerId,
+    select: actionItems,
   });
 }
 
@@ -75,17 +81,36 @@ export function useCreateAgentAssignment() {
   });
 }
 
-export function useDeleteAction() {
+function invalidateActionQueries(queryClient, id) {
+  queryClient.invalidateQueries({ queryKey: ['actions'] });
+  if (id) queryClient.invalidateQueries({ queryKey: ['action', id] });
+  queryClient.invalidateQueries({ queryKey: ['actionStats'] });
+  queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
+  queryClient.invalidateQueries({ queryKey: ['memberStats'] });
+  queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
+}
+
+export function useCompleteAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id) => actionsApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['actions'] });
-      queryClient.invalidateQueries({ queryKey: ['actionStats'] });
-      queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
-      queryClient.invalidateQueries({ queryKey: ['memberStats'] });
-      queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
-    },
+    mutationFn: ({ id, ...data }) => actionsApi.complete(id, data),
+    onSuccess: (_data, variables) => invalidateActionQueries(queryClient, variables.id),
+  });
+}
+
+export function useArchiveAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => actionsApi.archive(id, data),
+    onSuccess: (_data, variables) => invalidateActionQueries(queryClient, variables.id),
+  });
+}
+
+export function useRestoreAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...data }) => actionsApi.restore(id, data),
+    onSuccess: (_data, variables) => invalidateActionQueries(queryClient, variables.id),
   });
 }
 

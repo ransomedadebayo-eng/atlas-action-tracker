@@ -51,13 +51,3 @@ export function usePromoteJournalEntry() {
     },
   });
 }
-
-export function useDeleteJournalEntry() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id) => journalApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['journalEntries'] });
-    },
-  });
-}

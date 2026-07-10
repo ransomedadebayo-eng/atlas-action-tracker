@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ChevronUp, ChevronDown, CheckCircle2, Trash2, ClipboardCheck } from 'lucide-react'
-import { useActions, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
+import { ChevronUp, ChevronDown, ClipboardCheck } from 'lucide-react'
+import { useActions } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { StatusBadge, PriorityBadge, BusinessBadge, WorkModeBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
@@ -10,7 +10,7 @@ import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { canonicalPriority, canonicalStatus } from '../utils/constants.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
-import { completionEvidenceForAction, hasEvidence } from '../utils/evidenceUtils.js'
+import { hasEvidence } from '../utils/evidenceUtils.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
@@ -54,12 +54,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
   }
 
-  const { data: rawActions = [], isLoading } = useActions(queryFilters)
+  const { data: rawActions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: rawMembers = [] } = useMembers()
   const actions = Array.isArray(rawActions) ? rawActions : []
   const members = Array.isArray(rawMembers) ? rawMembers : []
-  const updateAction = useUpdateAction()
-  const deleteAction = useDeleteAction()
 
   const sorted = useMemo(() => {
     const arr = [...actions]
@@ -115,24 +113,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     )
   }
 
-  function markDone(e, action) {
-    e.stopPropagation()
-    const nextStatus = canonicalStatus(action.status) === 'done' ? 'not_started' : 'done'
-    const payload = { id: action.id, status: nextStatus }
-
-    if (nextStatus === 'done') {
-      const evidence = completionEvidenceForAction(action, 'atlas_table')
-      if (!evidence) return
-      payload.evidence_json = evidence
-    }
-
-    updateAction.mutate(payload)
-  }
-
-  function handleDelete(e, action) {
-    e.stopPropagation()
-    if (window.confirm(`Delete "${action.title}"? This cannot be undone.`)) {
-      deleteAction.mutate(action.id)
+  function handleRowKeyDown(event, actionId) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onSelectAction(actionId)
     }
   }
 
@@ -151,7 +135,6 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     { id: 'work_mode', label: 'Mode', width: 'w-24' },
     { id: 'owners', label: 'Owners', width: 'w-20', noSort: true },
     { id: 'due_date', label: 'Due', width: 'w-20' },
-    { id: 'actions', label: '', width: 'w-16', noSort: true },
   ]
 
   return (
@@ -250,6 +233,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               </div>
             ))}
           </div>
+        ) : isError ? (
+          <div className="m-5 rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+            {error?.message || 'Actions could not be loaded.'}
+          </div>
         ) : visibleActions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="text-4xl mb-3 text-accent">&#10003;</div>
@@ -270,11 +257,15 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               return (
                 <div
                   key={action.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open action: ${action.title}`}
                   className={`flex items-center gap-2 px-5 py-3 cursor-pointer transition-colors hover:bg-white/[0.02] group ${
                     done ? 'opacity-50' : ''
                   }`}
                   style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
                   onClick={() => onSelectAction(action.id)}
+                  onKeyDown={event => handleRowKeyDown(event, action.id)}
                 >
                   <div className="w-20 flex-shrink-0">
                     <PriorityBadge priority={action.priority} />
@@ -323,24 +314,6 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                   <div className={`w-20 flex-shrink-0 text-xs font-mono ${overdue ? 'text-red-400 font-semibold' : 'text-text-secondary'}`}>
                     {action.due_date ? formatRelativeDate(action.due_date) : '\u2014'}
                   </div>
-                  <div className="w-16 flex-shrink-0 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      className="p-1 text-text-muted hover:text-accent transition-colors"
-                      onClick={e => markDone(e, action)}
-                      aria-label={done ? 'Mark not started' : 'Mark done'}
-                      title={done ? 'Mark not started' : 'Mark done'}
-                    >
-                      <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#10b981' : undefined }} />
-                    </button>
-                    <button
-                      className="p-1 text-text-muted hover:text-danger transition-colors"
-                      onClick={e => handleDelete(e, action)}
-                      aria-label="Delete action"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
                 </div>
               )
             })}
@@ -357,6 +330,10 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               <div className="h-3 bg-bg-elevated rounded w-1/2" />
             </div>
           ))
+        ) : isError ? (
+          <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+            {error?.message || 'Actions could not be loaded.'}
+          </div>
         ) : visibleActions.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="text-3xl mb-2 text-accent">&#10003;</div>
@@ -374,9 +351,13 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
             return (
               <div
                 key={action.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open action: ${action.title}`}
                 className={`glass-card p-4 cursor-pointer active:bg-white/[0.04] transition-colors ${done ? 'opacity-50' : ''}`}
                 style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
                 onClick={() => onSelectAction(action.id)}
+                onKeyDown={event => handleRowKeyDown(event, action.id)}
               >
                 {/* Top: priority + status + done toggle */}
                 <div className="flex items-center gap-2 mb-1.5">
@@ -384,23 +365,6 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                   <StatusBadge status={action.status} />
                   <div className="ml-auto flex items-center gap-2">
                     <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
-                    <button
-                      onClick={e => markDone(e, action)}
-                      className="p-1 text-text-muted hover:text-accent"
-                      aria-label={done ? 'Mark not started' : 'Mark done'}
-                    >
-                      <CheckCircle2
-                        className="w-5 h-5"
-                        style={{ color: done ? '#10b981' : undefined }}
-                      />
-                    </button>
-                    <button
-                      onClick={e => handleDelete(e, action)}
-                      className="p-1 text-text-muted hover:text-danger"
-                      aria-label="Delete action"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
                   </div>
                 </div>
 

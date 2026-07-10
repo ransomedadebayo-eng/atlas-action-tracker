@@ -28,10 +28,19 @@ export async function validateKnownMemberIds(_supabase: SupabaseClient, ids: unk
 
   const { data } = await _supabase
     .from('atlas_members')
-    .select('id')
+    .select('id, name')
     .eq('is_active', true);
   const memberIds = new Set((data || []).map(row => row.id));
   if (memberIds.size === 0) return [];
+
+  const canonicalByLookup = new Map<string, string>();
+  for (const row of data || []) {
+    if (typeof row.id === 'string') canonicalByLookup.set(row.id.trim().toLowerCase(), row.id);
+    if (typeof row.name === 'string') canonicalByLookup.set(row.name.trim().toLowerCase(), row.id);
+  }
+
+  const normalized = (ids as string[]).map(id => canonicalByLookup.get(id.trim().toLowerCase()) || id.trim());
+  ids.splice(0, ids.length, ...Array.from(new Set(normalized)));
 
   const unknown = (ids as string[]).filter(id => !memberIds.has(id));
   if (unknown.length) return [`${label} contains unknown member ids: ${unknown.join(', ')}`];

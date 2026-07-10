@@ -6,7 +6,7 @@ product
 
 ## Users
 
-Ransomed and trusted collaborators use ATLAS as the active execution queue across personal operations, family logistics, ventures, wealth work, health, property, and music. Agents such as Codex and Claude also use it as a structured work surface, turning transcripts, files, and operational context into tracked actions.
+Ransomed is the sole human owner of ATLAS. Codex and Claude are scoped machine principals that use it as a structured execution surface; the product has no collaboration, invitation, sharing, or multi-tenant model.
 
 ## Product Purpose
 

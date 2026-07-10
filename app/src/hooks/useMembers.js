@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { membersApi } from '../api/client.js';
+import { activePrincipals } from '../utils/memberUtils.js';
 
 export function useMembers(params = {}) {
   return useQuery({
     queryKey: ['members', params],
     queryFn: () => membersApi.list(params),
+    select: activePrincipals,
     staleTime: 60000,
   });
 }
@@ -21,6 +23,7 @@ export function useMemberStats() {
   return useQuery({
     queryKey: ['memberStats'],
     queryFn: () => membersApi.stats(),
+    select: activePrincipals,
     staleTime: 30000,
   });
 }
@@ -30,16 +33,6 @@ export function useMemberActions(id, params = {}) {
     queryKey: ['memberActions', id, params],
     queryFn: () => membersApi.actions(id, params),
     enabled: !!id,
-  });
-}
-
-export function useCreateMember() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data) => membersApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
-    },
   });
 }
 

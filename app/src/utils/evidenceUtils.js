@@ -4,16 +4,6 @@ export function hasEvidence(value) {
   return Object.keys(parseJsonObject(value)).length > 0
 }
 
-export function buildManualCompletionEvidence(note = '', source = 'atlas') {
-  return {
-    manual_completion: {
-      completed_at: new Date().toISOString(),
-      source,
-      note: note.trim() || 'Marked manually done in Atlas.',
-    },
-  }
-}
-
 export function evidenceFromText(text = '', source = 'atlas') {
   const trimmed = text.trim()
   if (!trimmed) return {}
@@ -33,10 +23,4 @@ export function evidenceFromText(text = '', source = 'atlas') {
       note: trimmed,
     },
   }
-}
-
-export function completionEvidenceForAction(action, source = 'atlas') {
-  const currentEvidence = parseJsonObject(action?.evidence_json)
-  if (Object.keys(currentEvidence).length > 0) return currentEvidence
-  return buildManualCompletionEvidence('', source)
 }

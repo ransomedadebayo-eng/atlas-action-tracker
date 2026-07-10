@@ -9,11 +9,7 @@ routes = [
 
 [assets]
 directory = "../app/dist"
-
-[triggers]
-crons = [
-  "0 * * * *"
-]
+not_found_handling = "single-page-application"
 
 [vars]
 NODE_ENV = "production"
@@ -25,4 +21,5 @@ CF_ACCESS_JWKS_URL = "https://ransomedadebayo.cloudflareaccess.com/cdn-cgi/acces
 # Secrets set via: wrangler secret put <NAME>
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
-# ATLAS_API_TOKEN
+# ATLAS_OWNER_EMAILS (comma-separated exact owner email allowlist)
+# ATLAS_API_PRINCIPALS_JSON ({"codex":{"token":"...","scopes":[...]},"claude":{...}})

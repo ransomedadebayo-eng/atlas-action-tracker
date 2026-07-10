@@ -11,7 +11,7 @@ const VIEW_TITLES = {
   decide: 'Decide',
   journal: 'Journal',
   calendar: 'Calendar',
-  members: 'Team',
+  members: 'Principals',
   transcripts: 'Transcripts',
   automations: 'Automations',
 }
@@ -77,11 +77,14 @@ export default function TopBar({
           placeholder="Search actions..."
           value={searchQuery}
           onChange={handleSearchChange}
+          aria-label="Search actions"
         />
         {searchQuery && (
           <button
+            type="button"
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
             onClick={() => setSearchQuery('')}
+            aria-label="Clear search"
           >
             <X className="w-4 h-4" />
           </button>

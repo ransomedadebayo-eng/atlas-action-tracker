@@ -132,8 +132,10 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
             Cmd+Enter to save
           </span>
           <button
+            type="button"
             className="btn-ghost p-1 text-text-muted hover:text-text-primary ml-1"
             onClick={onClose}
+            aria-label="Close quick capture"
           >
             <X className="w-4 h-4" />
           </button>
@@ -145,6 +147,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
           <input
             ref={titleRef}
             type="text"
+            aria-label="Action title"
             className={`input-field w-full text-base font-medium ${error ? 'border-red-500/60' : ''}`}
             placeholder="What needs to get done?"
             value={form.title}
@@ -157,6 +160,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
           <div className="grid grid-cols-2 gap-2">
             <div className="relative">
               <select
+                aria-label="Business"
                 className="input-field w-full appearance-none pr-8 text-sm"
                 value={form.business}
                 onChange={e => patch('business', e.target.value)}
@@ -170,6 +174,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
             </div>
             <div className="relative">
               <select
+                aria-label="Priority"
                 className="input-field w-full appearance-none pr-8 text-sm"
                 value={form.priority}
                 onChange={e => patch('priority', e.target.value)}
@@ -185,6 +190,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
           {/* Due date */}
           <input
             type="date"
+            aria-label="Due date"
             className="input-field w-full text-sm"
             value={form.due_date}
             onChange={e => patch('due_date', e.target.value)}
@@ -206,11 +212,12 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
               {/* Status */}
               <div className="relative">
                 <select
+                  aria-label="Status"
                   className="input-field w-full appearance-none pr-8 text-sm"
                   value={form.status}
                   onChange={e => patch('status', e.target.value)}
                 >
-                  {STATUS_LIST.map(s => (
+                  {STATUS_LIST.filter(status => ['not_started', 'in_progress', 'waiting', 'blocked'].includes(status.id)).map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
@@ -220,6 +227,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
               {/* Work mode */}
               <div className="relative">
                 <select
+                  aria-label="Work mode"
                   className="input-field w-full appearance-none pr-8 text-sm"
                   value={form.work_mode}
                   onChange={e => patch('work_mode', e.target.value)}
@@ -235,6 +243,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
               {/* Recurrence */}
               <div className="relative">
                 <select
+                  aria-label="Recurrence"
                   className="input-field w-full appearance-none pr-8 text-sm"
                   value={form.recurrence}
                   onChange={e => patch('recurrence', e.target.value || 'none')}
@@ -256,6 +265,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
               />
 
               <textarea
+                aria-label="Next action"
                 className="input-field w-full text-sm resize-none"
                 rows={2}
                 placeholder="Next action"
@@ -264,6 +274,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
               />
 
               <textarea
+                aria-label="Definition of done"
                 className="input-field w-full text-sm resize-none"
                 rows={2}
                 placeholder="Definition of done"
@@ -281,6 +292,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
 
               {/* Description */}
               <textarea
+                aria-label="Description"
                 className="input-field w-full text-sm resize-none"
                 rows={2}
                 placeholder="Description (optional)"

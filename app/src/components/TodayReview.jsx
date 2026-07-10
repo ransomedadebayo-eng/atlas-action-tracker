@@ -7,6 +7,7 @@ import { PriorityBadge, BusinessBadge, StatusBadge, WorkModeBadge } from './Stat
 import OwnerAvatars from './OwnerAvatars.jsx';
 import { formatRelativeDate, getISODate } from '../utils/dateUtils.js';
 import { parseJsonArray } from '../utils/parseUtils.js';
+import { normalizeMemberRefs } from '../utils/memberUtils.js';
 
 const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open';
 
@@ -82,24 +83,37 @@ function ReviewSection({ icon: Icon, title, count, empty, children }) {
 
 export default function TodayReview({ selectedBusiness, onSelectAction, searchQuery = '' }) {
   const today = todayDateString();
-  const { data: todayData } = useTodayPlan(today);
-  const { data: rawMembers = [] } = useMembers();
-  const { data: rawReviewActions = [] } = useActions({
+  const todayQuery = useTodayPlan(today);
+  const membersQuery = useMembers();
+  const reviewQuery = useActions({
     status: NON_DONE_STATUSES,
     work_mode: 'review_required',
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
   });
-  const { data: rawAssistantActions = [] } = useActions({
+  const codexQuery = useActions({
     status: NON_DONE_STATUSES,
     owner_id: 'codex',
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
   });
-  const { data: rawBlockedActions = [] } = useActions({
+  const claudeQuery = useActions({
+    status: NON_DONE_STATUSES,
+    owner_id: 'claude',
+    ...(selectedBusiness ? { business: selectedBusiness } : {}),
+  });
+  const blockedQuery = useActions({
     status: 'blocked',
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
   });
 
+  const todayData = todayQuery.data;
+  const rawMembers = membersQuery.data || [];
+  const rawReviewActions = reviewQuery.data || [];
+  const rawAssistantActions = [...(codexQuery.data || []), ...(claudeQuery.data || [])];
+  const rawBlockedActions = blockedQuery.data || [];
   const members = Array.isArray(rawMembers) ? rawMembers : [];
+
+  const queries = [todayQuery, membersQuery, reviewQuery, codexQuery, claudeQuery, blockedQuery];
+  const failedQuery = queries.find(query => query.isError);
 
   const completedToday = useMemo(() => {
     const rawItems = Array.isArray(todayData?.items) ? todayData.items : [];
@@ -119,6 +133,8 @@ export default function TodayReview({ selectedBusiness, onSelectAction, searchQu
   const assistantActions = useMemo(() => (
     (Array.isArray(rawAssistantActions) ? rawAssistantActions : [])
       .filter((action) => matchesScope(action, selectedBusiness, searchQuery))
+      .filter((action, index, items) => items.findIndex(item => item.id === action.id) === index)
+      .filter((action) => normalizeMemberRefs(parseJsonArray(action.owners)).some(owner => owner.id === 'codex' || owner.id === 'claude'))
       .filter((action) => String(action.status || '').toLowerCase() !== 'blocked')
       .filter((action) => action.work_mode !== 'review_required')
       .slice(0, 8)
@@ -129,6 +145,18 @@ export default function TodayReview({ selectedBusiness, onSelectAction, searchQu
       .filter((action) => matchesScope(action, selectedBusiness, searchQuery))
       .slice(0, 8)
   ), [rawBlockedActions, selectedBusiness, searchQuery]);
+
+  if (queries.some(query => query.isLoading)) {
+    return <div className="h-48 animate-pulse rounded-xl bg-bg-elevated" aria-label="Loading review queue" />;
+  }
+
+  if (failedQuery) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+        {failedQuery.error?.message || 'The review queue could not be loaded.'}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -172,7 +200,7 @@ export default function TodayReview({ selectedBusiness, onSelectAction, searchQu
           icon={Bot}
           title="Assistant-owned"
           count={assistantActions.length}
-          empty="No Codex-owned actions match this scope."
+          empty="No Codex- or Claude-owned actions match this scope."
         >
           {assistantActions.map((action) => (
             <ActionRow key={action.id} action={action} members={members} onSelectAction={onSelectAction} />

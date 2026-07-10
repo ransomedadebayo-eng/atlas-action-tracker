@@ -25,7 +25,9 @@ async function request(path, options = {}) {
 
   if (!res.ok) {
     const cloudflareLimit = text.includes('Error 1027') || text.includes('temporarily rate limited');
-    const message = data?.error
+    const message = data?.message
+      || data?.error?.message
+      || (typeof data?.error === 'string' ? data.error : null)
       || (cloudflareLimit ? 'Cloudflare Workers request limit reached. Check the Workers plan or wait for the daily reset.' : res.statusText)
       || `Request failed: ${res.status}`;
     throw new Error(message);
@@ -47,8 +49,10 @@ export const actionsApi = {
   get: (id) => request(`/actions/${id}`),
   create: (data) => request('/actions', { method: 'POST', body: data }),
   update: (id, data) => request(`/actions/${id}`, { method: 'PUT', body: data }),
+  complete: (id, data) => request(`/actions/${id}/complete`, { method: 'POST', body: data }),
+  archive: (id, data = {}) => request(`/actions/${id}/archive`, { method: 'POST', body: data }),
+  restore: (id, data = {}) => request(`/actions/${id}/restore`, { method: 'POST', body: data }),
   createAgentAssignment: (id) => request(`/actions/${id}/agent-assignment`, { method: 'POST', body: {} }),
-  delete: (id) => request(`/actions/${id}`, { method: 'DELETE' }),
   bulkCreate: (actions) => request('/actions/bulk', { method: 'POST', body: { actions } }),
   bulkUpdate: (updates) => request('/actions/bulk', { method: 'PUT', body: { updates } }),
   stats: (params = {}) => {
@@ -88,7 +92,6 @@ export const membersApi = {
     return request(`/members${qs ? `?${qs}` : ''}`);
   },
   get: (id) => request(`/members/${id}`),
-  create: (data) => request('/members', { method: 'POST', body: data }),
   update: (id, data) => request(`/members/${id}`, { method: 'PUT', body: data }),
   actions: (id, params = {}) => {
     const query = new URLSearchParams();
@@ -133,7 +136,6 @@ export const journalApi = {
   update: (id, data) => request(`/journal/${id}`, { method: 'PUT', body: data }),
   archive: (id) => request(`/journal/${id}/archive`, { method: 'POST', body: {} }),
   promote: (id, data) => request(`/journal/${id}/promote`, { method: 'POST', body: data }),
-  delete: (id) => request(`/journal/${id}`, { method: 'DELETE' }),
 };
 
 // Decide
@@ -160,5 +162,4 @@ export const atlasOsApi = {
 export const automationsApi = {
   list: () => request('/automations'),
   registry: () => request('/automations/registry'),
-  run: (job) => request(`/automations/${job}/run`, { method: 'POST', body: {} }),
 };

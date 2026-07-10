@@ -127,10 +127,14 @@ def main() -> int:
     get_action_parser.add_argument("--action-id", required=True, help="Action id to fetch")
     get_action_parser.add_argument("--actor", default="claude", help="Actor name for the X-Atlas-Actor header.")
 
-    delete_action_parser = subparsers.add_parser("delete-action", help="Delete one action through the API")
-    delete_action_parser.add_argument("--action-id", required=True, help="Action id to delete")
-    delete_action_parser.add_argument("--actor", default="claude", help="Actor name for the X-Atlas-Actor header.")
-    delete_action_parser.add_argument("--require-owner", help="Require the current action owners to contain this member id before deleting.")
+    archive_action_parser = subparsers.add_parser("archive-action", help="Archive one action through the audited API")
+    archive_action_parser.add_argument("--action-id", required=True, help="Action id to archive")
+    archive_action_parser.add_argument("--actor", default="claude", help="Actor name for the X-Atlas-Actor header.")
+    archive_action_parser.add_argument("--require-owner", help="Require the current action owners to contain this principal before archiving.")
+
+    restore_action_parser = subparsers.add_parser("restore-action", help="Restore one archived action through the audited API")
+    restore_action_parser.add_argument("--action-id", required=True, help="Action id to restore")
+    restore_action_parser.add_argument("--actor", default="claude", help="Actor name for the X-Atlas-Actor header.")
 
     update_action_parser.add_argument("--require-owner", help="Require the current action owners to contain this member id before updating.")
     bulk_update_parser.add_argument("--require-owner", help="Require the current action owners to contain this member id before updating.")
@@ -171,10 +175,12 @@ def main() -> int:
         response = request_api("GET", path, actor=args.actor)
     elif args.command == "get-action":
         response = get_action(args.action_id, actor=args.actor)
-    elif args.command == "delete-action":
+    elif args.command == "archive-action":
         if args.require_owner:
             ensure_required_owner(args.action_id, args.require_owner, actor=args.actor)
-        response = request_api("DELETE", f"/actions/{args.action_id}", actor=args.actor)
+        response = request_api("POST", f"/actions/{args.action_id}/archive", payload or {}, args.actor)
+    elif args.command == "restore-action":
+        response = request_api("POST", f"/actions/{args.action_id}/restore", payload or {}, args.actor)
     else:
         raise RuntimeError(f"Unsupported command: {args.command}")
 

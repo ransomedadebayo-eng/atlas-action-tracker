@@ -36,7 +36,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
     status: NON_DONE_STATUSES,
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
   }
-  const { data: rawActions = [], isLoading } = useActions(queryFilters)
+  const { data: rawActions = [], isLoading, isError, error } = useActions(queryFilters)
   const actions = Array.isArray(rawActions) ? rawActions : []
 
   // Group actions by due_date
@@ -139,6 +139,14 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
     )
   }
 
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+        {error?.message || 'Calendar actions could not be loaded.'}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -152,6 +160,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
               className="btn-ghost p-1.5"
               onClick={goToPrev}
               title="Previous month"
+              aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -165,6 +174,7 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
               className="btn-ghost p-1.5"
               onClick={goToNext}
               title="Next month"
+              aria-label="Next month"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -265,12 +275,14 @@ export default function CalendarView({ selectedBusiness, onSelectAction, onOpenQ
                       </span>
                     )}
                     <button
+                      type="button"
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-bg-elevated hidden md:block"
                       onClick={(e) => {
                         e.stopPropagation()
                         onOpenQuickCapture(cell.dateStr)
                       }}
                       title="Add action"
+                      aria-label={`Add action due ${cell.dateStr}`}
                     >
                       <Plus className="w-3 h-3 text-text-muted hover:text-accent" />
                     </button>

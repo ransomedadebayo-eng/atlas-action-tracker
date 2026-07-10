@@ -19,7 +19,7 @@ export default function TranscriptHistory() {
     ...(search && search.length >= 2 ? { search } : {}),
   }
 
-  const { data: rawTranscripts = [], isLoading } = useTranscripts(queryParams)
+  const { data: rawTranscripts = [], isLoading, isError, error } = useTranscripts(queryParams)
   const transcripts = Array.isArray(rawTranscripts) ? rawTranscripts : []
 
   // Status counts for filter badges
@@ -51,6 +51,14 @@ export default function TranscriptHistory() {
     )
   }
 
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+        {error?.message || 'Transcript history could not be loaded.'}
+      </div>
+    )
+  }
+
   return (
     <div className="card overflow-hidden">
       {/* Header */}
@@ -69,6 +77,7 @@ export default function TranscriptHistory() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
           <input
             type="text"
+            aria-label="Search transcripts"
             className="input-field w-full pl-8 pr-3 py-1.5 text-sm"
             placeholder="Search transcripts..."
             value={search}
@@ -78,6 +87,7 @@ export default function TranscriptHistory() {
 
         {/* Status filter */}
         <select
+          aria-label="Filter transcripts by status"
           className="input-field text-xs py-1.5 px-2 bg-bg-surface"
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
@@ -90,6 +100,7 @@ export default function TranscriptHistory() {
 
         {/* Business filter */}
         <select
+          aria-label="Filter transcripts by business"
           className="input-field text-xs py-1.5 px-2 bg-bg-surface"
           value={businessFilter}
           onChange={e => setBusinessFilter(e.target.value)}
@@ -120,9 +131,12 @@ export default function TranscriptHistory() {
 
             return (
               <div key={transcript.id}>
-                <div
-                  className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-bg-elevated transition-colors group"
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-bg-elevated transition-colors group"
                   onClick={() => setExpandedId(isExpanded ? null : transcript.id)}
+                  aria-expanded={isExpanded}
+                  aria-controls={`transcript-${transcript.id}`}
                 >
                   {/* Status badge */}
                   <TranscriptStatusBadge status={transcript.status} />
@@ -176,11 +190,11 @@ export default function TranscriptHistory() {
                       isExpanded ? 'rotate-90' : ''
                     }`}
                   />
-                </div>
+                </button>
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div className="px-5 pb-4 pt-0 ml-12 sm:ml-14 space-y-3">
+                  <div id={`transcript-${transcript.id}`} className="px-5 pb-4 pt-0 ml-12 sm:ml-14 space-y-3">
                     {/* Summary */}
                     {transcript.summary && (
                       <div>

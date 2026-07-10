@@ -29,7 +29,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
     ...(hideDone ? { status: NON_DONE_STATUSES } : {}),
   }
-  const { data: rawActions = [], isLoading } = useActions(queryFilters)
+  const { data: rawActions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: rawMembers = [] } = useMembers()
   const actions = Array.isArray(rawActions) ? rawActions : []
   const members = Array.isArray(rawMembers) ? rawMembers : []
@@ -139,6 +139,8 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
     const actionId = e.dataTransfer.getData('text/plain')
     if (!actionId) return
 
+    if (groupBy === 'status' && ['done', 'cancelled', 'archived'].includes(columnId)) return
+
     if (groupBy === 'status') {
       updateAction.mutate({ id: actionId, status: columnId })
     } else if (groupBy === 'business') {
@@ -168,6 +170,14 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
             </div>
           ))}
         </div>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
+        {error?.message || 'Kanban actions could not be loaded.'}
       </div>
     )
   }
@@ -224,7 +234,9 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       <div className="flex gap-3 md:gap-4 flex-1 overflow-x-auto pb-2 min-h-0 snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0">
         {columns.map(column => {
           const isDragOver = dragState.overColumn === column.id && dragState.actionId
-          const canDrop = groupBy === 'status' || groupBy === 'business' || groupBy === 'work_mode'
+          const canDrop = (groupBy === 'status' && !['done', 'cancelled', 'archived'].includes(column.id))
+            || groupBy === 'business'
+            || groupBy === 'work_mode'
 
           return (
             <div
@@ -272,14 +284,23 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                     return (
                       <div
                         key={action.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Open action: ${action.title}`}
                         className={`glass-card p-4 cursor-pointer hover:border-white/10 transition-all group ${
                           isDragging ? 'opacity-40' : ''
                         } ${normalizedStatus === 'done' ? 'opacity-50' : ''}`}
                         style={overdue ? { borderLeftColor: '#ef444460', borderLeftWidth: 2 } : {}}
-                        draggable
+                        draggable={!['done', 'cancelled', 'archived'].includes(normalizedStatus)}
                         onDragStart={(e) => handleDragStart(e, action.id)}
                         onDragEnd={handleDragEnd}
                         onClick={() => onSelectAction(action.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            onSelectAction(action.id)
+                          }
+                        }}
                       >
                         {/* Top row: priority + grip */}
                         <div className="flex items-center justify-between mb-2">

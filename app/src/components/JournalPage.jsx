@@ -1,9 +1,8 @@
 import React, { useMemo, useState } from 'react'
-import { Archive, BookOpenText, CheckCircle2, Plus, Send, Trash2 } from 'lucide-react'
+import { Archive, BookOpenText, CheckCircle2, Plus, Send } from 'lucide-react'
 import {
   useArchiveJournalEntry,
   useCreateJournalEntry,
-  useDeleteJournalEntry,
   useJournalEntries,
   usePromoteJournalEntry,
   useUpdateJournalEntry,
@@ -36,7 +35,6 @@ function tagsFromInput(value) {
 function EntryCard({ entry, businesses }) {
   const updateEntry = useUpdateJournalEntry()
   const archiveEntry = useArchiveJournalEntry()
-  const deleteEntry = useDeleteJournalEntry()
   const promoteEntry = usePromoteJournalEntry()
   const [promoteOpen, setPromoteOpen] = useState(false)
   const [title, setTitle] = useState(entry.title || '')
@@ -54,10 +52,6 @@ function EntryCard({ entry, businesses }) {
 
   function archive() {
     archiveEntry.mutate(entry.id)
-  }
-
-  function remove() {
-    if (window.confirm('Delete this journal entry?')) deleteEntry.mutate(entry.id)
   }
 
   function promote(e) {
@@ -117,10 +111,6 @@ function EntryCard({ entry, businesses }) {
               Archive
             </button>
           )}
-          <button className="btn-ghost flex items-center gap-1.5 py-2 text-red-400" onClick={remove}>
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </button>
         </div>
       </div>
 

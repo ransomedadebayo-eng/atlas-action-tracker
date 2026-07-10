@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Flame, Clock, Play, ArrowRight, AlertTriangle, CheckCircle2, Trash2, SlidersHorizontal, X, Bot } from 'lucide-react'
-import { useActions, useUpdateAction, useDeleteAction } from '../hooks/useActions.js'
+import { Flame, Clock, Play, ArrowRight, AlertTriangle, SlidersHorizontal, X, Bot } from 'lucide-react'
+import { useActions } from '../hooks/useActions.js'
 import { useMembers } from '../hooks/useMembers.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { PriorityBadge, StatusBadge, WorkModeBadge } from './StatusBadge.jsx'
@@ -8,7 +8,6 @@ import OwnerAvatars from './OwnerAvatars.jsx'
 import { formatRelativeDate, isOverdue, isToday } from '../utils/dateUtils.js'
 import { PRIORITY_COLORS } from '../utils/colors.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
-import { completionEvidenceForAction } from '../utils/evidenceUtils.js'
 import TodayFocusBanner from './TodayFocusBanner.jsx'
 import { PRIORITIES, STATUSES, WORK_MODES, canonicalStatus } from '../utils/constants.js'
 
@@ -55,7 +54,7 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function ActionCard({ action, onSelect, businessColors, members, onToggleDone, onDelete }) {
+function ActionCard({ action, onSelect, businessColors, members }) {
   const owners = parseJsonArray(action.owners)
   const done = action.status === 'done'
   const overdue = isOverdue(action.due_date) && !done
@@ -91,22 +90,6 @@ function ActionCard({ action, onSelect, businessColors, members, onToggleDone, o
             >
               {formatRelativeDate(action.due_date)}
             </span>
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleDone?.(action) }}
-              className="p-1 text-text-muted hover:text-accent transition-colors"
-              aria-label={done ? 'Mark not started' : 'Mark done'}
-              title={done ? 'Mark not started' : 'Mark done'}
-            >
-              <CheckCircle2 className="w-4 h-4" style={{ color: done ? '#10b981' : undefined }} />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete?.(action) }}
-              className="p-1 -mr-1 text-text-muted hover:text-danger transition-colors"
-              aria-label="Delete action"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
           </div>
 
           <p className={`text-sm font-medium leading-snug truncate ${done ? 'line-through text-text-muted' : 'text-text-primary group-hover:text-text-primary'}`}>
@@ -375,8 +358,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
   }
   const { data: actions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: members = [] } = useMembers()
-  const updateAction = useUpdateAction()
-  const deleteAction = useDeleteAction()
 
   useEffect(() => {
     if (!selectedBusiness || !filters.business) return
@@ -385,28 +366,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
       return rest
     })
   }, [filters.business, selectedBusiness])
-
-  const toggleDone = (action) => {
-    const nextStatus = action.status === 'done' ? 'not_started' : 'done'
-    const payload = {
-      id: action.id,
-      status: nextStatus,
-    }
-
-    if (nextStatus === 'done') {
-      const evidence = completionEvidenceForAction(action, 'atlas_today')
-      if (!evidence) return
-      payload.evidence_json = evidence
-    }
-
-    updateAction.mutate(payload)
-  }
-
-  const handleDelete = (action) => {
-    if (window.confirm(`Delete "${action.title}"? This cannot be undone.`)) {
-      deleteAction.mutate(action.id)
-    }
-  }
 
   const hasFilters = Boolean(
     filters.business
@@ -627,8 +586,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
-            onToggleDone={toggleDone}
-            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -648,8 +605,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
-            onToggleDone={toggleDone}
-            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -668,8 +623,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
-            onToggleDone={toggleDone}
-            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -688,8 +641,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
-            onToggleDone={toggleDone}
-            onDelete={handleDelete}
           />
         ))}
       </Section>
@@ -708,8 +659,6 @@ export default function TodayDashboard({ selectedBusiness, onSelectAction, froze
             onSelect={onSelectAction}
             businessColors={BUSINESS_COLORS}
             members={members}
-            onToggleDone={toggleDone}
-            onDelete={handleDelete}
           />
         ))}
       </Section>

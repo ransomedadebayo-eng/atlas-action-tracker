@@ -26,11 +26,29 @@ jobs:
 
       - name: Build frontend
         working-directory: app
-        run: npx vite build
+        run: npm run build
+
+      - name: Test frontend
+        working-directory: app
+        run: npm test
 
       - name: Install worker dependencies
         working-directory: worker
         run: npm ci
+
+      - name: Typecheck worker
+        working-directory: worker
+        run: npm run typecheck
+
+      - name: Test worker
+        working-directory: worker
+        run: npm test
+
+      - name: Validate owner-only architecture contract
+        run: npm run contract
+
+      - name: Audit production dependencies
+        run: npm audit --prefix app --omit=dev --audit-level=high && npm audit --prefix worker --omit=dev --audit-level=high
 
       - name: Deploy to Cloudflare
         working-directory: worker

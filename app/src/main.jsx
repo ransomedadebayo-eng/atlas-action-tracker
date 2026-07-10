@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { BusinessesProvider } from './hooks/useBusinesses.js'
 import { ThemeProvider } from './hooks/useTheme.js'
 import './index.css'
@@ -11,20 +12,22 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   },
 })
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <BusinessesProvider>
-          <App />
-        </BusinessesProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <BusinessesProvider>
+            <App />
+          </BusinessesProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 )

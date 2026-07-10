@@ -1,10 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { transcriptsApi } from '../api/client.js';
 
+function transcriptItems(data) {
+  return Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+}
+
 export function useTranscripts(params = {}) {
   return useQuery({
     queryKey: ['transcripts', params],
     queryFn: () => transcriptsApi.list(params),
+    select: transcriptItems,
     staleTime: 30000,
   });
 }

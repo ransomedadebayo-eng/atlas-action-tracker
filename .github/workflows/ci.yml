@@ -1,0 +1,38 @@
+name: Atlas quality gate
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            app/package-lock.json
+            worker/package-lock.json
+      - name: Install frontend
+        run: npm ci --prefix app
+      - name: Install Worker
+        run: npm ci --prefix worker
+      - name: Build frontend
+        run: npm run build --prefix app
+      - name: Test frontend
+        run: npm test --prefix app
+      - name: Validate owner-only architecture contract
+        run: npm run contract
+      - name: Typecheck Worker
+        run: npm run typecheck --prefix worker
+      - name: Test Worker
+        run: npm test --prefix worker
+      - name: Audit production dependencies
+        run: npm audit --prefix app --omit=dev --audit-level=high && npm audit --prefix worker --omit=dev --audit-level=high

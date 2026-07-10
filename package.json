@@ -1,0 +1,13 @@
+{
+  "name": "atlas-action-tracker-workspace",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix app install && npm --prefix worker install",
+    "build": "npm --prefix app run build",
+    "typecheck": "npm --prefix worker run typecheck",
+    "test": "npm --prefix app test && npm --prefix worker test",
+    "contract": "node scripts/validate-overhaul-contract.mjs",
+    "check": "npm run contract && npm run build && npm run typecheck && npm test",
+    "audit": "npm --prefix app audit --audit-level=high && npm --prefix worker audit --audit-level=high"
+  }
+}

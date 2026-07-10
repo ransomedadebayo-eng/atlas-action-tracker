@@ -6,12 +6,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    test: {
+      globals: true,
+      clearMocks: true,
+    },
     server: {
       port: 5173,
       allowedHosts: ['atlas.ransomed.app'],
       proxy: {
         '/api': {
-          target: 'http://localhost:3001',
+          target: env.ATLAS_WORKER_DEV_URL || 'http://localhost:3001',
           changeOrigin: true,
           headers: {
             Authorization: `Bearer ${env.ATLAS_API_TOKEN || ''}`,
