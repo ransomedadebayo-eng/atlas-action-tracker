@@ -256,66 +256,74 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               const actionHasEvidence = hasEvidence(action.evidence_json)
 
               return (
-                <div
+                <article
                   key={action.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Open action: ${action.title}`}
-                  className={`flex items-center gap-2 px-5 py-3 cursor-pointer transition-colors hover:bg-white/[0.02] group ${
+                  className={`flex items-stretch transition-colors hover:bg-white/[0.02] group ${
                     done ? 'opacity-50' : ''
                   }`}
                   style={overdue ? { borderLeft: '2px solid #ef444460' } : {}}
-                  onClick={() => onSelectAction(action.id)}
-                  onKeyDown={event => handleRowKeyDown(event, action.id)}
                 >
-                  <div className="w-20 flex-shrink-0">
-                    <PriorityBadge priority={action.priority} />
-                  </div>
-                  <div className="w-28 flex-shrink-0">
-                    <StatusBadge status={action.status} />
-                  </div>
-                  <div className="min-w-[200px] flex-1">
-                    <span className={`text-sm font-medium truncate block ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
-                      {action.title}
-                    </span>
-                    {action.next_action && (
-                      <span className="mt-0.5 block max-w-full truncate text-[10px] text-text-muted" title={action.next_action}>
-                        {action.next_action}
+                  <button
+                    type="button"
+                    aria-label={`Open action: ${action.title}`}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-5 py-3 text-left"
+                    onClick={() => onSelectAction(action.id)}
+                  >
+                    <div className="w-20 flex-shrink-0">
+                      <PriorityBadge priority={action.priority} />
+                    </div>
+                    <div className="w-28 flex-shrink-0">
+                      <StatusBadge status={action.status} />
+                    </div>
+                    <div className="min-w-[200px] flex-1">
+                      <span className={`text-sm font-medium truncate block ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
+                        {action.title}
                       </span>
-                    )}
-                    {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || actionHasEvidence || action.review_date || (action.approval_state && action.approval_state !== 'not_required')) && (
-                      <div className="mt-0.5 flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden">
-                        {action.recurrence && action.recurrence !== 'none' && (
-                          <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
-                        )}
-                        {action.review_date && (
-                          <span className="text-[10px] text-text-muted">review {formatRelativeDate(action.review_date)}</span>
-                        )}
-                        {action.approval_state && action.approval_state !== 'not_required' && (
-                          <span className="text-[10px] text-text-muted">{action.approval_state.replace(/_/g, ' ')}</span>
-                        )}
-                        {actionHasEvidence && (
-                          <span className="text-[10px] text-accent">evidence</span>
-                        )}
-                        {tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="text-[10px] text-text-muted">#{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="w-28 flex-shrink-0">
-                    <BusinessBadge business={action.business} />
-                  </div>
-                  <div className="w-24 flex-shrink-0">
-                    <WorkModeBadge workMode={action.work_mode} />
-                  </div>
-                  <div className="w-20 flex-shrink-0">
-                    <OwnerAvatars owners={owners} members={members} />
-                  </div>
-                  <div className={`w-20 flex-shrink-0 text-xs font-mono ${overdue ? 'text-red-400 font-semibold' : 'text-text-secondary'}`}>
-                    {action.due_date ? formatRelativeDate(action.due_date) : '\u2014'}
-                  </div>
-                </div>
+                      {action.next_action && (
+                        <span className="mt-0.5 block max-w-full truncate text-[10px] text-text-muted" title={action.next_action}>
+                          {action.next_action}
+                        </span>
+                      )}
+                      {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || actionHasEvidence || action.review_date || (action.approval_state && action.approval_state !== 'not_required')) && (
+                        <div className="mt-0.5 flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden">
+                          {action.recurrence && action.recurrence !== 'none' && (
+                            <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
+                          )}
+                          {action.review_date && (
+                            <span className="text-[10px] text-text-muted">review {formatRelativeDate(action.review_date)}</span>
+                          )}
+                          {action.approval_state && action.approval_state !== 'not_required' && (
+                            <span className="text-[10px] text-text-muted">{action.approval_state.replace(/_/g, ' ')}</span>
+                          )}
+                          {actionHasEvidence && (
+                            <span className="text-[10px] text-accent">evidence</span>
+                          )}
+                          {tags.slice(0, 3).map(tag => (
+                            <span key={tag} className="text-[10px] text-text-muted">#{tag}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="w-28 flex-shrink-0">
+                      <BusinessBadge business={action.business} />
+                    </div>
+                    <div className="w-24 flex-shrink-0">
+                      <WorkModeBadge workMode={action.work_mode} />
+                    </div>
+                    <div className="w-20 flex-shrink-0">
+                      <OwnerAvatars owners={owners} members={members} />
+                    </div>
+                    <div className={`w-20 flex-shrink-0 text-xs font-mono ${overdue ? 'text-red-400 font-semibold' : 'text-text-secondary'}`}>
+                      {action.due_date ? formatRelativeDate(action.due_date) : '\u2014'}
+                    </div>
+                  </button>
+                  {!done && (
+                    <ActionCardControls
+                      action={action}
+                      className="w-52 flex-shrink-0 border-l border-white/10 px-3 py-2.5"
+                    />
+                  )}
+                </article>
               )
             })}
           </div>

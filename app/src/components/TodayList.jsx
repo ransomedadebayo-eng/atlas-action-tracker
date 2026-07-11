@@ -67,7 +67,7 @@ function TodayTask({ item, members, onSelectAction }) {
       </div>
       <ActionCardControls
         action={action}
-        className="mt-3 border-t border-white/10 pt-3 md:hidden"
+        className="mt-3 border-t border-white/10 pt-3"
       />
     </div>
   );
