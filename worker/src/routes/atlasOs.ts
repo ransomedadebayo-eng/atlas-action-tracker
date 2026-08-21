@@ -6,7 +6,7 @@ const router = new Hono<{ Bindings: Env }>();
 router.get('/review', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const [actionsResult, reportsResult, signalsResult] = await Promise.all([
+    const [actionsResult, reportsResult, signalsResult, weeklyResult] = await Promise.all([
       supabase
         .from('atlas_actions')
         .select('id,title,description,status,business,priority,due_date,review_date,owners,work_mode,approval_state,next_action,updated_at')
@@ -27,14 +27,21 @@ router.get('/review', async (c) => {
         .eq('status', 'open')
         .order('created_at', { ascending: false })
         .limit(25),
+      supabase
+        .from('atlas_weekly_plan_revisions')
+        .select('id,week_start,version,status,title,summary,revision,updated_at')
+        .eq('status', 'review_requested')
+        .order('week_start', { ascending: true }),
     ]);
     if (actionsResult.error) throw actionsResult.error;
     if (reportsResult.error) throw reportsResult.error;
     if (signalsResult.error) throw signalsResult.error;
+    if (weeklyResult.error) throw weeklyResult.error;
     return c.json({
       actions: actionsResult.data || [],
       reports: reportsResult.data || [],
       signals: signalsResult.data || [],
+      weeklyPlans: weeklyResult.data || [],
     });
   } catch (error) {
     console.error(`[atlas-os/review] error: ${(error as Error).message}`);

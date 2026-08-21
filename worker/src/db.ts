@@ -12,6 +12,11 @@ export interface Env {
   CF_ACCESS_ISSUER?: string;
   CF_ACCESS_JWKS_URL?: string;
   NODE_ENV?: string;
+  /** External outbox draining remains off unless explicitly enabled. */
+  ATLAS_DELIVERY_ENABLED?: string;
+  DOCUMENT_ROOM?: DurableObjectNamespace;
+  /** Additional ATLAS_INTEGRATION_SECRET_* bindings are read by exact DB secret_ref. */
+  [key: string]: unknown;
 }
 
 export function getDb(env: Env): SupabaseClient {

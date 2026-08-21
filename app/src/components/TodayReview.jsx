@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Bot, CheckCircle2, ClipboardCheck, Info } from 'lucide-react';
 import { useTodayPlan } from '../hooks/useTodayPlan.js';
 import { useActions } from '../hooks/useActions.js';
@@ -8,6 +9,7 @@ import OwnerAvatars from './OwnerAvatars.jsx';
 import { formatRelativeDate, getISODate } from '../utils/dateUtils.js';
 import { parseJsonArray } from '../utils/parseUtils.js';
 import { normalizeMemberRefs } from '../utils/memberUtils.js';
+import { weeksApi } from '../api/client.js';
 
 const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open';
 
@@ -39,7 +41,7 @@ function ActionRow({ action, members, onSelectAction }) {
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityBadge priority={action.priority} />
-          <StatusBadge status={action.status} />
+          <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
           <BusinessBadge business={action.business} />
           <WorkModeBadge workMode={action.work_mode} />
         </div>
@@ -81,7 +83,7 @@ function ReviewSection({ icon: Icon, title, count, empty, children }) {
   );
 }
 
-export default function TodayReview({ selectedBusiness, onSelectAction, searchQuery = '' }) {
+export default function TodayReview({ selectedBusiness, onSelectAction, onOpenWeek, searchQuery = '' }) {
   const today = todayDateString();
   const todayQuery = useTodayPlan(today);
   const membersQuery = useMembers();
@@ -104,15 +106,21 @@ export default function TodayReview({ selectedBusiness, onSelectAction, searchQu
     status: 'blocked',
     ...(selectedBusiness ? { business: selectedBusiness } : {}),
   });
+  const weeklyReviewQuery = useQuery({
+    queryKey: ['weekReview'],
+    queryFn: () => weeksApi.review(),
+    staleTime: 30000,
+  });
 
   const todayData = todayQuery.data;
   const rawMembers = membersQuery.data || [];
   const rawReviewActions = reviewQuery.data || [];
   const rawAssistantActions = [...(codexQuery.data || []), ...(claudeQuery.data || [])];
   const rawBlockedActions = blockedQuery.data || [];
+  const weeklyPlans = Array.isArray(weeklyReviewQuery.data?.weeks) ? weeklyReviewQuery.data.weeks : [];
   const members = Array.isArray(rawMembers) ? rawMembers : [];
 
-  const queries = [todayQuery, membersQuery, reviewQuery, codexQuery, claudeQuery, blockedQuery];
+  const queries = [todayQuery, membersQuery, reviewQuery, codexQuery, claudeQuery, blockedQuery, weeklyReviewQuery];
   const failedQuery = queries.find(query => query.isError);
 
   const completedToday = useMemo(() => {
@@ -174,6 +182,28 @@ export default function TodayReview({ selectedBusiness, onSelectAction, searchQu
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
+        <ReviewSection
+          icon={ClipboardCheck}
+          title="Weekly plans to publish"
+          count={weeklyPlans.length}
+          empty="No weekly plans are waiting for publication."
+        >
+          {weeklyPlans.map((plan) => (
+            <button
+              type="button"
+              key={plan.id}
+              className="flex w-full items-start gap-3 rounded-lg border border-border bg-bg-surface px-3 py-3 text-left hover:border-border-hover"
+              onClick={() => onOpenWeek?.(plan.week_start)}
+            >
+              <ClipboardCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-text-primary">{plan.title || `Week of ${plan.week_start}`}</span>
+                <span className="mt-1 block text-xs text-text-muted">{plan.week_start} · review requested · v{plan.version}</span>
+              </span>
+            </button>
+          ))}
+        </ReviewSection>
+
         <ReviewSection
           icon={CheckCircle2}
           title="Completed from Today"

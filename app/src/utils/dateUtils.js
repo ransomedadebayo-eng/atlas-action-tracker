@@ -67,3 +67,21 @@ export function formatTimestamp(ts) {
   });
 }
 export const ATLAS_TIME_ZONE = 'America/Los_Angeles';
+
+export function getPacificWeekStart(date = new Date()) {
+  const iso = getISODate(date);
+  const parsed = new Date(`${iso}T12:00:00Z`);
+  const day = parsed.getUTCDay() || 7;
+  parsed.setUTCDate(parsed.getUTCDate() - day + 1);
+  return parsed.toISOString().slice(0, 10);
+}
+
+export function addISODate(dateStr, days) {
+  const date = new Date(`${dateStr}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function getPacificWeekDates(weekStart) {
+  return Array.from({ length: 7 }, (_, index) => addISODate(weekStart, index));
+}

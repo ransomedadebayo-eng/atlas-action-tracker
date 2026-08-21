@@ -231,7 +231,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
                 aria-label={`Open action: ${action.title}`}
               >
                 <PriorityBadge priority={action.priority} />
-                <StatusBadge status={action.status} />
+                <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
                 <span className={`flex-1 text-sm font-medium min-w-0 truncate ${
                   done ? 'line-through text-text-muted' : 'text-text-primary'
                 }`}>

@@ -5,6 +5,9 @@ import { useTheme } from '../hooks/useTheme.js'
 
 const VIEW_TITLES = {
   today: 'Today',
+  week: 'Week',
+  projects: 'Projects',
+  cycles: 'Cycles',
   dashboard: 'All Tasks',
   kanban: 'Kanban Board',
   review: 'Review',
@@ -25,12 +28,15 @@ export default function TopBar({
   onViewTranscripts,
   onToggleSidebar,
   menuButtonRef,
+  crossBusiness = false,
+  hideSearch = false,
 }) {
   const { BUSINESSES, BUSINESS_COLORS } = useBusinessContext()
   const { theme, toggleTheme } = useTheme()
   const searchRef = useRef(null)
   const businessInfo = selectedBusiness ? BUSINESSES[selectedBusiness] : null
   const businessColor = selectedBusiness ? BUSINESS_COLORS[selectedBusiness] : null
+  const searchLabel = currentView === 'projects' ? 'Search projects' : 'Search actions'
 
   function handleSearchChange(e) {
     setSearchQuery(e.target.value)
@@ -55,7 +61,7 @@ export default function TopBar({
         <h1 className="text-text-primary font-headline font-semibold text-sm md:text-base whitespace-nowrap">
           {VIEW_TITLES[currentView] || 'ATLAS'}
         </h1>
-        {businessInfo && (
+        {businessInfo && !crossBusiness && (
           <span
             className="text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full whitespace-nowrap hidden sm:inline-flex"
             style={{
@@ -70,16 +76,16 @@ export default function TopBar({
       </div>
 
       {/* Center: search */}
-      <div className="flex-1 max-w-md mx-auto relative">
+      <div className={`flex-1 max-w-md mx-auto relative${hideSearch ? ' invisible pointer-events-none' : ''}`}>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
         <input
           ref={searchRef}
           type="text"
           className="input-field w-full pl-9 pr-8 text-sm"
-          placeholder="Search actions..."
+          placeholder={`${searchLabel}...`}
           value={searchQuery}
           onChange={handleSearchChange}
-          aria-label="Search actions"
+          aria-label={searchLabel}
         />
         {searchQuery && (
           <button

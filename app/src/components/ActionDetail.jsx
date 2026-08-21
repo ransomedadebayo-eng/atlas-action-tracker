@@ -16,6 +16,11 @@ import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
 import { normalizeMemberRefs } from '../utils/memberUtils.js'
 import { evidenceFromText } from '../utils/evidenceUtils.js'
 import { WorkModeBadge } from './StatusBadge.jsx'
+import ActionStructureSection from './ActionStructureSection.jsx'
+import DiscussionThread from './LazyDiscussionThread.jsx'
+import { useEstimateSettings } from '../hooks/useEstimateSettings.js'
+import ActionCycleControl from './ActionCycleControl.jsx'
+import { useWorkflow } from '../hooks/useWorkflows.js'
 
 function evidencePresentation(value) {
   const evidence = parseJsonObject(value)
@@ -54,7 +59,7 @@ function Select({ label, value, onChange, options }) {
   )
 }
 
-export default function ActionDetail({ actionId, onClose }) {
+export default function ActionDetail({ actionId, onClose, onSelectAction = () => {} }) {
   const { BUSINESSES, BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
   const { data: action, isLoading, isError, error } = useAction(actionId)
   const { data: members = [] } = useMembers()
@@ -63,6 +68,8 @@ export default function ActionDetail({ actionId, onClose }) {
   const restoreAction = useRestoreAction()
   const completeAction = useCompleteAction()
   const createAgentAssignment = useCreateAgentAssignment()
+  const { data: estimateSettings } = useEstimateSettings()
+  const { data: workflowData } = useWorkflow(action?.business)
 
   const { data: activityLog = [] } = useQuery({
     queryKey: ['activity', actionId],
@@ -89,6 +96,7 @@ export default function ActionDetail({ actionId, onClose }) {
         title: action.title || '',
         description: action.description || '',
         status: action.status === 'archived' ? 'archived' : (canonicalStatus(action.status) || 'not_started'),
+        workflow_status_id: action.workflow_status_id || '',
         priority: action.priority || 'p2',
         business: action.business || '',
         due_date: action.due_date || '',
@@ -104,6 +112,7 @@ export default function ActionDetail({ actionId, onClose }) {
         approval_state: action.approval_state || 'not_required',
         agent_assignment_id: action.agent_assignment_id || '',
         evidence_text: formatEvidence(action.evidence_json),
+        estimate_points: action.estimate_points ?? '',
       })
     }
   }, [action, dirty])
@@ -122,6 +131,7 @@ export default function ActionDetail({ actionId, onClose }) {
     if (payload.review_date === '') payload.review_date = null
     if (payload.agent_assignment_id === '') payload.agent_assignment_id = null
     if (!payload.approval_state) payload.approval_state = 'not_required'
+    payload.estimate_points = payload.estimate_points === '' ? null : Number(payload.estimate_points)
 
     try {
       payload.evidence_json = evidenceFromText(payload.evidence_text || '', 'atlas_action_detail')
@@ -240,6 +250,12 @@ export default function ActionDetail({ actionId, onClose }) {
     if (!dirty || window.confirm('Discard your unsaved changes?')) onClose()
   }
 
+  function selectStructuredAction(nextActionId) {
+    if (dirty && !window.confirm('Discard unsaved changes and open the related action?')) return
+    setDirty(false)
+    onSelectAction(nextActionId)
+  }
+
   function handleTagAdd(e) {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault()
@@ -304,7 +320,6 @@ export default function ActionDetail({ actionId, onClose }) {
         <div className="flex-1 hidden md:block" />
         <div
           className="w-full md:w-[520px] h-full border-l border-white/10 flex flex-col pointer-events-auto glass-panel"
-          style={{ background: '#131313' }}
         >
           <div className="p-6 animate-pulse space-y-4">
             <div className="h-6 bg-bg-elevated rounded w-3/4" />
@@ -320,11 +335,14 @@ export default function ActionDetail({ actionId, onClose }) {
   const businessColor = BUSINESS_COLORS[form.business]
   const existingEvidence = evidencePresentation(action.evidence_json)
   const isArchived = action.status === 'archived'
-  const statusOptions = STATUS_LIST
-    .filter(option => !['done', 'cancelled', 'unknown'].includes(option.id))
-    .concat(!['not_started', 'in_progress', 'waiting', 'blocked'].includes(form.status)
-      ? [{ id: form.status, label: form.status.replace(/_/g, ' '), disabled: true }]
-      : [])
+  const configuredStatuses = workflowData?.workflow?.statuses || []
+  const statusOptions = configuredStatuses.length
+    ? configuredStatuses
+      .filter(option => ['triage', 'backlog', 'unstarted', 'started'].includes(option.category) || option.id === form.workflow_status_id)
+      .map(option => ({ id: option.id, label: option.name, disabled: ['completed', 'canceled', 'duplicate'].includes(option.category) }))
+    : STATUS_LIST
+      .filter(option => !['done', 'cancelled', 'unknown'].includes(option.id))
+      .map(option => ({ ...option }))
 
   return (
     <div
@@ -340,12 +358,14 @@ export default function ActionDetail({ actionId, onClose }) {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="w-full md:w-[520px] h-full border-l border-white/10 flex flex-col overflow-hidden"
-        style={{ background: '#131313' }}
+        className="w-full md:w-[520px] h-full border-l border-white/10 flex flex-col overflow-hidden bg-bg-surface"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-2">
+            {action.identifier && (
+              <span className="font-mono text-[10px] text-text-muted">{action.identifier}</span>
+            )}
             {form.priority && (
               <span
                 className="badge"
@@ -363,6 +383,7 @@ export default function ActionDetail({ actionId, onClose }) {
               </span>
             )}
             <WorkModeBadge workMode={form.work_mode} />
+            {action.template_id && <span className="badge border-accent/30 text-accent" title={action.template_instance_id || action.template_id}>Template</span>}
           </div>
           <div className="flex items-center gap-2">
             {saveError && (
@@ -433,8 +454,8 @@ export default function ActionDetail({ actionId, onClose }) {
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Status"
-              value={form.status}
-              onChange={val => patch('status', val)}
+              value={configuredStatuses.length ? form.workflow_status_id : form.status}
+              onChange={val => configuredStatuses.length ? patch('workflow_status_id', val) : patch('status', val)}
               options={statusOptions}
             />
             <Select
@@ -444,6 +465,17 @@ export default function ActionDetail({ actionId, onClose }) {
               options={PRIORITY_LIST.map(p => ({ id: p.id, label: p.label }))}
             />
           </div>
+
+          {estimateSettings?.enabled && (
+            <Select
+              label="Estimate"
+              value={form.estimate_points === '' ? '' : String(form.estimate_points)}
+              onChange={val => patch('estimate_points', val === '' ? '' : Number(val))}
+              options={(estimateSettings.options || []).map(option => ({ id: String(option.value), label: option.label }))}
+            />
+          )}
+
+          <ActionCycleControl action={action} isArchived={isArchived} />
 
           {/* Business + Due date */}
           <div className="grid grid-cols-2 gap-3">
@@ -490,6 +522,8 @@ export default function ActionDetail({ actionId, onClose }) {
             </div>
           </div>
 
+          <ActionStructureSection action={action} isArchived={isArchived} onSelectAction={selectStructuredAction} />
+
           {/* Protocol contract */}
           <div className="pt-4 border-t border-white/10 space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -519,7 +553,7 @@ export default function ActionDetail({ actionId, onClose }) {
                 <button
                   className="btn-primary flex items-center gap-1.5 text-xs py-1.5"
                   onClick={handleComplete}
-                  disabled={saving || isArchived || dirty}
+                  disabled={saving || isArchived || dirty || action.resolution === 'duplicate'}
                   title={dirty ? 'Save or discard changes before completing' : 'Mark done with the completion note entered below'}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -625,23 +659,6 @@ export default function ActionDetail({ actionId, onClose }) {
             </details>
           </div>
 
-          {/* Dependencies */}
-          {action?.blocked_by && action.blocked_by.length > 0 && (
-            <div>
-              <label className="label block mb-1.5">
-                Blocked By
-              </label>
-              <div className="space-y-1.5">
-                {action.blocked_by.map(depId => (
-                  <div key={depId} className="glass-card rounded-xl px-3 py-2 text-sm flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
-                    <span className="text-text-secondary font-mono text-xs truncate">{depId}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Owners */}
           <div>
             <label className="label block mb-1.5">
@@ -737,6 +754,13 @@ export default function ActionDetail({ actionId, onClose }) {
             </div>
           )}
 
+          {(action.releases || []).length > 0 && (
+            <div>
+              <p className="label mb-2">Delivery</p>
+              <div className="space-y-2">{action.releases.map(item => <div key={item.id} className="rounded-lg border border-border bg-bg-elevated p-3"><p className="text-sm font-semibold text-text-primary">{item.release?.name || 'Release'}{item.release?.version ? ` · ${item.release.version}` : ''}</p><p className="mt-1 text-xs text-text-muted">{item.pipeline?.name || 'Pipeline'} · {item.stage?.environment || item.stage?.name || 'Unstaged'} · {item.release?.status || 'unknown'}</p>{item.release?.commit_sha && <p className="mt-1 truncate font-mono text-[10px] text-text-muted">{item.release.commit_sha}</p>}</div>)}</div>
+            </div>
+          )}
+
           {/* Metadata */}
           <div className="pt-2 border-t border-white/10 space-y-1">
             {action?.created_at && (
@@ -775,6 +799,8 @@ export default function ActionDetail({ actionId, onClose }) {
               </div>
             </div>
           )}
+
+          <DiscussionThread targetType="action" targetId={action.id} compact />
         </div>
 
       </div>

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
   Sun,
+  CalendarRange,
   ClipboardCheck,
   ListChecks,
   BookOpenText,
@@ -10,17 +11,36 @@ import {
   Users,
   FileText,
   Workflow,
+  FolderKanban,
+  Repeat2,
+  Target,
+  LayoutTemplate,
+  Files,
+  Rocket,
+  BarChart3,
   Command,
   Zap,
   X,
   EyeOff,
   Eye,
+  GitBranch,
+  Bell,
 } from 'lucide-react'
 import TopBar from './TopBar.jsx'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 
 const NAV_LINKS = [
   { id: 'today', label: 'Today', Icon: Sun },
+  { id: 'week', label: 'Week', Icon: CalendarRange },
+  { id: 'projects', label: 'Projects', Icon: FolderKanban },
+  { id: 'initiatives', label: 'Initiatives', Icon: Target },
+  { id: 'templates', label: 'Templates', Icon: LayoutTemplate },
+  { id: 'documents', label: 'Documents', Icon: Files },
+  { id: 'releases', label: 'Releases', Icon: Rocket },
+  { id: 'insights', label: 'Insights', Icon: BarChart3 },
+  { id: 'workflows', label: 'Workflows', Icon: GitBranch },
+  { id: 'notifications', label: 'Notifications', Icon: Bell },
+  { id: 'cycles', label: 'Cycles', Icon: Repeat2 },
   { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
   { id: 'kanban', label: 'Kanban', Icon: Columns },
   { id: 'review', label: 'Review', Icon: ClipboardCheck },
@@ -46,6 +66,7 @@ export default function Layout({
   toggleFreezeBusiness,
   showFrozen,
   setShowFrozen,
+  onNavigateWeek,
   children,
 }) {
   const { BUSINESS_LIST, BUSINESS_COLORS } = useBusinessContext()
@@ -230,6 +251,8 @@ export default function Layout({
           onViewTranscripts={() => setCurrentView('transcripts')}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
           menuButtonRef={menuButtonRef}
+          crossBusiness={currentView === 'week'}
+          hideSearch={currentView === 'week' || currentView === 'cycles'}
         />
         <main id="main-content" className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 bg-bg-primary">
           {children}
@@ -242,7 +265,7 @@ export default function Layout({
         className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-white/10 flex items-center justify-around glass-panel h-14"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {NAV_LINKS.slice(0, 4).map(({ id, label, Icon }) => (
+        {NAV_LINKS.filter(({ id }) => ['today', 'dashboard', 'kanban', 'review'].includes(id)).map(({ id, label, Icon }) => (
           <button
             key={id}
             className={`flex flex-col items-center gap-0.5 px-3 py-1.5 min-w-[60px] transition-colors ${

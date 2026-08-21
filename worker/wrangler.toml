@@ -13,7 +13,15 @@ routes = [
 directory = "../app/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/hooks/*"]
+
+[[durable_objects.bindings]]
+name = "DOCUMENT_ROOM"
+class_name = "DocumentRoom"
+
+[[migrations]]
+tag = "document-room-v1"
+new_sqlite_classes = ["DocumentRoom"]
 
 [vars]
 NODE_ENV = "production"
