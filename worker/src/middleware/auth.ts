@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { Env } from '../db';
+import { Env, getDb } from '../db';
 import { apiError } from '../utils/http';
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
@@ -15,6 +15,17 @@ export type MachinePrincipal = {
 async function sha256(value: string): Promise<Uint8Array> {
   const bytes = new TextEncoder().encode(value);
   return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+}
+
+export async function sha256Hex(value: string): Promise<string> {
+  return Array.from(await sha256(value)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function matchReleaseAccessKey(env: Env, pipelineId: string, provided: string): Promise<boolean> {
+  if (!pipelineId || provided.length < 24) return false;
+  const { data, error } = await getDb(env).from('atlas_release_pipelines').select('access_key_hash,status').eq('id', pipelineId).maybeSingle();
+  if (error || !data || data.status !== 'active' || typeof data.access_key_hash !== 'string') return false;
+  return safeTokenCompare(await sha256Hex(provided), data.access_key_hash);
 }
 
 export async function safeTokenCompare(provided: string, expected: string): Promise<boolean> {
@@ -46,7 +57,7 @@ export function parseApiPrincipals(raw?: string): MachinePrincipal[] {
       const config = value as Record<string, unknown>;
       if (typeof config.token !== 'string' || config.token.length < 16 || !Array.isArray(config.scopes)) continue;
       const scopes = Array.from(new Set(config.scopes.filter((scope): scope is string => (
-        typeof scope === 'string' && /^[a-z]+:[a-z]+$/.test(scope)
+        typeof scope === 'string' && /^[a-z]+:[a-z]+(?:_[a-z]+)*$/.test(scope)
       ))));
       principals.push({ actor, token: config.token, scopes });
     }
@@ -104,7 +115,7 @@ async function verifyAccessJwt(c: Context<{ Bindings: Env }>, accessJwt: string)
   }
 }
 
-function setRequestIdentity(c: Context<{ Bindings: Env }>, actor: string, authKind: 'api_principal' | 'owner_access', scopes: string[]) {
+function setRequestIdentity(c: Context<{ Bindings: Env }>, actor: string, authKind: 'api_principal' | 'owner_access' | 'release_access', scopes: string[]) {
   (c as unknown as { set: (key: string, value: string) => void }).set('atlasActor', actor);
   (c as unknown as { set: (key: string, value: string) => void }).set('atlasAuthKind', authKind);
   (c as unknown as { set: (key: string, value: string[]) => void }).set('atlasScopes', scopes);
@@ -113,6 +124,14 @@ function setRequestIdentity(c: Context<{ Bindings: Env }>, actor: string, authKi
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
   const authHeader = c.req.header('authorization');
   const accessJwt = c.req.header('cf-access-jwt-assertion');
+  const releaseMatch = c.req.path.match(/^\/api\/releases\/ingest\/([^/]+)$/);
+  const releaseKey = c.req.header('x-atlas-release-key');
+
+  if (releaseMatch && releaseKey && await matchReleaseAccessKey(c.env, decodeURIComponent(releaseMatch[1]), releaseKey)) {
+    setRequestIdentity(c, 'release_ci', 'release_access', ['releases:ingest']);
+    (c as unknown as { set: (key: string, value: string) => void }).set('atlasReleasePipelineId', decodeURIComponent(releaseMatch[1]));
+    return next();
+  }
 
   if (authHeader?.startsWith('Bearer ')) {
     const providedToken = authHeader.slice(7);

@@ -39,7 +39,7 @@ function TodayTask({ item, members, onSelectAction }) {
         >
           <div className="flex flex-wrap items-center gap-1.5">
             <PriorityBadge priority={action.priority} />
-            <StatusBadge status={action.status} />
+            <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
             <BusinessBadge business={action.business} />
             {item.estimated_effort && (
               <span className="badge text-text-muted border-border bg-bg-primary">
@@ -129,6 +129,13 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-bg-surface p-3 text-xs text-text-muted">
           <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>No selected daily plan was available, so Atlas is showing open work due today or earlier.</span>
+        </div>
+      )}
+
+      {data?.source === 'weekly_plan_guidance' && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-accent/30 bg-accent-muted p-3 text-xs text-text-secondary" role="status">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
+          <span>Today is using the published weekly focus as guidance. Daily stewardship can still adapt this list when priorities change.</span>
         </div>
       )}
 

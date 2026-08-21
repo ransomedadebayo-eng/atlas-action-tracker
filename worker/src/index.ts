@@ -16,6 +16,22 @@ import todayRouter from './routes/today';
 import journalRouter from './routes/journal';
 import decideRouter from './routes/decide';
 import atlasOsRouter from './routes/atlasOs';
+import weeksRouter from './routes/weeks';
+import projectsRouter from './routes/projects';
+import cyclesRouter from './routes/cycles';
+import initiativesRouter from './routes/initiatives';
+import templatesRouter from './routes/templates';
+import documentsRouter from './routes/documents';
+import commentsRouter from './routes/comments';
+import releasesRouter from './routes/releases';
+import insightsRouter from './routes/insights';
+import dashboardsRouter from './routes/dashboards';
+import exportsRouter from './routes/exports';
+import { workflowRouter, triageRouter } from './routes/workflows';
+import notificationsRouter from './routes/notifications';
+import { integrationsRouter, hooksRouter } from './routes/integrations';
+import { dispatchPendingDeliveries } from './services/integrations';
+export { DocumentRoom } from './durable/DocumentRoom';
 
 export const app = new Hono<{ Bindings: Env }>();
 
@@ -40,10 +56,22 @@ app.use('/api/*', cors({
 app.get('/health', (c) => c.json({ status: 'ok' }));
 app.get('/api/health', (c) => c.json({ status: 'ok' }));
 app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 302));
+app.route('/hooks', hooksRouter);
 
 // Auth on all /api/* routes
 app.use('/api/*', authMiddleware);
 app.use('/api/*', authorizationMiddleware);
+app.use('/api/*', async (c, next) => {
+  await next();
+  if (c.env.ATLAS_DELIVERY_ENABLED !== 'true') return;
+  if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method.toUpperCase()) || c.res.status >= 400) return;
+  if (c.req.path === '/api/integrations/deliveries/process') return;
+  try {
+    c.executionCtx.waitUntil(dispatchPendingDeliveries(c.env, 'delivery_worker', 10));
+  } catch (error) {
+    console.error(`[integrations] unable to schedule outbox drain: ${(error as Error).message}`);
+  }
+});
 
 // Routes
 app.route('/api/actions', actionsRouter);
@@ -58,6 +86,21 @@ app.route('/api/today', todayRouter);
 app.route('/api/journal', journalRouter);
 app.route('/api/decide', decideRouter);
 app.route('/api/atlas-os', atlasOsRouter);
+app.route('/api/weeks', weeksRouter);
+app.route('/api/projects', projectsRouter);
+app.route('/api/cycles', cyclesRouter);
+app.route('/api/initiatives', initiativesRouter);
+app.route('/api/templates', templatesRouter);
+app.route('/api/documents', documentsRouter);
+app.route('/api/comments', commentsRouter);
+app.route('/api/releases', releasesRouter);
+app.route('/api/insights', insightsRouter);
+app.route('/api/dashboards', dashboardsRouter);
+app.route('/api/exports', exportsRouter);
+app.route('/api/workflows', workflowRouter);
+app.route('/api/triage', triageRouter);
+app.route('/api/notifications', notificationsRouter);
+app.route('/api/integrations', integrationsRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {

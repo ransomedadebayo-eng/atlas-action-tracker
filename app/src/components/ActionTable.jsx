@@ -12,6 +12,7 @@ import { canonicalPriority, canonicalStatus } from '../utils/constants.js'
 import { parseJsonArray } from '../utils/parseUtils.js'
 import { hasEvidence } from '../utils/evidenceUtils.js'
 import ActionCardControls from './ActionCardControls.jsx'
+import { useCycles } from '../hooks/useCycles.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
@@ -22,6 +23,8 @@ const PROTOCOL_VIEWS = [
   { id: 'user-only', label: 'User Only', filters: { work_mode: 'user_only' } },
   { id: 'unclassified', label: 'Unclassified Cleanup', filters: { work_mode: '__null__' } },
   { id: 'stale', label: 'Stale / Stewardship', filters: { stewardship: 'stale' } },
+  { id: 'parents', label: 'Parent Actions', filters: { hierarchy: 'with_children' } },
+  { id: 'duplicates', label: 'Duplicates', filters: { status: 'done', resolution: 'duplicate' } },
 ]
 
 export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone, frozenBusinesses = new Set(), showFrozen = false }) {
@@ -52,13 +55,18 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
     ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
     ...(filters.work_mode ? { work_mode: filters.work_mode } : {}),
     ...(filters.stewardship ? { stewardship: filters.stewardship } : {}),
+    ...(filters.hierarchy ? { hierarchy: filters.hierarchy } : {}),
+    ...(filters.resolution ? { resolution: filters.resolution } : {}),
+    ...(filters.cycle_id ? { cycle_id: filters.cycle_id } : {}),
     ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
   }
 
   const { data: rawActions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: rawMembers = [] } = useMembers()
+  const { data: cycleData } = useCycles({ business: effectiveBusiness })
   const actions = Array.isArray(rawActions) ? rawActions : []
   const members = Array.isArray(rawMembers) ? rawMembers : []
+  const cycles = cycleData?.cycles || []
 
   const sorted = useMemo(() => {
     const arr = [...actions]
@@ -202,6 +210,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
         members={members}
         hideDone={hideDone}
         onToggleHideDone={onToggleHideDone}
+        cycles={cycles}
       />
 
       {/* Desktop Table */}
@@ -265,32 +274,41 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                 >
                   <button
                     type="button"
-                    aria-label={`Open action: ${action.title}`}
+                    aria-label={`Open ${action.identifier || 'action'}: ${action.title}`}
                     className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-5 py-3 text-left"
                     onClick={() => onSelectAction(action.id)}
                   >
                     <div className="w-20 flex-shrink-0">
                       <PriorityBadge priority={action.priority} />
                     </div>
-                    <div className="w-28 flex-shrink-0">
-                      <StatusBadge status={action.status} />
+                    <div className="w-28 flex-shrink-0 space-y-1">
+                      <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
+                      {action.resolution === 'duplicate' && <span className="badge border-amber-500/30 bg-amber-500/10 text-amber-400">Duplicate</span>}
                     </div>
                     <div className="min-w-[200px] flex-1">
+                      {action.identifier && (
+                        <span className="mb-0.5 block font-mono text-[10px] text-text-muted">
+                          {action.identifier}
+                        </span>
+                      )}
                       <span className={`text-sm font-medium truncate block ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
-                        {action.title}
+                        {action.parent_action_id ? '↳ ' : ''}{action.title}
                       </span>
                       {action.next_action && (
                         <span className="mt-0.5 block max-w-full truncate text-[10px] text-text-muted" title={action.next_action}>
                           {action.next_action}
                         </span>
                       )}
-                      {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || actionHasEvidence || action.review_date || (action.approval_state && action.approval_state !== 'not_required')) && (
+                      {(tags.length > 0 || (action.recurrence && action.recurrence !== 'none') || actionHasEvidence || action.review_date || action.cycle_id || (action.approval_state && action.approval_state !== 'not_required')) && (
                         <div className="mt-0.5 flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-0.5 overflow-hidden">
                           {action.recurrence && action.recurrence !== 'none' && (
                             <span className="text-[10px] text-text-muted" title={`Repeats ${action.recurrence}`}>&#8635; {action.recurrence}</span>
                           )}
                           {action.review_date && (
                             <span className="text-[10px] text-text-muted">review {formatRelativeDate(action.review_date)}</span>
+                          )}
+                          {action.cycle_id && (
+                            <span className="text-[10px] text-text-muted">{cycles.find(cycle => cycle.id === action.cycle_id)?.name || 'cycle'}</span>
                           )}
                           {action.approval_state && action.approval_state !== 'not_required' && (
                             <span className="text-[10px] text-text-muted">{action.approval_state.replace(/_/g, ' ')}</span>
@@ -365,14 +383,16 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
               >
                 <button
                   type="button"
-                  aria-label={`Open action: ${action.title}`}
+                  aria-label={`Open ${action.identifier || 'action'}: ${action.title}`}
                   className="w-full cursor-pointer p-4 text-left active:bg-white/[0.04]"
                   onClick={() => onSelectAction(action.id)}
                 >
                   {/* Top: priority + status */}
                   <div className="flex items-center gap-2 mb-1.5">
                     <PriorityBadge priority={action.priority} />
-                    <StatusBadge status={action.status} />
+                    <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
+                    {action.identifier && <span className="font-mono text-[10px] text-text-muted">{action.identifier}</span>}
+                    {action.resolution === 'duplicate' && <span className="badge border-amber-500/30 bg-amber-500/10 text-amber-400">Duplicate</span>}
                     <div className="ml-auto flex items-center gap-2">
                       <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
                     </div>
@@ -380,13 +400,14 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
                   {/* Title */}
                   <p className={`text-sm font-medium leading-snug ${done ? 'line-through text-text-muted' : 'text-text-primary'}`}>
-                    {action.title}
+                    {action.parent_action_id ? '↳ ' : ''}{action.title}
                   </p>
 
                   {/* Bottom: business + due date */}
                   <div className="flex items-center gap-2 mt-2">
                     <BusinessBadge business={action.business} />
                     <WorkModeBadge workMode={action.work_mode} />
+                    {action.cycle_id && <span className="badge border-blue-500/30 bg-blue-500/10 text-blue-400">{cycles.find(cycle => cycle.id === action.cycle_id)?.name || 'Cycle'}</span>}
                     {action.due_date && (
                       <span className={`text-[11px] font-mono ml-auto ${overdue ? 'text-red-400 font-semibold' : 'text-text-muted'}`}>
                         {formatRelativeDate(action.due_date)}

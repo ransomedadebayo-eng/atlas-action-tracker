@@ -3,10 +3,10 @@ import { STATUSES, PRIORITIES, WORK_MODES, canonicalPriority, canonicalStatus } 
 import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js';
 import { useBusinessContext } from '../hooks/useBusinesses.js';
 
-export function StatusBadge({ status }) {
+export function StatusBadge({ status, workflowStatus }) {
   const normalizedStatus = canonicalStatus(status);
   const info = STATUSES[normalizedStatus];
-  const color = STATUS_COLORS[normalizedStatus] || STATUS_COLORS.unknown;
+  const color = workflowStatus?.color || STATUS_COLORS[normalizedStatus] || STATUS_COLORS.unknown;
   if (!info) return null;
 
   return (
@@ -18,7 +18,7 @@ export function StatusBadge({ status }) {
         className="w-1.5 h-1.5 rounded-full mr-1.5"
         style={{ backgroundColor: color }}
       />
-      {info.label}
+      {workflowStatus?.name || info.label}
     </span>
   );
 }

@@ -67,6 +67,8 @@ export function coerceActionBody(body: Record<string, unknown>): Record<string, 
   if (typeof body.approval_state === 'string') body.approval_state = APPROVAL_STATE_COERCE[body.approval_state.toLowerCase()] ?? body.approval_state;
   if (body.agent_assignment_id === '') body.agent_assignment_id = null;
   if (body.review_date === '') body.review_date = null;
+  if (body.estimate_points === '') body.estimate_points = null;
+  if (typeof body.estimate_points === 'string' && /^\d+$/.test(body.estimate_points)) body.estimate_points = Number(body.estimate_points);
   return body;
 }
 
@@ -125,6 +127,11 @@ export function validateActionFields(body: Record<string, unknown>): string[] {
   if (body.evidence_json !== undefined && body.evidence_json !== null) {
     if (typeof body.evidence_json !== 'object' || Array.isArray(body.evidence_json)) {
       errors.push('evidence_json must be an object');
+    }
+  }
+  if (body.estimate_points !== undefined && body.estimate_points !== null) {
+    if (!Number.isSafeInteger(body.estimate_points) || Number(body.estimate_points) < 0 || Number(body.estimate_points) > 100000) {
+      errors.push('estimate_points must be a non-negative integer up to 100000 or null');
     }
   }
   return errors;
