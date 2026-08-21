@@ -3,7 +3,7 @@
   "evidence_status": "validated",
   "canonical_backend": "AEGIS Supabase vdezxdeushxaacyfjeeh",
   "ledger_table": "supabase_migrations.schema_migrations",
-  "readback_at": "2026-08-21T16:00:00Z",
+  "readback_at": "2026-08-21T16:57:47Z",
   "replay_control": "Every already-applied source filename now begins with the exact remote migration version; Supabase therefore skips it instead of replaying raw SQL.",
   "checksum_policy": "exact means current file bytes equal statements[1]; newline-only differs only by the final newline; consolidated-source means current source was strengthened after raw application and requires live-schema plus later-forward-migration evidence.",
   "migrations": [
@@ -32,29 +32,38 @@
     {"version":"20260821061410","name":"atlas_core_convenience_advisor_fixes","file":"migrations/20260821061410_atlas_core_convenience_advisor_fixes.sql","ledger_sha256":"d8c3bbb2a5e516372d771f15eeedf832931c8740e1cee2d82874997f85c0002c","file_sha256":"d8c3bbb2a5e516372d771f15eeedf832931c8740e1cee2d82874997f85c0002c","status":"exact"},
     {"version":"20260821061443","name":"atlas_weekly_plan_fk_indexes","file":"migrations/20260821061443_atlas_weekly_plan_fk_indexes.sql","ledger_sha256":"47ddb9751e09578484b4d853dc5945f8d81936035e9f775b7130ddc9581ed9ff","file_sha256":"db5dd9b36cef413628ee48787a7840d34180fb0e4fd2fe7e033ae74929b18aa8","status":"newline-only"},
     {"version":"20260821063609","name":"atlas_portfolio_activation","file":"migrations/20260821063609_atlas_portfolio_activation.sql","ledger_sha256":"05b7f6a3cfaf5cf17702e11dcd8e26dce1311a5e67ee750b6f8f23f69ff6c396","file_sha256":"05b7f6a3cfaf5cf17702e11dcd8e26dce1311a5e67ee750b6f8f23f69ff6c396","status":"exact"},
-    {"version":"20260821064227","name":"atlas_portfolio_hierarchy_and_inbox","file":"migrations/20260821064227_atlas_portfolio_hierarchy_and_inbox.sql","ledger_sha256":"4b241dce6fc8de142b2d3625f5e67eb98f217e902ce3526458273cd2e06ec685","file_sha256":"4b241dce6fc8de142b2d3625f5e67eb98f217e902ce3526458273cd2e06ec685","status":"exact"}
+    {"version":"20260821064227","name":"atlas_portfolio_hierarchy_and_inbox","file":"migrations/20260821064227_atlas_portfolio_hierarchy_and_inbox.sql","ledger_sha256":"4b241dce6fc8de142b2d3625f5e67eb98f217e902ce3526458273cd2e06ec685","file_sha256":"4b241dce6fc8de142b2d3625f5e67eb98f217e902ce3526458273cd2e06ec685","status":"exact"},
+    {"version":"20260821165622","name":"atlas_initiative_resource_safety","file":"migrations/20260821165622_atlas_initiative_resource_safety.sql","ledger_sha256":"678ab63cdf1f71bb777cf31921c46f3731129bf53aa61b41207c0842bca7b8d0","file_sha256":"678ab63cdf1f71bb777cf31921c46f3731129bf53aa61b41207c0842bca7b8d0","status":"exact"}
   ],
   "summary": {
-    "remote_versions": 26,
-    "local_version_matches": 26,
-    "exact_checksums": 12,
+    "remote_versions": 27,
+    "local_version_matches": 27,
+    "exact_checksums": 13,
     "newline_only": 3,
     "consolidated_source": 11,
     "unmatched_remote_versions": 0,
     "unmatched_local_historical_versions": 0,
-    "new_forward_migrations_pending": ["20260821161000_atlas_initiative_resource_safety"]
+    "new_forward_migrations_pending": []
   },
   "new_migration_rehearsal": {
-    "file": "migrations/20260821161000_atlas_initiative_resource_safety.sql",
+    "file": "migrations/20260821165622_atlas_initiative_resource_safety.sql",
     "sha256": "678ab63cdf1f71bb777cf31921c46f3731129bf53aa61b41207c0842bca7b8d0",
-    "transaction": "rollback-only",
+    "remote_version": "20260821165622",
+    "remote_name": "atlas_initiative_resource_safety",
+    "transaction": "rollback-only-post-application",
     "safe_https_insert": "passed",
     "unsafe_link_rejection": "passed-sqlstate-22023",
     "unsafe_document_rejection": "passed-sqlstate-22023",
-    "post_rollback_function_count": 0,
-    "post_rollback_trigger_count": 0,
+    "post_rollback_function_count": 1,
+    "post_rollback_trigger_count": 1,
     "post_rollback_test_rows": 0,
-    "durable_application": false
+    "function_security_definer": false,
+    "rls_enabled": true,
+    "public_execute": false,
+    "anon_execute": false,
+    "authenticated_execute": false,
+    "durable_application": true,
+    "applied_and_verified_at": "2026-08-21T16:57:47Z"
   },
-  "release_gate": "Do not merge to main until the new safety migration is applied through the governed migration path, its exact remote version/file/checksum is added here, and the owner-facing routes pass authenticated readback."
+  "release_gate": "Database gate passed. Merge and Cloudflare deployment still require green main CI plus authoritative deployment and authenticated owner-route readback."
 }

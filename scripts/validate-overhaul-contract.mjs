@@ -160,7 +160,7 @@ if (migrationReconciliation) {
       requireContract(sha256(readFileSync(file)) === row.file_sha256, `migration file checksum drifted: ${row.file}`)
     }
   }
-  requireContract(rows.length === 26 && migrationReconciliation.summary?.local_version_matches === 26, 'all 26 pre-applied Atlas migration versions must be reconciled')
+  requireContract(rows.length === 27 && migrationReconciliation.summary?.local_version_matches === 27, 'all 27 applied Atlas migration versions must be reconciled')
   requireContract(migrationReconciliation.summary?.unmatched_remote_versions === 0 && migrationReconciliation.summary?.unmatched_local_historical_versions === 0, 'migration reconciliation must have no unmatched historical versions')
   const rehearsal = migrationReconciliation.new_migration_rehearsal
   const newMigrationPath = rehearsal?.file ? join(root, rehearsal.file) : ''
@@ -168,14 +168,22 @@ if (migrationReconciliation) {
   if (newMigrationPath && existsSync(newMigrationPath)) {
     requireContract(sha256(readFileSync(newMigrationPath)) === rehearsal.sha256, 'new initiative-resource safety migration checksum drifted')
   }
-  requireContract(rehearsal?.transaction === 'rollback-only' && rehearsal?.safe_https_insert === 'passed'
+  requireContract(rehearsal?.remote_version === '20260821165622'
+    && rehearsal?.remote_name === 'atlas_initiative_resource_safety'
+    && rehearsal?.transaction === 'rollback-only-post-application'
+    && rehearsal?.safe_https_insert === 'passed'
     && rehearsal?.unsafe_link_rejection === 'passed-sqlstate-22023'
     && rehearsal?.unsafe_document_rejection === 'passed-sqlstate-22023'
-    && rehearsal?.post_rollback_function_count === 0
-    && rehearsal?.post_rollback_trigger_count === 0
+    && rehearsal?.post_rollback_function_count === 1
+    && rehearsal?.post_rollback_trigger_count === 1
     && rehearsal?.post_rollback_test_rows === 0
-    && rehearsal?.durable_application === false,
-  'new initiative-resource safety migration requires successful rollback-only rehearsal and zero residue')
+    && rehearsal?.function_security_definer === false
+    && rehearsal?.rls_enabled === true
+    && rehearsal?.public_execute === false
+    && rehearsal?.anon_execute === false
+    && rehearsal?.authenticated_execute === false
+    && rehearsal?.durable_application === true,
+  'initiative-resource safety migration requires durable application, restricted authority, and successful rollback-only post-application verification')
 }
 
 if (failures.length) {
