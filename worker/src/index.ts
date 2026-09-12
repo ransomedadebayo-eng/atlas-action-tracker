@@ -30,6 +30,7 @@ import exportsRouter from './routes/exports';
 import { workflowRouter, triageRouter } from './routes/workflows';
 import notificationsRouter from './routes/notifications';
 import { integrationsRouter, hooksRouter } from './routes/integrations';
+import updatesRouter from './routes/updates';
 import { dispatchPendingDeliveries } from './services/integrations';
 export { DocumentRoom } from './durable/DocumentRoom';
 
@@ -101,6 +102,7 @@ app.route('/api/workflows', workflowRouter);
 app.route('/api/triage', triageRouter);
 app.route('/api/notifications', notificationsRouter);
 app.route('/api/integrations', integrationsRouter);
+app.route('/api/updates', updatesRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {

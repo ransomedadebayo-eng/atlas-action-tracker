@@ -42,6 +42,22 @@ describe('saved view validation', () => {
     expect(validateSavedView({ name: 'Bad board', entity_type: 'initiative', layout: 'board' })).toContain('board layout is not available for initiative views');
   });
 
+  it('accepts office-digest action filters and completed_at sort', () => {
+    expect(validateSavedView({
+      name: 'Office Digest — Done',
+      entity_type: 'action',
+      layout: 'list',
+      sort_by: 'completed_at',
+      sort_dir: 'desc',
+      filters: { status: 'done', completed_within: '48h' },
+    })).toEqual([]);
+    expect(validateSavedView({
+      name: 'Office Digest — Blocked-by-office',
+      entity_type: 'action',
+      filters: { open: 'true', has_blocked_by: 'true', exclude_approval_state: 'needs_review' },
+    })).toEqual([]);
+  });
+
   it('requires valid names and object filters', () => {
     expect(validateSavedView({ entity_type: 'project', filters: [] })).toEqual(expect.arrayContaining([
       'name is required',

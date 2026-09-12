@@ -11,7 +11,7 @@ const ENTITY_TYPES = new Set(['action', 'project', 'initiative']);
 const LAYOUTS = new Set(['list', 'board', 'timeline']);
 const GROUPS = new Set(['none', 'lead', 'owner', 'member', 'status', 'health', 'business', 'label', 'start_date', 'target_date', 'priority', 'project', 'initiative', 'cycle', 'parent']);
 const ZOOMS = new Set(['week', 'month', 'quarter', 'year']);
-const ACTION_SORTS = new Set(['manual', 'priority', 'status', 'updated_at', 'created_at', 'due_date', 'title']);
+const ACTION_SORTS = new Set(['manual', 'priority', 'status', 'updated_at', 'created_at', 'completed_at', 'due_date', 'title']);
 const PROJECT_SORTS = new Set(['manual', 'priority', 'status', 'updated_at', 'created_at', 'start_date', 'target_date', 'name']);
 const INITIATIVE_SORTS = new Set(['manual', 'priority', 'status', 'health', 'updated_at', 'created_at', 'start_date', 'target_date', 'name']);
 

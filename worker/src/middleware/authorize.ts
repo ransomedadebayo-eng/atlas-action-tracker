@@ -88,7 +88,7 @@ export function requiredScopeForRequest(path: string, method: string): AtlasScop
     if (/^\/api\/actions\/[^/]+\/agent-assignment$/.test(path)) return 'actions:assign';
     return 'actions:write';
   }
-  if (path.startsWith('/api/activity') || path.startsWith('/api/today') || path.startsWith('/api/briefing')) {
+  if (path.startsWith('/api/activity') || path.startsWith('/api/today') || path.startsWith('/api/briefing') || path.startsWith('/api/updates')) {
     return 'actions:read';
   }
   if (path.startsWith('/api/transcripts')) return method === 'GET' ? 'transcripts:read' : 'transcripts:write';

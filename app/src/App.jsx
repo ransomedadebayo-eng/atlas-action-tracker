@@ -12,6 +12,7 @@ import TodayReview from './components/TodayReview.jsx'
 import JournalPage from './components/JournalPage.jsx'
 import DecidePage from './components/DecidePage.jsx'
 import AutomationRegistry from './components/AutomationRegistry.jsx'
+import OfficeDigestPage from './components/OfficeDigestPage.jsx'
 import ActionDetail from './components/ActionDetail.jsx'
 import QuickCapture from './components/QuickCapture.jsx'
 import WeekPage from './components/WeekPage.jsx'
@@ -50,6 +51,7 @@ const VIEW_PATHS = {
   members: '/settings/principals',
   transcripts: '/transcripts',
   automations: '/automations',
+  officeDigest: '/updates/office-digest',
 }
 
 function routeFromLocation() {
@@ -86,11 +88,19 @@ function routeFromLocation() {
   if (actionMatch) {
     return { view: 'dashboard', actionId: decodeURIComponent(actionMatch[1]) }
   }
+  if (path === '/updates/office-digest') {
+    return { view: 'officeDigest', actionId: null, savedViewId: null }
+  }
   if (path === '/tasks') {
-    return { view: new URLSearchParams(window.location.search).get('view') === 'kanban' ? 'kanban' : 'dashboard', actionId: null }
+    const params = new URLSearchParams(window.location.search)
+    return {
+      view: params.get('view') === 'kanban' ? 'kanban' : 'dashboard',
+      actionId: null,
+      savedViewId: params.get('saved_view'),
+    }
   }
   const match = Object.entries(VIEW_PATHS).find(([, routePath]) => routePath.split('?')[0] === path)
-  return { view: match?.[0] || 'today', actionId: null, weekStart: null, projectId: null, initiativeId: null, documentId: null, releasePipelineId: null, insightId: null, dashboardId: null, cycleId: null }
+  return { view: match?.[0] || 'today', actionId: null, weekStart: null, projectId: null, initiativeId: null, documentId: null, releasePipelineId: null, insightId: null, dashboardId: null, cycleId: null, savedViewId: null }
 }
 
 export default function App() {
@@ -106,6 +116,7 @@ export default function App() {
   const [insightId, setInsightId] = useState(initialRoute.insightId || null)
   const [dashboardId, setDashboardId] = useState(initialRoute.dashboardId || null)
   const [cycleId, setCycleId] = useState(initialRoute.cycleId || null)
+  const [savedViewId, setSavedViewId] = useState(initialRoute.savedViewId || null)
   const [showQuickCapture, setShowQuickCapture] = useState(false)
   const [quickCaptureDate, setQuickCaptureDate] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -135,6 +146,7 @@ export default function App() {
     setInsightId(null)
     setDashboardId(null)
     setCycleId(null)
+    setSavedViewId(null)
     setSearchQuery('')
   }, [weekStart])
 
@@ -192,6 +204,17 @@ export default function App() {
     setSearchQuery('')
   }, [])
 
+  const navigateSavedView = useCallback((nextSavedViewId, { replace = false } = {}) => {
+    const params = new URLSearchParams()
+    if (nextSavedViewId) params.set('saved_view', nextSavedViewId)
+    const path = `/tasks${params.toString() ? `?${params}` : ''}`
+    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'dashboard', savedViewId: nextSavedViewId }, '', path)
+    setCurrentView('dashboard')
+    setSavedViewId(nextSavedViewId || null)
+    setSelectedActionId(null)
+    setSearchQuery('')
+  }, [])
+
   const navigateWeek = useCallback((nextWeekStart, { replace = false } = {}) => {
     setWeekStart(nextWeekStart)
     window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'week', weekStart: nextWeekStart }, '', `/week/${nextWeekStart}`)
@@ -201,10 +224,18 @@ export default function App() {
   }, [])
 
   const openAction = useCallback((actionId) => {
-    const backgroundPath = currentView === 'week' ? `/week/${weekStart}` : (currentView === 'projects' && projectId ? `/projects/${encodeURIComponent(projectId)}` : (currentView === 'cycles' && cycleId ? `/cycles/${encodeURIComponent(cycleId)}` : (VIEW_PATHS[currentView] || VIEW_PATHS.dashboard)))
+    const backgroundPath = currentView === 'week'
+      ? `/week/${weekStart}`
+      : (currentView === 'projects' && projectId
+        ? `/projects/${encodeURIComponent(projectId)}`
+        : (currentView === 'cycles' && cycleId
+          ? `/cycles/${encodeURIComponent(cycleId)}`
+          : (currentView === 'dashboard' && savedViewId
+            ? `/tasks?saved_view=${encodeURIComponent(savedViewId)}`
+            : (VIEW_PATHS[currentView] || VIEW_PATHS.dashboard))))
     window.history.pushState({ atlasAction: true, backgroundPath }, '', `/actions/${encodeURIComponent(actionId)}`)
     setSelectedActionId(actionId)
-  }, [currentView, weekStart, projectId, cycleId])
+  }, [currentView, weekStart, projectId, cycleId, savedViewId])
 
   const closeAction = useCallback(() => {
     const backgroundPath = window.history.state?.backgroundPath || (currentView === 'week' ? `/week/${weekStart}` : (VIEW_PATHS[currentView] || VIEW_PATHS.dashboard))
@@ -225,6 +256,7 @@ export default function App() {
       setInsightId(route.insightId || null)
       setDashboardId(route.dashboardId || null)
       setCycleId(route.cycleId || null)
+      setSavedViewId(route.savedViewId || null)
       setSearchQuery('')
     }
 
@@ -309,6 +341,15 @@ export default function App() {
         return <DecidePage />
       case 'journal':
         return <JournalPage searchQuery={searchQuery} />
+      case 'officeDigest':
+        return (
+          <OfficeDigestPage
+            selectedBusiness={selectedBusiness}
+            searchQuery={searchQuery}
+            onSelectAction={openAction}
+            onOpenSavedView={navigateSavedView}
+          />
+        )
       case 'dashboard':
         return (
           <ActionTable
@@ -319,6 +360,8 @@ export default function App() {
             onToggleHideDone={toggleHideDone}
             frozenBusinesses={frozenBusinesses}
             showFrozen={showFrozen}
+            savedViewId={savedViewId}
+            onSavedViewIdChange={setSavedViewId}
           />
         )
       case 'automations':

@@ -12,6 +12,7 @@ import { buildCompletionEvidence } from '../utils/evidence';
 import { apiError } from '../utils/http';
 import { validateConfiguredEstimate } from '../utils/estimates';
 import { executeWorkflowRules, loadWorkflowAction } from '../services/workflows';
+import { applyActionQueryFilters, matchesActionFilters } from '../utils/actionFilters';
 
 const router = new Hono<{ Bindings: Env }>();
 const BULK_MAX = 50;
@@ -273,12 +274,14 @@ function assignmentTypeForWorkMode(workMode: unknown): string {
 router.get('/', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked, stewardship, parent_id, hierarchy, estimate_points, resolution, cycle_id, template_id, release_id, pipeline_id, stage_run_id, include_triage } = c.req.query() as Record<string, string>;
+    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked, stewardship, parent_id, hierarchy, estimate_points, resolution, cycle_id, template_id, release_id, pipeline_id, stage_run_id, include_triage, approval_state, exclude_approval_state, completed_within, completed_after, has_blocked_by, open } = c.req.query() as Record<string, string>;
+    const digestFilters = { approval_state, exclude_approval_state, completed_within, completed_after, has_blocked_by, open, status, business };
 
     let query = supabase.from('atlas_actions').select(ACTION_SELECT);
 
     if (status) query = query.in('status', status.split(','));
     if (business) query = query.eq('business', business);
+    query = applyActionQueryFilters(query, digestFilters);
     if (priority) query = query.in('priority', priority.split(','));
     query = filterProtocolSpecialModes(query, work_mode);
     if (due_before) query = query.lte('due_date', due_before);
@@ -315,7 +318,7 @@ router.get('/', async (c) => {
       query = matchedIds.length ? query.in('id', matchedIds) : query.eq('id', '__no_release_match__');
     }
 
-    const validSorts = ['priority', 'due_date', 'review_date', 'status', 'resolution', 'title', 'business', 'work_mode', 'approval_state', 'estimate_points', 'parent_action_id', 'cycle_id', 'created_at', 'updated_at'];
+    const validSorts = ['priority', 'due_date', 'review_date', 'status', 'resolution', 'title', 'business', 'work_mode', 'approval_state', 'estimate_points', 'parent_action_id', 'cycle_id', 'created_at', 'updated_at', 'completed_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
@@ -337,6 +340,7 @@ router.get('/', async (c) => {
     if (sortField === 'priority') {
       let results = filterByOwner(annotateBlocked(await hydrateReleaseSummaries(supabase, await loadAllRows(query))), owner_id);
       results = filterHierarchy(results, hierarchy, parentsWithChildren).filter(action => !triageActionIds.has(String(action.id)));
+      results = results.filter(action => matchesActionFilters(action, digestFilters));
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       const sorted = sortByPriority(results, direction);
@@ -353,6 +357,7 @@ router.get('/', async (c) => {
       query = query.order(sortField, { ascending: direction === 'ASC', nullsFirst: false });
       let results = filterByOwner(annotateBlocked(await hydrateReleaseSummaries(supabase, await loadAllRows(query))), owner_id);
       results = filterHierarchy(results, hierarchy, parentsWithChildren).filter(action => !triageActionIds.has(String(action.id)));
+      results = results.filter(action => matchesActionFilters(action, digestFilters));
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
       const items = results.slice(offset, offset + limit);

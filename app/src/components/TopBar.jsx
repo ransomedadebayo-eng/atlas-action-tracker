@@ -17,6 +17,7 @@ const VIEW_TITLES = {
   members: 'Principals',
   transcripts: 'Transcripts',
   automations: 'Automations',
+  officeDigest: 'Office Digest',
 }
 
 export default function TopBar({
