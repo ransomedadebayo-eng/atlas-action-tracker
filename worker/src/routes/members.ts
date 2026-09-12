@@ -2,12 +2,14 @@ import { Hono } from 'hono';
 import { Env, getDb } from '../db';
 import { validateStringLengths, sanitizeBody } from '../middleware/validate';
 import { coerceJsonArray, serializeJsonArray } from '../utils/json';
+import { getActor, getAuthKind } from '../utils/actors';
+import { ACTIVE_PRINCIPALS } from '../utils/principals';
 
 const router = new Hono<{ Bindings: Env }>();
 
 const TEXT_FIELDS = ['name', 'full_name', 'email', 'role'];
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
-const ACTIVE_PRINCIPALS = new Set(['ransomed', 'codex', 'claude']);
+const ACTIVE_PRINCIPAL_SET = new Set<string>(ACTIVE_PRINCIPALS);
 const CLOSED_STATUSES = new Set(['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived']);
 
 function atlasLocalDate(): string {
@@ -22,7 +24,7 @@ function atlasLocalDate(): string {
 }
 
 export function computeActivePrincipalStats(actions: Record<string, unknown>[], today: string) {
-  const stats = new Map(Array.from(ACTIVE_PRINCIPALS, memberId => [memberId, {
+  const stats = new Map(Array.from(ACTIVE_PRINCIPAL_SET, memberId => [memberId, {
     member_id: memberId,
     not_started: 0,
     in_progress: 0,
@@ -111,6 +113,23 @@ router.get('/stats', async (c) => {
   }
 });
 
+router.get('/me', async (c) => {
+  try {
+    const actor = getActor(c);
+    const { data: member, error } = await getDb(c.env)
+      .from('atlas_members')
+      .select('*')
+      .eq('id', actor)
+      .eq('is_active', true)
+      .single();
+    if (error || !member) return c.json({ error: 'Current principal not found' }, 404);
+    return c.json({ ...member, auth_kind: getAuthKind(c) });
+  } catch (err: unknown) {
+    console.error(`[members] /me error: ${(err as Error).message}`);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
 router.get('/:id/actions', async (c) => {
   try {
     const supabase = getDb(c.env);
@@ -173,7 +192,7 @@ router.post('/', async (c) => {
   return c.json({
     error: {
       code: 'PRINCIPAL_ROSTER_FIXED',
-      message: 'ATLAS is owner-only. New principals cannot be created.',
+      message: 'ATLAS uses a fixed principal roster. New principals cannot be created through the API.',
     },
   }, 405);
 });
@@ -183,7 +202,7 @@ router.put('/:id', async (c) => {
     const supabase = getDb(c.env);
     const id = c.req.param('id');
 
-    if (!['ransomed', 'codex', 'claude'].includes(id)) {
+    if (!ACTIVE_PRINCIPAL_SET.has(id)) {
       return c.json({
         error: {
           code: 'HISTORICAL_PRINCIPAL_IMMUTABLE',

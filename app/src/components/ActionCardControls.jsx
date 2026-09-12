@@ -6,7 +6,7 @@ function revisionPayload(action) {
   return Number.isInteger(action.revision) ? { expected_revision: action.revision } : {}
 }
 
-export default function ActionCardControls({ action, className = '' }) {
+export default function ActionCardControls({ action, className = '', canArchive = true }) {
   const completeAction = useCompleteAction()
   const archiveAction = useArchiveAction()
   const [mode, setMode] = useState(null)
@@ -101,7 +101,7 @@ export default function ActionCardControls({ action, className = '' }) {
   return (
     <>
       <div
-        className={`grid grid-cols-2 gap-2 ${className}`}
+        className={`grid ${canArchive ? 'grid-cols-2' : 'grid-cols-1'} gap-2 ${className}`}
         onClick={event => event.stopPropagation()}
       >
         <button
@@ -113,15 +113,17 @@ export default function ActionCardControls({ action, className = '' }) {
           <CheckCircle2 className="h-4 w-4" />
           Complete
         </button>
-        <button
-          type="button"
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border bg-bg-primary px-3 py-2 text-xs font-semibold text-text-secondary"
-          onClick={event => openDialog('archive', event)}
-          aria-label={`Archive ${action.title}`}
-        >
-          <Archive className="h-4 w-4" />
-          Archive
-        </button>
+        {canArchive && (
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border bg-bg-primary px-3 py-2 text-xs font-semibold text-text-secondary"
+            onClick={event => openDialog('archive', event)}
+            aria-label={`Archive ${action.title}`}
+          >
+            <Archive className="h-4 w-4" />
+            Archive
+          </button>
+        )}
       </div>
 
       {mode && (

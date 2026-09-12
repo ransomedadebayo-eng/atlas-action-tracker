@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
 import { Env, getDb } from '../db';
+import { hydrateEstimateSettings, validateEstimateSettings } from '../utils/estimates';
+
+export { hydrateEstimateSettings, validateEstimateSettings } from '../utils/estimates';
 
 const router = new Hono<{ Bindings: Env }>();
 
@@ -94,6 +97,32 @@ router.put('/businesses', async (c) => {
     return c.json(businesses);
   } catch (err: unknown) {
     console.error(`[config] PUT businesses error: ${(err as Error).message}`);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+router.get('/estimates', async (c) => {
+  try {
+    const { data, error } = await getDb(c.env).from('atlas_config').select('value').eq('key', 'estimate_settings').maybeSingle();
+    if (error) throw error;
+    return c.json(hydrateEstimateSettings(data?.value));
+  } catch (err: unknown) {
+    console.error(`[config] GET estimates error: ${(err as Error).message}`);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+router.put('/estimates', async (c) => {
+  try {
+    const body = await c.req.json().catch(() => null);
+    const errors = validateEstimateSettings(body);
+    if (errors.length > 0) return c.json({ error: errors.join('; ') }, 400);
+    const settings = body as Record<string, unknown>;
+    const { error } = await getDb(c.env).from('atlas_config').upsert({ key: 'estimate_settings', value: settings });
+    if (error) throw error;
+    return c.json(hydrateEstimateSettings(settings));
+  } catch (err: unknown) {
+    console.error(`[config] PUT estimates error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);
   }
 });

@@ -109,7 +109,7 @@ function ActionCard({ action, onSelect, businessColors, members }) {
 
             <div className="ml-auto flex items-center gap-2">
               <OwnerAvatars owners={owners} members={members} max={2} size="xs" />
-              <StatusBadge status={action.status} />
+              <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
             </div>
           </div>
         </div>

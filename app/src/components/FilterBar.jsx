@@ -3,8 +3,8 @@ import { X, SlidersHorizontal, EyeOff, Eye } from 'lucide-react'
 import { STATUSES, PRIORITIES, WORK_MODES } from '../utils/constants.js'
 import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js'
 
-export default function FilterBar({ filters, onFilterChange, members = [], hideDone = true, onToggleHideDone }) {
-  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.search
+export default function FilterBar({ filters, onFilterChange, members = [], cycles = [], hideDone = true, onToggleHideDone }) {
+  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.hierarchy || filters.resolution || filters.cycle_id || filters.search
 
   function clearAll() {
     onFilterChange({ business: filters.business })
@@ -76,6 +76,41 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
         ))}
       </select>
 
+      <select
+        aria-label="Filter by hierarchy"
+        className="input-field text-[11px] md:text-xs py-1 px-1.5 md:px-2 bg-bg-surface flex-shrink-0"
+        value={filters.hierarchy || ''}
+        onChange={e => onFilterChange({ ...filters, hierarchy: e.target.value || undefined })}
+      >
+        <option value="">Hierarchy</option>
+        <option value="top_level">Top-level</option>
+        <option value="sub_actions">Sub-actions</option>
+        <option value="with_children">Has children</option>
+      </select>
+
+      <select
+        aria-label="Filter by resolution"
+        className="input-field text-[11px] md:text-xs py-1 px-1.5 md:px-2 bg-bg-surface flex-shrink-0"
+        value={filters.resolution || ''}
+        onChange={e => onFilterChange({ ...filters, resolution: e.target.value || undefined })}
+      >
+        <option value="">Resolution</option>
+        <option value="completed">Completed</option>
+        <option value="canceled">Canceled</option>
+        <option value="duplicate">Duplicate</option>
+      </select>
+
+      <select
+        aria-label="Filter by cycle"
+        className="input-field text-[11px] md:text-xs py-1 px-1.5 md:px-2 bg-bg-surface flex-shrink-0"
+        value={filters.cycle_id || ''}
+        onChange={e => onFilterChange({ ...filters, cycle_id: e.target.value || undefined })}
+      >
+        <option value="">Cycle</option>
+        <option value="__null__">No cycle</option>
+        {cycles.map(cycle => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
+      </select>
+
       {/* Hide Done Toggle */}
       {onToggleHideDone && (
         <button
@@ -135,6 +170,27 @@ export default function FilterBar({ filters, onFilterChange, members = [], hideD
               label="Stale / Stewardship"
               color="#f4b860"
               onRemove={() => removeFilter('stewardship')}
+            />
+          )}
+          {filters.hierarchy && (
+            <FilterChip
+              label={filters.hierarchy === 'top_level' ? 'Top-level' : filters.hierarchy === 'sub_actions' ? 'Sub-actions' : 'Has children'}
+              color="#8cb8ff"
+              onRemove={() => removeFilter('hierarchy')}
+            />
+          )}
+          {filters.resolution && (
+            <FilterChip
+              label={filters.resolution}
+              color="#f4b860"
+              onRemove={() => removeFilter('resolution')}
+            />
+          )}
+          {filters.cycle_id && (
+            <FilterChip
+              label={filters.cycle_id === '__null__' ? 'No cycle' : cycles.find(cycle => cycle.id === filters.cycle_id)?.name || 'Cycle'}
+              color="#3b82f6"
+              onRemove={() => removeFilter('cycle_id')}
             />
           )}
           {filters.search && (

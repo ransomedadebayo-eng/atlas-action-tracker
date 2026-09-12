@@ -1,0 +1,21 @@
+import { describe, expect, it, vi } from 'vitest';
+import { app } from '../index';
+import type { Env } from '../db';
+import { validateDocumentBody } from './documents';
+
+const codexToken = 'codex-document-test-token-0001';
+function env(scopes = ['documents:read', 'documents:write']): Env { return { SUPABASE_URL: 'https://example.supabase.co', SUPABASE_SERVICE_ROLE_KEY: 'service-role-test-only', NODE_ENV: 'production', ATLAS_API_PRINCIPALS_JSON: JSON.stringify({ codex: { token: codexToken, scopes } }) }; }
+
+describe('document validation', () => {
+  it('accepts workspace and context-bound Markdown documents', () => { expect(validateDocumentBody({ title: 'Spec', content: '# Spec', context_type: 'workspace' })).toEqual([]); expect(validateDocumentBody({ title: 'Plan', content: '', context_type: 'project', context_id: 'p1' })).toEqual([]); });
+  it('rejects missing titles, oversized content, and invalid context combinations', () => { expect(validateDocumentBody({ title: '', context_type: 'workspace', context_id: 'p1' })).toEqual(expect.arrayContaining(['title is required', 'title must be 1-500 characters', 'workspace documents cannot set context_id'])); expect(validateDocumentBody({ title: 'Spec', content:'x'.repeat(204801), context_type:'workspace' })).toContain('content must be Markdown text up to 200 KiB'); expect(validateDocumentBody({ title: 'Spec', context_type: 'project' })).toContain('project documents require context_id'); });
+});
+
+describe('document HTTP boundary', () => {
+  it('requires document read scope', async () => { const response = await app.request('/api/documents', { headers: { authorization: `Bearer ${codexToken}` } }, env(['actions:read'])); expect(response.status).toBe(403); await expect(response.json()).resolves.toMatchObject({ details: { required_scope: 'documents:read' } }); });
+  it('requires document write scope', async () => { const response = await app.request('/api/documents', { method: 'POST', headers: { authorization: `Bearer ${codexToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ title: 'Protected' }) }, env(['documents:read'])); expect(response.status).toBe(403); await expect(response.json()).resolves.toMatchObject({ details: { required_scope: 'documents:write' } }); });
+  it('keeps document archive owner-only', async () => { const response = await app.request('/api/documents/d1/archive', { method: 'POST', headers: { authorization: `Bearer ${codexToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ expected_revision: 1 }) }, env()); expect(response.status).toBe(403); await expect(response.json()).resolves.toMatchObject({ code: 'OWNER_REQUIRED' }); });
+  it('keeps version revert owner-only', async () => { const response = await app.request('/api/documents/d1/revert', { method:'POST',headers:{authorization:`Bearer ${codexToken}`,'content-type':'application/json'},body:JSON.stringify({target_revision:0,expected_revision:1}) }, env()); expect(response.status).toBe(403); await expect(response.json()).resolves.toMatchObject({code:'OWNER_REQUIRED'}); });
+  it('requires a WebSocket upgrade and configured room binding', async () => { const plain=await app.request('/api/documents/d1/realtime?client_id=browser:test123',{headers:{authorization:`Bearer ${codexToken}`}},env());expect(plain.status).toBe(426);const upgrade=await app.request('/api/documents/d1/realtime?client_id=browser:test123',{headers:{authorization:`Bearer ${codexToken}`,upgrade:'websocket'}},env());expect(upgrade.status).toBe(503); });
+  it('forwards resolved identity and read-only authority to the document room', async () => { let actorHeader='';let editHeader='';const namespace={idFromName:vi.fn((value:string)=>value),get:vi.fn(()=>({fetch:vi.fn(async(request:Request)=>{actorHeader=request.headers.get('x-atlas-actor')||'';editHeader=request.headers.get('x-atlas-can-edit')||'';return new Response('forwarded',{status:200})})}))};const boundEnv=env(['documents:read']);boundEnv.DOCUMENT_ROOM=namespace as any;const forwardedResponse=await app.request('/api/documents/d1/realtime?client_id=browser:test123',{headers:{authorization:`Bearer ${codexToken}`,upgrade:'websocket'}},boundEnv);expect(forwardedResponse.status).toBe(200);expect(actorHeader).toBe('codex');expect(editHeader).toBe('false');expect(namespace.idFromName).toHaveBeenCalledWith('document:d1'); });
+});

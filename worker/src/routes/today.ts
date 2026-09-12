@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { Env } from '../db';
 import { atlasTodayIsoDate, readAtlasTodayPlan } from '../automations/atlasToday';
+import { getActor } from '../utils/actors';
 
 const router = new Hono<{ Bindings: Env }>();
 
 router.get('/', async (c) => {
   try {
     const date = c.req.query('date') || atlasTodayIsoDate();
-    const plan = await readAtlasTodayPlan(c.env, date);
+    const plan = await readAtlasTodayPlan(c.env, date, getActor(c));
     return c.json(plan);
   } catch (error) {
     console.error(`[today] read error: ${(error as Error).message}`);

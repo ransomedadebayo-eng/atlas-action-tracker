@@ -19,6 +19,14 @@ export function useMember(id) {
   });
 }
 
+export function useCurrentMember() {
+  return useQuery({
+    queryKey: ['member', 'me'],
+    queryFn: () => membersApi.me(),
+    staleTime: 60000,
+  });
+}
+
 export function useMemberStats() {
   return useQuery({
     queryKey: ['memberStats'],

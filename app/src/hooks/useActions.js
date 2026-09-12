@@ -23,6 +23,15 @@ export function useAction(id) {
   });
 }
 
+export function useActionStructure(id) {
+  return useQuery({
+    queryKey: ['actionStructure', id],
+    queryFn: () => actionsApi.structure(id),
+    enabled: !!id,
+    staleTime: 15000,
+  });
+}
+
 export function useActionStats(params = {}) {
   return useQuery({
     queryKey: ['actionStats', params],
@@ -59,12 +68,7 @@ export function useUpdateAction() {
   return useMutation({
     mutationFn: ({ id, ...data }) => actionsApi.update(id, data),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['actions'] });
-      queryClient.invalidateQueries({ queryKey: ['action', data.id] });
-      queryClient.invalidateQueries({ queryKey: ['actionStats'] });
-      queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
-      queryClient.invalidateQueries({ queryKey: ['memberStats'] });
-      queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
+      invalidateActionQueries(queryClient, data.id);
     },
   });
 }
@@ -88,6 +92,9 @@ function invalidateActionQueries(queryClient, id) {
   queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
   queryClient.invalidateQueries({ queryKey: ['memberStats'] });
   queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
+  queryClient.invalidateQueries({ queryKey: ['actionStructure'] });
+  queryClient.invalidateQueries({ queryKey: ['projects'] });
+  queryClient.invalidateQueries({ queryKey: ['project'] });
 }
 
 export function useCompleteAction() {
@@ -124,6 +131,27 @@ export function useBulkUpdateActions() {
       queryClient.invalidateQueries({ queryKey: ['actionsByOwner'] });
       queryClient.invalidateQueries({ queryKey: ['memberStats'] });
       queryClient.invalidateQueries({ queryKey: ['todayPlan'] });
+      queryClient.invalidateQueries({ queryKey: ['actionStructure'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['project'] });
     },
   });
 }
+
+function structureMutation(apiCall) {
+  return function useStructureMutation() {
+    const queryClient = useQueryClient();
+    return useMutation({
+      mutationFn: apiCall,
+      onSuccess: (_data, variables) => invalidateActionQueries(queryClient, variables.id),
+    });
+  };
+}
+
+export const useCreateSubAction = structureMutation(({ id, ...data }) => actionsApi.createSubAction(id, data));
+export const useSetActionParent = structureMutation(({ id, ...data }) => actionsApi.setParent(id, data));
+export const useCreateActionRelation = structureMutation(({ id, ...data }) => actionsApi.createRelation(id, data));
+export const useTransitionActionRelation = structureMutation(({ id, relationId, transition }) => actionsApi.transitionRelation(id, relationId, transition));
+export const useMarkActionDuplicate = structureMutation(({ id, ...data }) => actionsApi.markDuplicate(id, data));
+export const useRestoreDuplicateAction = structureMutation(({ id, ...data }) => actionsApi.restoreDuplicate(id, data));
+export const useConvertActionToProject = structureMutation(({ id, ...data }) => actionsApi.convertToProject(id, data));

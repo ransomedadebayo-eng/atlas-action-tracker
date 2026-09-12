@@ -70,4 +70,11 @@ describe('ActionCardControls', () => {
 
     await waitFor(() => expect(archive).toHaveBeenCalledWith({ id: 'a1', expected_revision: 7 }))
   })
+
+  it('omits the owner-only archive transition for a scoped human', () => {
+    render(<ActionCardControls action={action} canArchive={false} />)
+
+    expect(screen.getByRole('button', { name: 'Complete Mobile lifecycle task' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Archive Mobile lifecycle task' })).toBeNull()
+  })
 })

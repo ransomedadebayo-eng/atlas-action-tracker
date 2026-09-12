@@ -13,7 +13,15 @@ routes = [
 directory = "../app/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/hooks/*"]
+
+[[durable_objects.bindings]]
+name = "DOCUMENT_ROOM"
+class_name = "DocumentRoom"
+
+[[migrations]]
+tag = "document-room-v1"
+new_sqlite_classes = ["DocumentRoom"]
 
 [vars]
 NODE_ENV = "production"
@@ -26,4 +34,5 @@ CF_ACCESS_JWKS_URL = "https://ransomedadebayo.cloudflareaccess.com/cdn-cgi/acces
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # ATLAS_OWNER_EMAILS (comma-separated exact owner email allowlist)
-# ATLAS_API_PRINCIPALS_JSON ({"codex":{"token":"...","scopes":[...]},"claude":{...}})
+# ATLAS_HUMAN_ACCESS_JSON ({"verified-email@example.com":{"actor":"nicole","scopes":[...]}})
+# ATLAS_API_PRINCIPALS_JSON ({"codex":{"token":"...","scopes":[...]},"claude":{...},"nicole-codex":{...}}; Nicole agent entry is optional)

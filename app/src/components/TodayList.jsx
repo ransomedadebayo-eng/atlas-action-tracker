@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Clock, Info, ListTodo } from 'lucide-react';
 import { useTodayPlan } from '../hooks/useTodayPlan.js';
-import { useMembers } from '../hooks/useMembers.js';
+import { useCurrentMember, useMembers } from '../hooks/useMembers.js';
 import { PriorityBadge, BusinessBadge, StatusBadge } from './StatusBadge.jsx';
 import OwnerAvatars from './OwnerAvatars.jsx';
 import { formatRelativeDate, getISODate } from '../utils/dateUtils.js';
@@ -25,7 +25,7 @@ function taskReason(item, action) {
   return 'Selected for today.';
 }
 
-function TodayTask({ item, members, onSelectAction }) {
+function TodayTask({ item, members, onSelectAction, canArchive }) {
   const action = getAction(item);
   const owners = parseJsonArray(action.owners);
 
@@ -39,7 +39,7 @@ function TodayTask({ item, members, onSelectAction }) {
         >
           <div className="flex flex-wrap items-center gap-1.5">
             <PriorityBadge priority={action.priority} />
-            <StatusBadge status={action.status} />
+            <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
             <BusinessBadge business={action.business} />
             {item.estimated_effort && (
               <span className="badge text-text-muted border-border bg-bg-primary">
@@ -67,7 +67,8 @@ function TodayTask({ item, members, onSelectAction }) {
       </div>
       <ActionCardControls
         action={action}
-        className="mt-3 border-t border-white/10 pt-3 md:hidden"
+        canArchive={canArchive}
+        className="mt-3 border-t border-white/10 pt-3"
       />
     </div>
   );
@@ -77,8 +78,10 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
   const today = todayDateString();
   const { data, isLoading, isError, error } = useTodayPlan(today);
   const membersQuery = useMembers();
+  const currentMemberQuery = useCurrentMember();
   const rawMembers = membersQuery.data || [];
   const members = Array.isArray(rawMembers) ? rawMembers : [];
+  const canArchive = currentMemberQuery.data?.auth_kind === 'owner_access';
 
   const items = useMemo(() => {
     const rawItems = Array.isArray(data?.items) ? data.items : [];
@@ -105,10 +108,10 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
     );
   }
 
-  if (isError || membersQuery.isError) {
+  if (isError) {
     return (
       <div className="mx-auto max-w-3xl rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
-        {error?.message || membersQuery.error?.message || 'Today could not load.'}
+        {error?.message || 'Today could not load.'}
       </div>
     );
   }
@@ -132,11 +135,25 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
         </div>
       )}
 
+      {data?.source === 'weekly_plan_guidance' && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-accent/30 bg-accent-muted p-3 text-xs text-text-secondary" role="status">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
+          <span>Today is using the published weekly focus as guidance. Daily stewardship can still adapt this list when priorities change.</span>
+        </div>
+      )}
+
+      {data?.source === 'weekly_plan_rest_day' && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-accent/30 bg-accent-muted p-3 text-xs text-text-secondary" role="status">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" />
+          <span>No owner focus is scheduled today. This is intentional; protect recovery and leave the backlog in All Tasks.</span>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-surface p-8 text-center">
           <ListTodo className="mx-auto mb-3 h-8 w-8 text-text-muted" />
-          <p className="text-sm font-semibold text-text-primary">No tasks selected for today.</p>
-          <p className="mt-1 text-sm text-text-muted">All Tasks and Kanban still hold the full backlog.</p>
+          <p className="text-sm font-semibold text-text-primary">{data?.source === 'weekly_plan_rest_day' ? 'Today is protected.' : 'No tasks selected for today.'}</p>
+          <p className="mt-1 text-sm text-text-muted">{data?.source === 'weekly_plan_rest_day' ? 'Use Week for the plan. All Tasks keeps the backlog without pulling it into today.' : 'All Tasks and Kanban still hold the full backlog.'}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -146,6 +163,7 @@ export default function TodayList({ selectedBusiness, onSelectAction, searchQuer
               item={item}
               members={members}
               onSelectAction={onSelectAction}
+              canArchive={canArchive}
             />
           ))}
         </div>

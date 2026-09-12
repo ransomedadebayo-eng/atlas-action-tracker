@@ -1,20 +1,50 @@
 import { Context, Next } from 'hono';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { Env } from '../db';
+import { Env, getDb } from '../db';
 import { apiError } from '../utils/http';
+import { MACHINE_PRINCIPALS, MachinePrincipalId } from '../utils/principals';
 
 const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
-const MACHINE_PRINCIPALS = ['codex', 'claude'] as const;
 
 export type MachinePrincipal = {
-  actor: 'codex' | 'claude';
+  actor: MachinePrincipalId;
   token: string;
   scopes: string[];
 };
 
+export type HumanAccessPrincipal = {
+  email: string;
+  actor: 'nicole';
+  scopes: string[];
+};
+
+export type AccessIdentity = {
+  actor: 'ransomed' | 'nicole';
+  authKind: 'owner_access' | 'human_access';
+  scopes: string[];
+};
+
+function parseScopes(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return Array.from(new Set(value.filter((scope): scope is string => (
+    typeof scope === 'string' && /^[a-z]+:[a-z]+(?:_[a-z]+)*$/.test(scope)
+  ))));
+}
+
 async function sha256(value: string): Promise<Uint8Array> {
   const bytes = new TextEncoder().encode(value);
   return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+}
+
+export async function sha256Hex(value: string): Promise<string> {
+  return Array.from(await sha256(value)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function matchReleaseAccessKey(env: Env, pipelineId: string, provided: string): Promise<boolean> {
+  if (!pipelineId || provided.length < 24) return false;
+  const { data, error } = await getDb(env).from('atlas_release_pipelines').select('access_key_hash,status').eq('id', pipelineId).maybeSingle();
+  if (error || !data || data.status !== 'active' || typeof data.access_key_hash !== 'string') return false;
+  return safeTokenCompare(await sha256Hex(provided), data.access_key_hash);
 }
 
 export async function safeTokenCompare(provided: string, expected: string): Promise<boolean> {
@@ -44,10 +74,8 @@ export function parseApiPrincipals(raw?: string): MachinePrincipal[] {
       const value = parsed[actor];
       if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
       const config = value as Record<string, unknown>;
-      if (typeof config.token !== 'string' || config.token.length < 16 || !Array.isArray(config.scopes)) continue;
-      const scopes = Array.from(new Set(config.scopes.filter((scope): scope is string => (
-        typeof scope === 'string' && /^[a-z]+:[a-z]+$/.test(scope)
-      ))));
+      const scopes = parseScopes(config.scopes);
+      if (typeof config.token !== 'string' || config.token.length < 16 || !scopes) continue;
       principals.push({ actor, token: config.token, scopes });
     }
 
@@ -56,6 +84,53 @@ export function parseApiPrincipals(raw?: string): MachinePrincipal[] {
   } catch {
     return [];
   }
+}
+
+export function parseHumanAccessPrincipals(raw?: string): HumanAccessPrincipal[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+
+    const principals: HumanAccessPrincipal[] = [];
+    for (const [rawEmail, value] of Object.entries(parsed)) {
+      const email = rawEmail.trim().toLowerCase();
+      if (!email || !email.includes('@') || !value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const config = value as Record<string, unknown>;
+      const scopes = parseScopes(config.scopes);
+      if (config.actor !== 'nicole' || !scopes || scopes.length === 0) continue;
+      principals.push({ email, actor: 'nicole', scopes });
+    }
+
+    if (new Set(principals.map(principal => principal.actor)).size !== principals.length) return [];
+    return principals;
+  } catch {
+    return [];
+  }
+}
+
+function humanAccessEmails(raw?: string): Set<string> {
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Set();
+    return new Set(Object.keys(parsed).map(email => email.trim().toLowerCase()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+export function resolveVerifiedAccessIdentity(email: string, env: Pick<Env, 'ATLAS_OWNER_EMAILS' | 'ATLAS_HUMAN_ACCESS_JSON'>): AccessIdentity | null {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  const isOwner = parseOwnerEmails(env.ATLAS_OWNER_EMAILS).has(normalizedEmail);
+  if (isOwner && humanAccessEmails(env.ATLAS_HUMAN_ACCESS_JSON).has(normalizedEmail)) return null;
+  const principal = parseHumanAccessPrincipals(env.ATLAS_HUMAN_ACCESS_JSON)
+    .find(candidate => candidate.email === normalizedEmail);
+  if (isOwner) {
+    return { actor: 'ransomed', authKind: 'owner_access', scopes: ['*'] };
+  }
+  return principal ? { actor: principal.actor, authKind: 'human_access', scopes: principal.scopes } : null;
 }
 
 export async function matchMachinePrincipal(providedToken: string, rawConfig?: string): Promise<MachinePrincipal | null> {
@@ -96,15 +171,16 @@ async function verifyAccessJwt(c: Context<{ Bindings: Env }>, accessJwt: string)
       algorithms: ['RS256'],
     });
     const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
-    if (!email || !parseOwnerEmails(c.env.ATLAS_OWNER_EMAILS).has(email)) return 'forbidden';
-    setRequestIdentity(c, 'ransomed', 'owner_access', ['*']);
+    const identity = resolveVerifiedAccessIdentity(email, c.env);
+    if (!identity) return 'forbidden';
+    setRequestIdentity(c, identity.actor, identity.authKind, identity.scopes);
     return 'authorized';
   } catch {
     return 'invalid';
   }
 }
 
-function setRequestIdentity(c: Context<{ Bindings: Env }>, actor: string, authKind: 'api_principal' | 'owner_access', scopes: string[]) {
+function setRequestIdentity(c: Context<{ Bindings: Env }>, actor: string, authKind: 'api_principal' | 'human_access' | 'owner_access' | 'release_access', scopes: string[]) {
   (c as unknown as { set: (key: string, value: string) => void }).set('atlasActor', actor);
   (c as unknown as { set: (key: string, value: string) => void }).set('atlasAuthKind', authKind);
   (c as unknown as { set: (key: string, value: string[]) => void }).set('atlasScopes', scopes);
@@ -113,6 +189,14 @@ function setRequestIdentity(c: Context<{ Bindings: Env }>, actor: string, authKi
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
   const authHeader = c.req.header('authorization');
   const accessJwt = c.req.header('cf-access-jwt-assertion');
+  const releaseMatch = c.req.path.match(/^\/api\/releases\/ingest\/([^/]+)$/);
+  const releaseKey = c.req.header('x-atlas-release-key');
+
+  if (releaseMatch && releaseKey && await matchReleaseAccessKey(c.env, decodeURIComponent(releaseMatch[1]), releaseKey)) {
+    setRequestIdentity(c, 'release_ci', 'release_access', ['releases:ingest']);
+    (c as unknown as { set: (key: string, value: string) => void }).set('atlasReleasePipelineId', decodeURIComponent(releaseMatch[1]));
+    return next();
+  }
 
   if (authHeader?.startsWith('Bearer ')) {
     const providedToken = authHeader.slice(7);
@@ -131,7 +215,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
     const result = await verifyAccessJwt(c, accessJwt);
     if (result === 'authorized') return next();
     if (result === 'forbidden') {
-      return apiError(c, 403, 'OWNER_EMAIL_REQUIRED', 'This Cloudflare Access identity is not the configured ATLAS owner.');
+      return apiError(c, 403, 'ACCESS_IDENTITY_NOT_ALLOWED', 'This verified Cloudflare Access identity is not configured for ATLAS.');
     }
   }
 

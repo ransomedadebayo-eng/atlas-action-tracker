@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterByOwner, includesAssignmentFields } from './actions';
+import { calculateActionChildProgress, filterByOwner, includesAssignmentFields, normalizeActionRelation } from './actions';
 
 describe('action assignment field protection', () => {
   it('detects owner and agent assignment changes', () => {
@@ -24,5 +24,29 @@ describe('action owner filtering', () => {
 
     expect(filterByOwner(actions, 'claude').map(action => action.id)).toEqual(['a2']);
     expect(filterByOwner(actions)).toEqual(actions);
+  });
+});
+
+describe('action hierarchy and relation helpers', () => {
+  it('rolls up child count and effort with one point for unestimated work', () => {
+    expect(calculateActionChildProgress([
+      { status: 'done', estimate_points: 3 },
+      { status: 'in_progress', estimate_points: null },
+      { status: 'done', estimate_points: 0 },
+    ])).toEqual({
+      total_children: 3,
+      completed_children: 2,
+      total_effort: 4,
+      completed_effort: 3,
+      progress_percent: 75,
+    });
+  });
+
+  it('normalizes symmetric and directional relations', () => {
+    expect(normalizeActionRelation('b', 'a', 'related')).toEqual({ source_action_id: 'a', target_action_id: 'b', relation_type: 'related' });
+    expect(normalizeActionRelation('a', 'b', 'blocks')).toEqual({ source_action_id: 'a', target_action_id: 'b', relation_type: 'blocks' });
+    expect(normalizeActionRelation('a', 'b', 'blocked_by')).toEqual({ source_action_id: 'b', target_action_id: 'a', relation_type: 'blocks' });
+    expect(normalizeActionRelation('a', 'a', 'related')).toBeNull();
+    expect(normalizeActionRelation('a', 'b', 'duplicate')).toBeNull();
   });
 });

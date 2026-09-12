@@ -1,6 +1,6 @@
 import { getMemberColor } from './colors.js';
 
-export const ACTIVE_PRINCIPAL_IDS = Object.freeze(['ransomed', 'codex', 'claude']);
+export const ACTIVE_PRINCIPAL_IDS = Object.freeze(['ransomed', 'nicole', 'codex', 'claude', 'nicole-codex']);
 const ACTIVE_PRINCIPAL_SET = new Set(ACTIVE_PRINCIPAL_IDS);
 
 export function isActivePrincipal(memberOrId) {

@@ -1,6 +1,7 @@
 SUPABASE_URL=https://vdezxdeushxaacyfjeeh.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=
 NODE_ENV=development
+ATLAS_DELIVERY_ENABLED=false
 ATLAS_API_TOKEN=local-owner-token-change-me
 ATLAS_OWNER_EMAILS=owner@example.com
 ATLAS_API_PRINCIPALS_JSON={"codex":{"token":"codex-token-change-me-000001","scopes":["actions:read","actions:write","actions:complete","actions:assign","transcripts:read","transcripts:write","automations:read"]},"claude":{"token":"claude-token-change-me-0001","scopes":["actions:read","actions:write","actions:complete","actions:assign","transcripts:read","transcripts:write","automations:read"]}}

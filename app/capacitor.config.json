@@ -1,0 +1,12 @@
+{
+  "appId": "app.ransomed.atlas",
+  "appName": "Atlas",
+  "webDir": "dist",
+  "server": {
+    "url": "https://atlas.ransomed.app",
+    "cleartext": false
+  },
+  "ios": {
+    "scheme": "Atlas"
+  }
+}

@@ -362,7 +362,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                         {normalizedStatus !== 'done' && (
                           <ActionCardControls
                             action={action}
-                            className="border-t border-white/10 px-3 py-2.5 md:hidden"
+                            className="border-t border-white/10 px-3 py-2.5"
                           />
                         )}
                       </article>

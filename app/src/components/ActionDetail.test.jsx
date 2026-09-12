@@ -7,6 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ActionDetail from './ActionDetail.jsx'
 import * as actionHooks from '../hooks/useActions.js'
 
+vi.mock('./LazyDiscussionThread.jsx', () => ({ default: ({ targetType }) => <div data-testid={`${targetType}-discussion`} /> }))
+
 vi.mock('../hooks/useActions.js', () => ({
   useAction: vi.fn(),
   useUpdateAction: vi.fn(),
@@ -19,6 +21,9 @@ vi.mock('../hooks/useMembers.js', () => ({ useMembers: () => ({ data: [] }) }))
 vi.mock('../hooks/useBusinesses.js', () => ({
   useBusinessContext: () => ({ BUSINESSES: {}, BUSINESS_LIST: [], BUSINESS_COLORS: {} }),
 }))
+vi.mock('../hooks/useEstimateSettings.js', () => ({ useEstimateSettings: () => ({ data: { enabled: false } }) }))
+vi.mock('./ActionStructureSection.jsx', () => ({ default: () => <div>Action structure</div> }))
+vi.mock('./ActionCycleControl.jsx', () => ({ default: () => <div>Action cycle</div> }))
 vi.mock('../api/client.js', () => ({ activityApi: { get: vi.fn().mockResolvedValue([]) } }))
 
 function renderDetail() {
@@ -57,7 +62,7 @@ describe('ActionDetail trust states', () => {
     const complete = vi.fn().mockResolvedValue({ id: 'a1', status: 'done', revision: 4 })
     actionHooks.useAction.mockReturnValue({
       data: {
-        id: 'a1', title: 'Trust repair', status: 'in_progress', priority: 'p1', owners: ['ransomed'],
+        id: 'a1', identifier: 'ATLAS-608', title: 'Trust repair', status: 'in_progress', priority: 'p1', owners: ['ransomed'],
         tags: [],
         evidence_json: {
           version: 2,
@@ -74,6 +79,7 @@ describe('ActionDetail trust states', () => {
     actionHooks.useCompleteAction.mockReturnValue(mutation(complete))
 
     renderDetail()
+    expect(screen.getByText('ATLAS-608')).toBeTruthy()
     expect(screen.getByLabelText('Existing completion evidence').textContent).toContain('Deployment and readback verified.')
     fireEvent.click(screen.getByRole('button', { name: 'Mark Done' }))
 

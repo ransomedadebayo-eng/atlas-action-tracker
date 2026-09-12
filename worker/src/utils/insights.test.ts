@@ -1,0 +1,18 @@
+import { describe,expect,it } from 'vitest';
+import { applyInsightFilters,computeInsight,csvCell,dateBucket,mergeInsightFilters,percentile,rowsToCsv,statusType } from './insights';
+const actions=[
+ {id:'a1',title:'Done bug',status:'done',business:'personal',priority:'p1',owners:['codex'],tags:['bug'],estimate_points:3,project_id:'p1',project_name:'Atlas',created_at:'2026-08-01T00:00:00Z',started_at:'2026-08-05T00:00:00Z',completed_at:'2026-08-10T00:00:00Z',updated_at:'2026-08-10T00:00:00Z',initiatives:[{id:'i1',name:'Strategy'}],releases:[{release:{id:'r1',name:'1.0'},pipeline:{id:'pl1',name:'Web'}}]},
+ {id:'a2',title:'Done unestimated',status:'done',business:'personal',priority:null,owners:['ransomed'],tags:['feature'],estimate_points:null,created_at:'2026-08-02T00:00:00Z',started_at:null,completed_at:'2026-08-12T00:00:00Z',updated_at:'2026-08-12T00:00:00Z',initiatives:[],releases:[]},
+ {id:'a3',title:'Active work',status:'in_progress',business:'riddim_exchange',priority:'p2',owners:['codex','ransomed'],tags:['bug'],estimate_points:2,created_at:'2026-08-15T00:00:00Z',started_at:'2026-08-16T00:00:00Z',completed_at:null,updated_at:'2026-08-18T00:00:00Z',initiatives:[],releases:[]},
+];
+describe('insight analytics engine',()=>{
+ it('maps status types, date buckets, and interpolated percentiles',()=>{expect(statusType('done')).toBe('completed');expect(statusType('open')).toBe('backlog');expect(dateBucket('2026-08-20T00:00:00Z','quarterly')).toBe('2026-Q3');expect(percentile([1,3],.5)).toBe(2)});
+ it('filters multi-value dimensions and explicit no-priority behavior',()=>{expect(applyInsightFilters(actions,{owner:'codex',tag:'bug'}).map(item=>item.id)).toEqual(['a1','a3']);expect(applyInsightFilters(actions,{},false,true).map(item=>item.id)).toEqual(['a1','a3']);expect(applyInsightFilters(actions,{release:'1.0'}).map(item=>item.id)).toEqual(['a1'])});
+ it('aggregates count and effort by slice and segment with drill-down ids',()=>{const result=computeInsight(actions,{measure:'effort',slice_by:'business',segment_by:'priority',filters:{},time_grouping:'monthly',revision:2},{unestimatedValue:1,now:new Date('2026-08-20T00:00:00Z')});expect(result.summary.sum).toBe(6);expect(result.chart_data.find(item=>item.slice==='personal'&&item.segment==='p1')?.value).toBe(3);expect(result.action_ids).toEqual(['a1','a2','a3']);expect(result.definition_revision).toBe(2)});
+ it('reports missing duration history instead of inventing cycle time',()=>{const result=computeInsight(actions,{measure:'cycle_time',slice_by:'status',filters:{},time_grouping:'monthly'},{now:new Date('2026-08-20T00:00:00Z')});expect(result.summary.count).toBe(1);expect(result.summary.average).toBe(5);expect(result.summary.missing_measure_count).toBe(2)});
+ it('builds scatter and cumulative burn-up datasets',()=>{const result=computeInsight(actions,{measure:'lead_time',slice_by:'priority',chart_type:'scatter',filters:{},time_grouping:'daily'},{now:new Date('2026-08-20T00:00:00Z')});expect(result.scatter_data).toHaveLength(2);expect(result.summary.p50).toBe(9.5);expect(result.burn_up.at(-1)).toMatchObject({created:3,completed:2})});
+ it('merges filters in precedence order',()=>{expect(mergeInsightFilters({business:'personal',priority:'p1'},{priority:'p2'},{tag:'bug'})).toEqual({business:'personal',priority:'p2',tag:'bug'})});
+});
+describe('CSV safety',()=>{
+ it('quotes commas, quotes, and newlines and neutralizes spreadsheet formulas',()=>{expect(csvCell('=SUM(A1:A2)')).toBe('"\'=SUM(A1:A2)"');const csv=rowsToCsv([{title:'Hello, "world"',note:'a\nb'}],['title','note']);expect(csv).toContain('"Hello, ""world"""');expect(csv).toContain('"a\nb"')});
+});
