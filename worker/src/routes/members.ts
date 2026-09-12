@@ -16,27 +16,30 @@ type PrincipalRow = {
   is_active?: boolean | null;
 };
 
-export function isMutablePrincipal(member: PrincipalRow): { ok: true } | { status: 403; code: string; message: string } {
+export function isMutablePrincipal(member: PrincipalRow): { ok: true } | { ok: false; status: 403; code: string; message: string } {
   const id = String(member.id || '').trim();
   const type = String(member.principal_type || '').trim().toLowerCase();
   const active = member.is_active === true;
 
   if (!active || type === 'historical' || !VISIBLE_PRINCIPAL_TYPES.has(type)) {
     return {
+      ok: false,
       status: 403,
       code: 'HISTORICAL_PRINCIPAL_IMMUTABLE',
       message: 'Historical principals are read-only provenance.',
     };
   }
-  if (type === 'owner' && id !== 'ransomed') {
+  if ((type === 'owner' && id !== 'ransomed') || (id === 'ransomed' && type !== 'owner')) {
     return {
+      ok: false,
       status: 403,
       code: 'ATLAS_OWNER_PRINCIPAL_REQUIRED',
       message: 'Only ransomed can be the active owner principal.',
     };
   }
-  if (type === 'human' && id !== 'nicole') {
+  if ((type === 'human' && id !== 'nicole') || (id === 'nicole' && type !== 'human')) {
     return {
+      ok: false,
       status: 403,
       code: 'ATLAS_HUMAN_PRINCIPAL_REQUIRED',
       message: 'Only nicole can be the active human principal.',

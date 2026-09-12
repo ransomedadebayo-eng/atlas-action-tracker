@@ -36,6 +36,11 @@ describe('principal workload stats', () => {
 });
 
 describe('principal write gate', () => {
+  it('rejects reassignment of reserved identities and extra human identities', () => {
+    for (const [id, principal_type] of [['ransomed', 'agent'], ['nicole', 'agent'], ['other', 'owner'], ['other', 'human']]) {
+      expect(isMutablePrincipal({ id, principal_type, is_active: true })).toMatchObject({ ok: false, status: 403 });
+    }
+  });
   it('treats Nicole and active agents as editable and historical rows as immutable', () => {
     expect(isMutablePrincipal({ id: 'nicole', principal_type: 'human', is_active: true })).toEqual({ ok: true });
     expect(isMutablePrincipal({ id: 'amara', principal_type: 'agent', is_active: true })).toEqual({ ok: true });

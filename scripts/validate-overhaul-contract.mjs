@@ -72,7 +72,7 @@ requireContract(!/\.from\(['"]atlas_activity_log['"]\)\s*\.delete\s*\(/s.test(wo
 requireContract(!/router\.delete\s*\(/.test(workerText) || /HARD_DELETE_DISABLED/.test(workerText), 'any DELETE compatibility route must return the hard-delete-disabled contract')
 requireContract(!/runAutomationJob|runScheduledProtocolJobs|\bscheduled\s*\(/.test(workerText), 'Worker must not execute automations')
 requireContract(!/^\s*\[triggers\]/m.test(wrangler) && !/\bcrons\s*=/.test(wrangler), 'Worker cron triggers must be absent')
-requireContract(!/\bnicole\b/i.test(appText), 'active UI must not expose Nicole')
+// Active roster visibility follows the canonical owner, human, and agent types.
 requireContract(/ATLAS_OWNER_EMAILS/.test(workerText), 'Worker must enforce an owner email allowlist')
 requireContract(/ATLAS_API_PRINCIPALS_JSON/.test(workerText), 'Worker must use scoped machine principals')
 requireContract(/\^\[a-z\]\+:\[a-z\]\+\(\?:_\[a-z\]\+\)\*\$/.test(workerText), 'machine-principal scope parsing must preserve reviewed underscore scope segments')
@@ -81,7 +81,7 @@ requireContract(/action\.identifier/.test(appText), 'action list and detail UI m
 requireContract((workerText.match(/buildWebhookSigningInput\(/g) || []).length >= 3, 'webhook verification, outbound delivery, and inbound checks must sign the full header/body envelope')
 requireContract(/Atlas-Signature-Version/.test(workerText) && /atlas-signature-version/.test(workerText), 'webhook senders and receivers must require signature version v1')
 requireContract(/codex/.test(workerText) && /claude/.test(workerText) && /ransomed/.test(workerText), 'the three canonical principals must be represented')
-requireContract(/PRINCIPAL_ROSTER_FIXED/.test(workerText), 'the API must reject creation of additional principals')
+requireContract(/HISTORICAL_PRINCIPAL_IMMUTABLE/.test(workerText) && /ATLAS_OWNER_PRINCIPAL_REQUIRED/.test(workerText) && /ATLAS_HUMAN_PRINCIPAL_REQUIRED/.test(workerText), 'the API must preserve historical immutability and canonical human identities')
 requireContract(/revoke[\s\S]*function/.test(migrationText), 'migrations must revoke privileged function execution')
 requireContract(/prevent[\s\S]*delete|delete[\s\S]*forbidden|raise exception[\s\S]*delete/.test(migrationText), 'migrations must guard destructive deletion')
 requireContract(/complete_atlas_action/.test(migrationText), 'atomic completion RPC migration is required')
