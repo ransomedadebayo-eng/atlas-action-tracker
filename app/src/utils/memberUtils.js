@@ -1,9 +1,33 @@
 import { getMemberColor } from './colors.js';
 
+export const VISIBLE_PRINCIPAL_TYPES = Object.freeze(['owner', 'human', 'agent']);
+const VISIBLE_PRINCIPAL_TYPE_SET = new Set(VISIBLE_PRINCIPAL_TYPES);
+
+// Fallback allowlist for ID-only callers and stats rows that omit principal_type.
 export const ACTIVE_PRINCIPAL_IDS = Object.freeze(['ransomed', 'codex', 'claude']);
 const ACTIVE_PRINCIPAL_SET = new Set(ACTIVE_PRINCIPAL_IDS);
 
+export const PRINCIPAL_TYPE_META = Object.freeze({
+  owner: { label: 'Owner', color: '#f4b860' },
+  human: { label: 'Human', color: '#60a5fa' },
+  agent: { label: 'Agent', color: '#34d399' },
+});
+
+export function principalTypeOf(memberOrId) {
+  if (!memberOrId || typeof memberOrId !== 'object') return '';
+  return String(memberOrId.principal_type || '').trim().toLowerCase();
+}
+
+export function isVisiblePrincipalType(type) {
+  return VISIBLE_PRINCIPAL_TYPE_SET.has(String(type || '').trim().toLowerCase());
+}
+
 export function isActivePrincipal(memberOrId) {
+  if (memberOrId && typeof memberOrId === 'object') {
+    if (memberOrId.is_active === false) return false;
+    const type = principalTypeOf(memberOrId);
+    if (type) return isVisiblePrincipalType(type);
+  }
   const id = typeof memberOrId === 'object' ? (memberOrId?.id || memberOrId?.member_id) : memberOrId;
   return ACTIVE_PRINCIPAL_SET.has(String(id || '').trim().toLowerCase());
 }
