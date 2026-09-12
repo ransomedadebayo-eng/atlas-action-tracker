@@ -68,7 +68,7 @@ describe('Worker trust boundary', () => {
     await expect(response.json()).resolves.toMatchObject({ code: 'ASSIGNMENT_SCOPE_REQUIRED' });
   });
 
-  it('rejects creation of additional principals even for the local owner', async () => {
+  it('rejects historical principal creation and keeps active agents writable', async () => {
     const response = await app.request('/api/members', {
       method: 'POST',
       headers: {
@@ -78,9 +78,9 @@ describe('Worker trust boundary', () => {
       body: JSON.stringify({ id: 'another-person', name: 'Another Person' }),
     }, env({ NODE_ENV: 'development' }));
 
-    expect(response.status).toBe(405);
+    expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
-      error: { code: 'PRINCIPAL_ROSTER_FIXED' },
+      error: { code: 'HISTORICAL_PRINCIPAL_IMMUTABLE' },
     });
   });
 });

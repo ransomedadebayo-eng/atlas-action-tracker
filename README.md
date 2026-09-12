@@ -129,3 +129,17 @@ Run `npm run check` from the repository root. CI builds the UI, typechecks and t
 ## Release boundary
 
 Database migrations are forward-only. Never delete Atlas actions or activity records; archive or restore them through audited transitions. Production migrations and deployments require staged readback evidence and owner approval.
+
+## Develop and deploy remotely
+
+Open this repository in GitHub Codespaces (Code > Codespaces > Create). The
+devcontainer installs frontend and Worker dependencies with Node 22. Run
+`npm run check` to validate changes. Start the frontend with
+`npm run dev --prefix app -- --host 0.0.0.0`; use the Worker development command
+in `worker/package.json` when API access is needed. Supply development secrets
+through private environment configuration; production secrets are not needed
+for builds or tests. Never commit `.dev.vars` or tokens.
+
+Push a branch and open a pull request. Merging to `main` runs the GitHub
+Cloudflare deployment workflow after validation. Confirm that workflow's
+success and deployed version before treating a release as delivered.

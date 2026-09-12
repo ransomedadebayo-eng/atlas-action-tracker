@@ -1,11 +1,24 @@
 import { getMemberColor } from './colors.js';
 
-export const ACTIVE_PRINCIPAL_IDS = Object.freeze(['ransomed', 'codex', 'claude']);
-const ACTIVE_PRINCIPAL_SET = new Set(ACTIVE_PRINCIPAL_IDS);
+export const VISIBLE_PRINCIPAL_TYPES = Object.freeze(['owner', 'human', 'agent']);
+const VISIBLE_PRINCIPAL_TYPE_SET = new Set(VISIBLE_PRINCIPAL_TYPES);
+
+export const PRINCIPAL_TYPE_META = Object.freeze({
+  owner: { label: 'Owner', color: '#f4b860' },
+  human: { label: 'Human', color: '#60a5fa' },
+  agent: { label: 'Agent', color: '#34d399' },
+});
+
+export function principalTypeOf(member) {
+  if (!member || typeof member !== 'object') return '';
+  return String(member.principal_type || '').trim().toLowerCase();
+}
 
 export function isActivePrincipal(memberOrId) {
-  const id = typeof memberOrId === 'object' ? (memberOrId?.id || memberOrId?.member_id) : memberOrId;
-  return ACTIVE_PRINCIPAL_SET.has(String(id || '').trim().toLowerCase());
+  if (!memberOrId || typeof memberOrId !== 'object') return false;
+  if (memberOrId.is_active !== true) return false;
+  const type = String(memberOrId.principal_type || '').trim().toLowerCase();
+  return VISIBLE_PRINCIPAL_TYPE_SET.has(type);
 }
 
 export function activePrincipals(members = []) {

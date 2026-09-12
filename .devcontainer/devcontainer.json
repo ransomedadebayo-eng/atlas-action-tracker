@@ -1,0 +1,17 @@
+{
+  "name": "Atlas cloud development",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm ci --prefix app && npm ci --prefix worker",
+  "forwardPorts": [
+    5173,
+    8787
+  ],
+  "portsAttributes": {
+    "5173": {
+      "label": "Atlas frontend"
+    },
+    "8787": {
+      "label": "Atlas Worker API"
+    }
+  }
+}
