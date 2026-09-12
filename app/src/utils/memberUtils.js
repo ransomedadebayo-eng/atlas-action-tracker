@@ -3,6 +3,17 @@ import { getMemberColor } from './colors.js';
 export const VISIBLE_PRINCIPAL_TYPES = Object.freeze(['owner', 'human', 'agent']);
 const VISIBLE_PRINCIPAL_TYPE_SET = new Set(VISIBLE_PRINCIPAL_TYPES);
 
+export const PRINCIPAL_TYPE_META = Object.freeze({
+  owner: { label: 'Owner', color: '#f4b860' },
+  human: { label: 'Human', color: '#60a5fa' },
+  agent: { label: 'Agent', color: '#34d399' },
+});
+
+export function principalTypeOf(member) {
+  if (!member || typeof member !== 'object') return '';
+  return String(member.principal_type || '').trim().toLowerCase();
+}
+
 export function isActivePrincipal(memberOrId) {
   if (!memberOrId || typeof memberOrId !== 'object') return false;
   if (memberOrId.is_active !== true) return false;

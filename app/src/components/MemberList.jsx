@@ -5,10 +5,31 @@ import { BusinessBadge } from './StatusBadge.jsx'
 import MemberDetail from './MemberDetail.jsx'
 import WorkloadChart from './WorkloadChart.jsx'
 import { getMemberColor, STATUS_COLORS } from '../utils/colors.js'
-import { getInitials } from '../utils/memberUtils.js'
+import { getInitials, principalTypeOf, PRINCIPAL_TYPE_META } from '../utils/memberUtils.js'
+
+const TYPE_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'human', label: 'Human' },
+  { id: 'agent', label: 'Agents' },
+]
+
+function PrincipalTypeBadge({ type }) {
+  const meta = PRINCIPAL_TYPE_META[type]
+  if (!meta) return null
+  return (
+    <span
+      className="badge shrink-0"
+      style={{ backgroundColor: `${meta.color}18`, color: meta.color, borderColor: `${meta.color}35` }}
+    >
+      {meta.label}
+    </span>
+  )
+}
 
 export default function MemberList({ onSelectAction }) {
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [selectedMemberId, setSelectedMemberId] = useState(null)
   const [showChart, setShowChart] = useState(true)
 
@@ -26,16 +47,30 @@ export default function MemberList({ onSelectAction }) {
     return map
   }, [memberStats])
 
-  // Filter members by search
+  const typeCounts = useMemo(() => {
+    const counts = { all: members.length, owner: 0, human: 0, agent: 0 }
+    for (const member of members) {
+      const type = principalTypeOf(member)
+      if (Object.prototype.hasOwnProperty.call(counts, type)) counts[type] += 1
+    }
+    return counts
+  }, [members])
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return members
-    const q = search.toLowerCase()
-    return members.filter(m =>
-      (m.name || '').toLowerCase().includes(q) ||
-      (m.full_name && m.full_name.toLowerCase().includes(q)) ||
-      (m.role && m.role.toLowerCase().includes(q))
-    )
-  }, [members, search])
+    const q = search.trim().toLowerCase()
+    return members.filter(m => {
+      const type = principalTypeOf(m)
+      if (typeFilter !== 'all' && type !== typeFilter) return false
+      if (!q) return true
+      return (
+        (m.name || '').toLowerCase().includes(q) ||
+        (m.full_name && m.full_name.toLowerCase().includes(q)) ||
+        (m.role && m.role.toLowerCase().includes(q)) ||
+        (m.id || '').toLowerCase().includes(q) ||
+        type.includes(q)
+      )
+    })
+  }, [members, search, typeFilter])
 
   if (selectedMemberId) {
     return (
@@ -119,6 +154,25 @@ export default function MemberList({ onSelectAction }) {
         </div>
       </div>
 
+      <div className="flex items-center gap-1 border-b border-border pb-0.5" role="tablist" aria-label="Principal type">
+        {TYPE_TABS.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={typeFilter === tab.id}
+            className={`px-3 py-1.5 rounded-t-md text-sm font-medium transition-colors ${
+              typeFilter === tab.id
+                ? 'bg-bg-elevated text-text-primary'
+                : 'text-text-secondary hover:text-text-primary'
+            }`}
+            onClick={() => setTypeFilter(tab.id)}
+          >
+            {tab.label} ({typeCounts[tab.id] || 0})
+          </button>
+        ))}
+      </div>
+
       {/* Member grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {filtered.map(member => {
@@ -151,6 +205,7 @@ export default function MemberList({ onSelectAction }) {
                     <span className="text-text-primary font-medium text-sm truncate">
                       {member.name}
                     </span>
+                    <PrincipalTypeBadge type={principalTypeOf(member)} />
                     {member.full_name && member.full_name !== member.name && (
                       <span className="text-text-muted text-xs truncate hidden sm:inline">
                         {member.full_name}
