@@ -4,7 +4,7 @@ import { useMember, useMemberActions, useMembers } from '../hooks/useMembers.js'
 import { StatusBadge, PriorityBadge, BusinessBadge } from './StatusBadge.jsx'
 import OwnerAvatars from './OwnerAvatars.jsx'
 import { getMemberColor, STATUS_COLORS } from '../utils/colors.js'
-import { getInitials, principalTypeOf, PRINCIPAL_TYPE_META } from '../utils/memberUtils.js'
+import { getInitials } from '../utils/memberUtils.js'
 import { formatRelativeDate, isOverdue } from '../utils/dateUtils.js'
 import { canonicalStatus, STATUSES, STATUS_LIST } from '../utils/constants.js'
 
@@ -22,8 +22,6 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
   }, [allActions, statusFilter])
 
   const color = getMemberColor(memberId)
-  const principalType = principalTypeOf(member)
-  const typeMeta = PRINCIPAL_TYPE_META[principalType]
   const stats = useMemo(() => {
     const counts = Object.fromEntries(Object.keys(STATUSES).map(status => [status, 0]))
     let overdueCount = 0
@@ -90,23 +88,9 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
           {getInitials(member.name)}
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold text-text-primary">
-              {member.name}
-            </h2>
-            {typeMeta && (
-              <span
-                className="badge"
-                style={{
-                  backgroundColor: `${typeMeta.color}18`,
-                  color: typeMeta.color,
-                  borderColor: `${typeMeta.color}35`,
-                }}
-              >
-                {typeMeta.label}
-              </span>
-            )}
-          </div>
+          <h2 className="text-xl font-semibold text-text-primary">
+            {member.name}
+          </h2>
           {member.full_name && member.full_name !== member.name && (
             <p className="text-text-secondary text-sm">{member.full_name}</p>
           )}

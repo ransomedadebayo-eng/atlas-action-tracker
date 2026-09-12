@@ -1,14 +1,49 @@
 import { Hono } from 'hono';
 import { Env, getDb } from '../db';
-import { validateStringLengths, sanitizeBody } from '../middleware/validate';
+import { validateMemberId, validateStringLengths, sanitizeBody } from '../middleware/validate';
 import { coerceJsonArray, serializeJsonArray } from '../utils/json';
 
 const router = new Hono<{ Bindings: Env }>();
 
 const TEXT_FIELDS = ['name', 'full_name', 'email', 'role'];
 const PRIORITY_ORDER: Record<string, number> = { p0: 0, p1: 1, p2: 2, p3: 3 };
-const ACTIVE_PRINCIPALS = new Set(['ransomed', 'codex', 'claude']);
+const VISIBLE_PRINCIPAL_TYPES = new Set(['owner', 'human', 'agent']);
 const CLOSED_STATUSES = new Set(['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived']);
+
+type PrincipalRow = {
+  id: string;
+  principal_type?: string | null;
+  is_active?: boolean | null;
+};
+
+export function isMutablePrincipal(member: PrincipalRow): { ok: true } | { status: 403; code: string; message: string } {
+  const id = String(member.id || '').trim();
+  const type = String(member.principal_type || '').trim().toLowerCase();
+  const active = member.is_active === true;
+
+  if (!active || type === 'historical' || !VISIBLE_PRINCIPAL_TYPES.has(type)) {
+    return {
+      status: 403,
+      code: 'HISTORICAL_PRINCIPAL_IMMUTABLE',
+      message: 'Historical principals are read-only provenance.',
+    };
+  }
+  if (type === 'owner' && id !== 'ransomed') {
+    return {
+      status: 403,
+      code: 'ATLAS_OWNER_PRINCIPAL_REQUIRED',
+      message: 'Only ransomed can be the active owner principal.',
+    };
+  }
+  if (type === 'human' && id !== 'nicole') {
+    return {
+      status: 403,
+      code: 'ATLAS_HUMAN_PRINCIPAL_REQUIRED',
+      message: 'Only nicole can be the active human principal.',
+    };
+  }
+  return { ok: true };
+}
 
 function atlasLocalDate(): string {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -21,9 +56,11 @@ function atlasLocalDate(): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-export function computeActivePrincipalStats(actions: Record<string, unknown>[], today: string) {
-  const stats = new Map(Array.from(ACTIVE_PRINCIPALS, memberId => [memberId, {
-    member_id: memberId,
+function emptyStats(member: PrincipalRow) {
+  return {
+    member_id: member.id,
+    principal_type: String(member.principal_type || ''),
+    is_active: member.is_active === true,
     not_started: 0,
     in_progress: 0,
     waiting: 0,
@@ -32,7 +69,19 @@ export function computeActivePrincipalStats(actions: Record<string, unknown>[], 
     active: 0,
     overdue: 0,
     total: 0,
-  }]));
+  };
+}
+
+export function computeActivePrincipalStats(
+  actions: Record<string, unknown>[],
+  today: string,
+  principals: PrincipalRow[] = [],
+) {
+  const stats = new Map<string, ReturnType<typeof emptyStats>>();
+  for (const principal of principals) {
+    if (!principal?.id || isMutablePrincipal(principal).ok !== true) continue;
+    stats.set(principal.id, emptyStats(principal));
+  }
 
   for (const action of actions) {
     const status = String(action.status || 'not_started').toLowerCase();
@@ -99,12 +148,20 @@ router.get('/', async (c) => {
 router.get('/stats', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { data: actions, error } = await supabase
-      .from('atlas_actions')
-      .select('status,due_date,owners');
-    if (error) throw error;
+    const [{ data: principals, error: principalError }, { data: actions, error: actionError }] = await Promise.all([
+      supabase
+        .from('atlas_members')
+        .select('id,principal_type,is_active')
+        .eq('is_active', true)
+        .in('principal_type', ['owner', 'human', 'agent']),
+      supabase
+        .from('atlas_actions')
+        .select('status,due_date,owners'),
+    ]);
+    if (principalError) throw principalError;
+    if (actionError) throw actionError;
 
-    return c.json(computeActivePrincipalStats(actions || [], atlasLocalDate()));
+    return c.json(computeActivePrincipalStats(actions || [], atlasLocalDate(), principals || []));
   } catch (err: unknown) {
     console.error(`[members] stats error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);
@@ -169,13 +226,60 @@ router.get('/:id', async (c) => {
 });
 
 router.post('/', async (c) => {
-  c.header('Allow', 'GET, PUT');
-  return c.json({
-    error: {
-      code: 'PRINCIPAL_ROSTER_FIXED',
-      message: 'ATLAS is owner-only. New principals cannot be created.',
-    },
-  }, 405);
+  try {
+    let raw: unknown;
+    try { raw = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON body' }, 400); }
+
+    const body = sanitizeBody(raw as Record<string, unknown>, TEXT_FIELDS);
+    const id = String((body as Record<string, unknown>).id || '').trim();
+    const idError = validateMemberId(id);
+    if (idError) return c.json({ error: idError }, 400);
+
+    const principal_type = String((body as Record<string, unknown>).principal_type || 'historical').trim().toLowerCase();
+    const is_active = (body as Record<string, unknown>).is_active === undefined
+      ? principal_type !== 'historical'
+      : (body as Record<string, unknown>).is_active === true;
+
+    const gate = isMutablePrincipal({ id, principal_type, is_active });
+    if (gate.ok !== true) {
+      return c.json({ error: { code: gate.code, message: gate.message } }, gate.status);
+    }
+
+    const validationErrors = [
+      ...validateMemberArrays(body),
+      ...validateStringLengths(body),
+    ];
+    if (validationErrors.length > 0) {
+      return c.json({ error: validationErrors.join('; ') }, 400);
+    }
+
+    const { name, full_name, email, businesses, role, aliases } = body as Record<string, unknown>;
+    if (!name || typeof name !== 'string') {
+      return c.json({ error: 'name is required' }, 400);
+    }
+
+    const { data: member, error } = await getDb(c.env)
+      .from('atlas_members')
+      .insert({
+        id,
+        name,
+        full_name: full_name ?? null,
+        email: email ?? null,
+        businesses: serializeJsonArray(businesses),
+        role: role ?? null,
+        aliases: serializeJsonArray(aliases),
+        is_active,
+        principal_type,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    return c.json(member, 201);
+  } catch (err: unknown) {
+    console.error(`[members] POST error: ${(err as Error).message}`);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
 });
 
 router.put('/:id', async (c) => {
@@ -183,21 +287,17 @@ router.put('/:id', async (c) => {
     const supabase = getDb(c.env);
     const id = c.req.param('id');
 
-    if (!['ransomed', 'codex', 'claude'].includes(id)) {
-      return c.json({
-        error: {
-          code: 'HISTORICAL_PRINCIPAL_IMMUTABLE',
-          message: 'Historical principals are read-only provenance.',
-        },
-      }, 403);
-    }
-
     const { data: existing, error: fetchErr } = await supabase
       .from('atlas_members')
       .select('*')
       .eq('id', id)
       .single();
     if (fetchErr || !existing) return c.json({ error: 'Member not found' }, 404);
+
+    const gate = isMutablePrincipal(existing as PrincipalRow);
+    if (gate.ok !== true) {
+      return c.json({ error: { code: gate.code, message: gate.message } }, gate.status);
+    }
 
     let raw: unknown;
     try { raw = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON body' }, 400); }
@@ -224,6 +324,16 @@ router.put('/:id', async (c) => {
 
     if (Object.keys(updates).length === 0) {
       return c.json({ error: 'No fields to update' }, 400);
+    }
+
+    const nextState = {
+      id,
+      principal_type: existing.principal_type,
+      is_active: updates.is_active === undefined ? existing.is_active : updates.is_active === true,
+    };
+    const nextGate = isMutablePrincipal(nextState);
+    if (nextGate.ok !== true) {
+      return c.json({ error: { code: nextGate.code, message: nextGate.message } }, nextGate.status);
     }
 
     const { data: member, error } = await supabase

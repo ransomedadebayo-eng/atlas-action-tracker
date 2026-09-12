@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ACTIVE_PRINCIPAL_IDS,
-  activePrincipals,
-  isActivePrincipal,
-} from './memberUtils.js'
+import { activePrincipals, isActivePrincipal } from './memberUtils.js'
 
 describe('active principal filtering', () => {
-  it('keeps owner, human, and agent rows and hides historical principals', () => {
+  it('shows active owner, human, and agent principals and hides historical rows', () => {
     const members = [
       { id: 'ransomed', name: 'Ransomed', principal_type: 'owner', is_active: true },
       { id: 'nicole', name: 'Nicole', principal_type: 'human', is_active: true },
@@ -22,12 +18,9 @@ describe('active principal filtering', () => {
       'amara',
       'engineering',
     ])
-  })
-
-  it('still recognizes the original owner and machine IDs without a type field', () => {
-    expect(isActivePrincipal({ member_id: 'claude' })).toBe(true)
-    expect(isActivePrincipal('codex')).toBe(true)
+    expect(isActivePrincipal({ id: 'nicole', principal_type: 'human', is_active: true })).toBe(true)
+    expect(isActivePrincipal({ id: 'amara', principal_type: 'agent', is_active: true })).toBe(true)
+    expect(isActivePrincipal({ id: 'legacy', principal_type: 'historical', is_active: false })).toBe(false)
     expect(isActivePrincipal('nicole')).toBe(false)
-    expect(ACTIVE_PRINCIPAL_IDS).toEqual(['ransomed', 'codex', 'claude'])
   })
 })
