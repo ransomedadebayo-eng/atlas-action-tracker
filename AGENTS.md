@@ -30,3 +30,10 @@ Do not commit local credentials or generated auth/cache files:
 `*.key`.
 
 Reports must separate implemented, verified, and remaining operational work.
+
+GitHub-first delivery (owner instruction, September 12, 2026):
+- Push reviewed source changes to GitHub. Production deployments must run from
+  the GitHub main-branch deployment workflow, never from an unpushed local tree.
+- Keep cloud setup reproducible; `.devcontainer/devcontainer.json` supports Codespaces.
+- Verify GitHub checks and the deployed commit before reporting delivery complete.
+- Keep credentials in Codespaces/GitHub/Cloudflare secret stores, never in source.
