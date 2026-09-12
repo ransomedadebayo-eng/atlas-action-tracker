@@ -25,6 +25,7 @@ import {
   Eye,
   GitBranch,
   Bell,
+  Building2,
 } from 'lucide-react'
 import TopBar from './TopBar.jsx'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
@@ -43,6 +44,7 @@ const NAV_LINKS = [
   { id: 'cycles', label: 'Cycles', Icon: Repeat2 },
   { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
   { id: 'kanban', label: 'Kanban', Icon: Columns },
+  { id: 'officeDigest', label: 'Office Digest', Icon: Building2 },
   { id: 'review', label: 'Review', Icon: ClipboardCheck },
   { id: 'decide', label: 'Decide', Icon: ListChecks },
   { id: 'journal', label: 'Journal', Icon: BookOpenText },

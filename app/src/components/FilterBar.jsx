@@ -4,7 +4,7 @@ import { STATUSES, PRIORITIES, WORK_MODES } from '../utils/constants.js'
 import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js'
 
 export default function FilterBar({ filters, onFilterChange, members = [], cycles = [], hideDone = true, onToggleHideDone }) {
-  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.hierarchy || filters.resolution || filters.cycle_id || filters.search
+  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.hierarchy || filters.resolution || filters.cycle_id || filters.search || filters.completed_within || filters.approval_state || filters.has_blocked_by || filters.open || filters.exclude_approval_state
 
   function clearAll() {
     onFilterChange({ business: filters.business })
@@ -198,6 +198,41 @@ export default function FilterBar({ filters, onFilterChange, members = [], cycle
               label={`"${filters.search}"`}
               color="#ffb95f"
               onRemove={() => removeFilter('search')}
+            />
+          )}
+          {filters.completed_within && (
+            <FilterChip
+              label={`Completed ${filters.completed_within}`}
+              color="#4be277"
+              onRemove={() => removeFilter('completed_within')}
+            />
+          )}
+          {filters.approval_state && (
+            <FilterChip
+              label={String(filters.approval_state).replace(/_/g, ' ')}
+              color="#f4b860"
+              onRemove={() => removeFilter('approval_state')}
+            />
+          )}
+          {filters.open === 'true' && (
+            <FilterChip
+              label="Open"
+              color="#8cb8ff"
+              onRemove={() => removeFilter('open')}
+            />
+          )}
+          {filters.has_blocked_by === 'true' && (
+            <FilterChip
+              label="Blocked by"
+              color="#ef4444"
+              onRemove={() => removeFilter('has_blocked_by')}
+            />
+          )}
+          {filters.exclude_approval_state && (
+            <FilterChip
+              label={`Not ${String(filters.exclude_approval_state).replace(/_/g, ' ')}`}
+              color="#a3a3a3"
+              onRemove={() => removeFilter('exclude_approval_state')}
             />
           )}
           <button

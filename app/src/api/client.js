@@ -138,6 +138,10 @@ export const todayApi = {
   get: (date) => request(`/today${date ? `?date=${encodeURIComponent(date)}` : ''}`),
 };
 
+export const updatesApi = {
+  officeDigest: () => request('/updates/office-digest'),
+};
+
 // Weekly planning
 export const weeksApi = {
   get: (weekStart, revisionId) => request(`/weeks/${encodeURIComponent(weekStart)}${revisionId ? `?revision_id=${encodeURIComponent(revisionId)}` : ''}`),

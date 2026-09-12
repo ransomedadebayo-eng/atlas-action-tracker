@@ -10,6 +10,7 @@ describe('machine principal scope routing', () => {
     expect(requiredScopeForRequest('/api/actions/123/duplicate', 'POST')).toBe('actions:complete');
     expect(requiredScopeForRequest('/api/actions/123/sub-actions', 'POST')).toBe('actions:write');
     expect(requiredScopeForRequest('/api/actions/123/convert-to-project', 'POST')).toBe('actions:write');
+    expect(requiredScopeForRequest('/api/updates/office-digest', 'GET')).toBe('actions:read');
   });
 
   it('keeps the automation API read-only', () => {

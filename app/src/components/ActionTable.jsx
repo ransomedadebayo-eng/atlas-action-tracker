@@ -13,10 +13,15 @@ import { parseJsonArray } from '../utils/parseUtils.js'
 import { hasEvidence } from '../utils/evidenceUtils.js'
 import ActionCardControls from './ActionCardControls.jsx'
 import { useCycles } from '../hooks/useCycles.js'
+import { useViews } from '../hooks/useViews.js'
+import {
+  OFFICE_DIGEST_VIEWS,
+  actionListQueryFromFilters,
+  resolveSavedViewFilters,
+} from '../utils/actionFilters.js'
 
 const PRIORITY_ORDER = { p0: 0, p1: 1, p2: 2, p3: 3 }
 
-const NON_DONE_STATUSES = 'not_started,in_progress,waiting,blocked,todo,open'
 const PROTOCOL_VIEWS = [
   { id: 'codex-pull', label: 'Codex Pull Queue', filters: { work_mode: 'autonomous', owner_id: 'codex' } },
   { id: 'needs-review', label: 'Needs Review', filters: { work_mode: 'review_required' } },
@@ -27,11 +32,14 @@ const PROTOCOL_VIEWS = [
   { id: 'duplicates', label: 'Duplicates', filters: { status: 'done', resolution: 'duplicate' } },
 ]
 
-export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone, frozenBusinesses = new Set(), showFrozen = false }) {
+export default function ActionTable({ selectedBusiness, onSelectAction, searchQuery, hideDone = true, onToggleHideDone, frozenBusinesses = new Set(), showFrozen = false, savedViewId = null, onSavedViewIdChange }) {
   const { BUSINESS_LIST } = useBusinessContext()
-  const [filters, setFilters] = useState({})
+  const [filters, setFilters] = useState(() => savedViewId ? resolveSavedViewFilters({ id: savedViewId }) : {})
+  const [activeSavedViewId, setActiveSavedViewId] = useState(savedViewId || null)
   const [sort, setSort] = useState({ by: 'priority', dir: 'asc' })
   const [businessTab, setBusinessTab] = useState(selectedBusiness || 'all')
+  const { data: rawSavedViews = [] } = useViews({ entity_type: 'action' })
+  const savedViews = Array.isArray(rawSavedViews) ? rawSavedViews : []
 
   // Keep tab in sync when sidebar selection changes
   useEffect(() => {
@@ -40,26 +48,18 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
 
   const effectiveBusiness = selectedBusiness || (businessTab !== 'all' ? businessTab : undefined)
 
-  const statusFilter = filters.status
-    ? filters.status
-    : hideDone
-      ? NON_DONE_STATUSES
-      : undefined
+  useEffect(() => {
+    if (!savedViewId) return
+    setActiveSavedViewId(savedViewId)
+    setFilters(resolveSavedViewFilters({ id: savedViewId }))
+    setSort(savedViewId === 'office-digest-done' ? { by: 'completed_at', dir: 'desc' } : { by: 'updated_at', dir: 'desc' })
+  }, [savedViewId])
 
-  const queryFilters = {
-    limit: 200,
-    show_blocked: true,
-    ...(effectiveBusiness ? { business: effectiveBusiness } : {}),
-    ...(statusFilter ? { status: statusFilter } : {}),
-    ...(filters.priority ? { priority: filters.priority } : {}),
-    ...(filters.owner_id ? { owner_id: filters.owner_id } : {}),
-    ...(filters.work_mode ? { work_mode: filters.work_mode } : {}),
-    ...(filters.stewardship ? { stewardship: filters.stewardship } : {}),
-    ...(filters.hierarchy ? { hierarchy: filters.hierarchy } : {}),
-    ...(filters.resolution ? { resolution: filters.resolution } : {}),
-    ...(filters.cycle_id ? { cycle_id: filters.cycle_id } : {}),
-    ...(searchQuery && searchQuery.length >= 1 ? { search: searchQuery } : {}),
-  }
+  const queryFilters = actionListQueryFromFilters(filters, {
+    hideDone,
+    searchQuery,
+    business: effectiveBusiness,
+  })
 
   const { data: rawActions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: rawMembers = [] } = useMembers()
@@ -99,6 +99,9 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           break
         case 'updated_at':
           cmp = (b.updated_at || '').localeCompare(a.updated_at || '')
+          break
+        case 'completed_at':
+          cmp = (a.completed_at || '').localeCompare(b.completed_at || '')
           break
         default:
           cmp = 0
@@ -151,8 +154,9 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
       <StatsStrip business={effectiveBusiness} />
 
       <div className="flex flex-wrap gap-2">
-        {PROTOCOL_VIEWS.map(view => {
-          const active = Object.entries(view.filters).every(([key, value]) => filters[key] === value)
+        {OFFICE_DIGEST_VIEWS.map(view => {
+          const saved = savedViews.find(item => item.id === view.id)
+          const active = activeSavedViewId === view.id
           return (
             <button
               key={view.id}
@@ -162,7 +166,40 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
                   ? 'border-accent/30 bg-accent-muted text-accent'
                   : 'border-white/10 text-text-secondary hover:border-accent/25 hover:text-accent'
               }`}
-              onClick={() => setFilters(active ? {} : view.filters)}
+              onClick={() => {
+                const nextId = active ? null : view.id
+                setActiveSavedViewId(nextId)
+                setFilters(nextId ? resolveSavedViewFilters({ id: nextId, filters: saved?.filters }) : {})
+                setSort(nextId === 'office-digest-done' ? { by: 'completed_at', dir: 'desc' } : { by: 'updated_at', dir: 'desc' })
+                onSavedViewIdChange?.(nextId)
+                const params = new URLSearchParams(window.location.search)
+                if (nextId) params.set('saved_view', nextId)
+                else params.delete('saved_view')
+                const qs = params.toString()
+                window.history.replaceState({ ...(window.history.state || {}), savedViewId: nextId }, '', `/tasks${qs ? `?${qs}` : ''}`)
+              }}
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              {saved?.name || view.label}
+            </button>
+          )
+        })}
+        {PROTOCOL_VIEWS.map(view => {
+          const active = !activeSavedViewId && Object.entries(view.filters).every(([key, value]) => filters[key] === value)
+          return (
+            <button
+              key={view.id}
+              type="button"
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold uppercase transition-colors ${
+                active
+                  ? 'border-accent/30 bg-accent-muted text-accent'
+                  : 'border-white/10 text-text-secondary hover:border-accent/25 hover:text-accent'
+              }`}
+              onClick={() => {
+                setActiveSavedViewId(null)
+                onSavedViewIdChange?.(null)
+                setFilters(active ? {} : view.filters)
+              }}
             >
               <ClipboardCheck className="w-3.5 h-3.5" />
               {view.label}
@@ -205,6 +242,8 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
         filters={{ ...filters, business: effectiveBusiness }}
         onFilterChange={next => {
           const { business, ...rest } = next
+          setActiveSavedViewId(null)
+          onSavedViewIdChange?.(null)
           setFilters(rest)
         }}
         members={members}
