@@ -49,7 +49,16 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
   const effectiveBusiness = selectedBusiness || (businessTab !== 'all' ? businessTab : undefined)
 
   useEffect(() => {
-    if (!savedViewId) return
+    if (!savedViewId) {
+      // Local filter handlers already clear the active view and set their own filters.
+      // Only reset here when navigation clears a still-active saved view.
+      if (activeSavedViewId) {
+        setActiveSavedViewId(null)
+        setFilters({})
+        setSort({ by: 'priority', dir: 'asc' })
+      }
+      return
+    }
     setActiveSavedViewId(savedViewId)
     setFilters(resolveSavedViewFilters({ id: savedViewId }))
     setSort(savedViewId === 'office-digest-done' ? { by: 'completed_at', dir: 'desc' } : { by: 'updated_at', dir: 'desc' })
@@ -98,7 +107,7 @@ export default function ActionTable({ selectedBusiness, onSelectAction, searchQu
           cmp = (a.due_date || 'zzzz').localeCompare(b.due_date || 'zzzz')
           break
         case 'updated_at':
-          cmp = (b.updated_at || '').localeCompare(a.updated_at || '')
+          cmp = (a.updated_at || '').localeCompare(b.updated_at || '')
           break
         case 'completed_at':
           cmp = (a.completed_at || '').localeCompare(b.completed_at || '')

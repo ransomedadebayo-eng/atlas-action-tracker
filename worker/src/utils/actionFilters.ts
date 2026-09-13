@@ -1,4 +1,4 @@
-export const OFFICE_DIGEST_TERMINAL_STATUSES = ['done', 'cancelled', 'canceled', 'archived'] as const;
+export const OFFICE_DIGEST_TERMINAL_STATUSES = ['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'] as const;
 export const OFFICE_DIGEST_BUCKETS = ['done', 'waiting_on_owner', 'blocked_by_office'] as const;
 export type OfficeDigestBucket = (typeof OFFICE_DIGEST_BUCKETS)[number];
 
