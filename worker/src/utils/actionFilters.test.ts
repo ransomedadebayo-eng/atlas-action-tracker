@@ -12,6 +12,12 @@ import {
 const now = new Date('2026-09-12T22:00:00.000Z');
 
 describe('office digest filter helpers', () => {
+  it.each(['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'])('excludes %s from both open digest buckets', status => {
+    const terminal = { status, archived_at: null, blocked_by: ['blocker'] }
+    expect(matchesActionFilters({ ...terminal, approval_state: 'needs_review' }, OFFICE_DIGEST_VIEW_FILTERS['office-digest-waiting-on-owner'], now)).toBe(false)
+    expect(matchesActionFilters({ ...terminal, approval_state: 'not_required' }, OFFICE_DIGEST_VIEW_FILTERS['office-digest-blocked-by-office'], now)).toBe(false)
+  })
+
   it('parses a completed_within hour window', () => {
     expect(parseCompletedWithin('48h', now)?.toISOString()).toBe('2026-09-10T22:00:00.000Z');
     expect(parseCompletedWithin('bad', now)).toBeNull();
@@ -116,6 +122,7 @@ describe('office digest filter helpers', () => {
       'gte:completed_at:2026-09-10T22:00:00.000Z',
       'not:completed_at:is:',
       'is:archived_at:null',
+      'not:status:in:(done,completed,closed,cancelled,canceled,archived)',
       'not:blocked_by:is:',
       'neq:blocked_by:[]',
       'neq:approval_state:needs_review',

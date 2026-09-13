@@ -1,4 +1,4 @@
-export const OFFICE_DIGEST_TERMINAL_STATUSES = Object.freeze(['done', 'cancelled', 'canceled', 'archived'])
+export const OFFICE_DIGEST_TERMINAL_STATUSES = Object.freeze(['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'])
 export const OFFICE_DIGEST_BUCKETS = Object.freeze([
   { id: 'done', label: 'Done (48h)', viewId: 'office-digest-done' },
   { id: 'waiting_on_owner', label: 'Waiting-on-owner', viewId: 'office-digest-waiting-on-owner' },
