@@ -314,7 +314,7 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
     }
   }, [])
 
-  if (isError) {
+  if (isError && !action) {
     return (
       <div className="fixed inset-0 z-40 flex items-stretch" role="dialog" aria-modal="true" aria-label="Action details unavailable">
         <button type="button" className="flex-1 bg-black/60" aria-label="Close action details" onClick={onClose} />

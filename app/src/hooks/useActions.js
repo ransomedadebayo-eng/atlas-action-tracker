@@ -68,7 +68,9 @@ export function useUpdateAction() {
   return useMutation({
     mutationFn: ({ id, ...data }) => actionsApi.update(id, data),
     onSuccess: (data) => {
-      queryClient.setQueryData(['action', data.id], data);
+      // PUT omits GET-only enrichment (such as releases). Keep it until refetch,
+      // while letting every returned field, including null/empty values, win.
+      queryClient.setQueryData(['action', data.id], cached => ({ ...cached, ...data }));
       invalidateActionQueries(queryClient, data.id);
     },
   });
