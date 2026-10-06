@@ -5,18 +5,18 @@ import { act, renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { actionsApi } from '../api/client.js'
-import { useArchiveAction, useCompleteAction, useRestoreAction } from './useActions.js'
+import { useArchiveAction, useCompleteAction, useRestoreAction, useUpdateAction } from './useActions.js'
 
 vi.mock('../api/client.js', () => ({
   actionsApi: {
+    update: vi.fn(),
     complete: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
   },
 }))
 
-function createWrapper() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+function createWrapper(client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
   return function TestQueryProvider({ children }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -24,6 +24,19 @@ function createWrapper() {
 
 describe('safe action mutation hooks', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('forwards only edited fields and caches the authoritative saved action', async () => {
+    const client = new QueryClient()
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', notes: 'Old history' })
+    const saved = { id: 'a1', next_action: 'New step', notes: 'Concurrent history', priority: 'p0', revision: 12 }
+    actionsApi.update.mockResolvedValue(saved)
+    const { result } = renderHook(() => useUpdateAction(), { wrapper: createWrapper(client) })
+
+    await act(() => result.current.mutateAsync({ id: 'a1', next_action: 'New step' }))
+
+    expect(actionsApi.update).toHaveBeenCalledExactlyOnceWith('a1', { next_action: 'New step' })
+    expect(client.getQueryData(['action', 'a1'])).toEqual(saved)
+  })
 
   it('sends explicit completion evidence and revision', async () => {
     actionsApi.complete.mockResolvedValue({ id: 'a1', revision: 8 })

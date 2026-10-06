@@ -68,6 +68,7 @@ export function useUpdateAction() {
   return useMutation({
     mutationFn: ({ id, ...data }) => actionsApi.update(id, data),
     onSuccess: (data) => {
+      queryClient.setQueryData(['action', data.id], data);
       invalidateActionQueries(queryClient, data.id);
     },
   });

@@ -84,6 +84,7 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
   const [completionNote, setCompletionNote] = useState('')
   const [saveError, setSaveError] = useState('')
   const panelRef = useRef(null)
+  const formBaseline = useRef(null)
 
   function formatEvidence(value) {
     const obj = parseJsonObject(value)
@@ -92,7 +93,7 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
 
   useEffect(() => {
     if (action && !dirty) {
-      setForm({
+      const loadedForm = {
         title: action.title || '',
         description: action.description || '',
         status: action.status === 'archived' ? 'archived' : (canonicalStatus(action.status) || 'not_started'),
@@ -113,7 +114,9 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
         agent_assignment_id: action.agent_assignment_id || '',
         evidence_text: formatEvidence(action.evidence_json),
         estimate_points: action.estimate_points ?? '',
-      })
+      }
+      formBaseline.current = loadedForm
+      setForm(loadedForm)
     }
   }, [action, dirty])
 
@@ -123,22 +126,29 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
   }
 
   function buildPayload(overrides = {}) {
-    const payload = { ...form, ...overrides }
+    // Compare with the form's loaded snapshot, not a refetch received while editing.
+    // Omitted fields stay untouched, including legacy notes over the API length limit.
+    const payload = Object.fromEntries(Object.entries({ ...form, ...overrides })
+      .filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(formBaseline.current?.[key])))
     if (payload.due_date === '') payload.due_date = null
     if (payload.source_label === '') payload.source_label = null
     if (payload.business === '') payload.business = null
     if (payload.work_mode === '') payload.work_mode = null
     if (payload.review_date === '') payload.review_date = null
     if (payload.agent_assignment_id === '') payload.agent_assignment_id = null
-    if (!payload.approval_state) payload.approval_state = 'not_required'
-    payload.estimate_points = payload.estimate_points === '' ? null : Number(payload.estimate_points)
-
-    try {
-      payload.evidence_json = evidenceFromText(payload.evidence_text || '', 'atlas_action_detail')
-    } catch {
-      throw new Error('Completion evidence must be plain text or a JSON object.')
+    if ('approval_state' in payload && !payload.approval_state) payload.approval_state = 'not_required'
+    if ('estimate_points' in payload) {
+      payload.estimate_points = payload.estimate_points === '' ? null : Number(payload.estimate_points)
     }
-    delete payload.evidence_text
+
+    if ('evidence_text' in payload) {
+      try {
+        payload.evidence_json = evidenceFromText(payload.evidence_text || '', 'atlas_action_detail')
+      } catch {
+        throw new Error('Completion evidence must be plain text or a JSON object.')
+      }
+      delete payload.evidence_text
+    }
     return payload
   }
 
@@ -147,7 +157,10 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
     setSaveError('')
     try {
       const payload = buildPayload(overrides)
-      const saved = await updateAction.mutateAsync({ id: actionId, ...payload })
+      const saved = Object.keys(payload).length
+        ? await updateAction.mutateAsync({ id: actionId, ...payload })
+        : action
+      formBaseline.current = { ...form, ...overrides }
       setForm(prev => ({ ...prev, ...overrides }))
       if (!keepDirty) setDirty(false)
       return saved
