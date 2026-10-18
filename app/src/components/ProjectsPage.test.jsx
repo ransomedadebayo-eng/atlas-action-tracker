@@ -130,6 +130,28 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('tab', { name: /Started work/ })).toBeTruthy();
   });
 
+  it('announces failed and successful project saves through the same persistent polite status', async () => {
+    const update = vi.fn()
+      .mockRejectedValueOnce(new Error('start_date must not be after target_date'))
+      .mockResolvedValueOnce(project);
+    projectHooks.useUpdateProject.mockReturnValue({ mutateAsync: update, isPending: false });
+    render(<ProjectsPage projectId="project-1" selectedBusiness={null} searchQuery="" onOpenProject={vi.fn()} onBack={vi.fn()} onSelectAction={vi.fn()} />);
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(status.getAttribute('aria-atomic')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project' }));
+    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-10-01' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save project' }));
+    expect(await screen.findByText('start_date must not be after target_date')).toBe(status);
+    expect(screen.getByRole('button', { name: 'Save project' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2026-08-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save project' }));
+    expect(await screen.findByText('Project saved.')).toBe(status);
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Save project' })).toBeNull();
+  });
+
   it.each([
     ['canceled', 'cancelled'], ['cancelled', 'canceled'],
     ['not_started', 'todo'], ['todo', 'not_started'], ['not_started', 'backlog'],

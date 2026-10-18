@@ -15,6 +15,7 @@ import { formatTimestamp } from '../utils/dateUtils.js'
 import { parseJsonArray, parseJsonObject } from '../utils/parseUtils.js'
 import { normalizeMemberRefs } from '../utils/memberUtils.js'
 import { evidenceFromText } from '../utils/evidenceUtils.js'
+import { trapTabKey } from '../utils/focusUtils.js'
 import { WorkModeBadge } from './StatusBadge.jsx'
 import ActionStructureSection from './ActionStructureSection.jsx'
 import DiscussionThread from './LazyDiscussionThread.jsx'
@@ -81,6 +82,7 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
   const [completionNote, setCompletionNote] = useState('')
   const [saveError, setSaveError] = useState('')
   const panelRef = useRef(null)
+  const openerRef = useRef(typeof document === 'undefined' ? null : document.activeElement)
   const formBaseline = useRef(null)
 
   function formatEvidence(value) {
@@ -280,39 +282,34 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
     patch('tags', form.tags.filter(t => t !== tag))
   }
 
-  // Focus trap
+  const panelState = isError && !action ? 'error' : (!isLoading && form ? 'ready' : 'loading')
+
   useEffect(() => {
-    const previousFocus = document.activeElement
     const panel = panelRef.current
-    if (panel) {
-      panel.focus()
-
-      function trapFocus(e) {
-        if (e.key !== 'Tab') return
-        const focusable = panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-        if (focusable.length === 0) return
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-
-      panel.addEventListener('keydown', trapFocus)
-      return () => {
-        panel.removeEventListener('keydown', trapFocus)
-        if (previousFocus && previousFocus.focus) previousFocus.focus()
-      }
+    if (!panel || panelState === 'loading') return
+    panel.focus()
+    const trapFocus = event => trapTabKey(event, panel)
+    panel.addEventListener('keydown', trapFocus)
+    return () => {
+      panel.removeEventListener('keydown', trapFocus)
     }
+  }, [panelState])
+
+  useEffect(() => () => {
+    if (openerRef.current?.isConnected) openerRef.current.focus()
   }, [])
+
+  function handleDialogKeyDown(event) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      requestClose()
+    }
+  }
 
   if (isError && !action) {
     return (
-      <div className="fixed inset-0 z-40 flex items-stretch" role="dialog" aria-modal="true" aria-label="Action details unavailable">
+      <div ref={panelRef} tabIndex={-1} onKeyDown={handleDialogKeyDown} className="fixed inset-0 z-40 flex items-stretch" role="dialog" aria-modal="true" aria-label="Action details unavailable">
         <button type="button" className="flex-1 bg-black/60" aria-label="Close action details" onClick={onClose} />
         <div className="w-full md:w-[520px] border-l border-white/10 bg-bg-surface p-6">
           <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger" role="alert">
@@ -356,6 +353,7 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
       role="dialog"
       aria-modal="true"
       aria-label="Action details"
+      onKeyDown={handleDialogKeyDown}
     >
       {/* Dim overlay */}
       <button type="button" className="flex-1 bg-black/60 backdrop-blur-sm" aria-label="Close action details" onClick={requestClose} />

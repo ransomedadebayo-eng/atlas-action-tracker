@@ -51,5 +51,14 @@ describe('AutomationRegistry', () => {
     })
 
     expect(results.violations).toEqual([])
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('No verified automation reports are available yet.')).toBeTruthy()
+  })
+
+  it('announces a failed registry read without the empty reports claim', () => {
+    useAutomationRegistry.mockReturnValue({ isLoading: false, isError: true, error: new Error('Registry unavailable') })
+    render(<AutomationRegistry />)
+    expect(screen.getByRole('alert').textContent).toBe('Registry unavailable')
+    expect(screen.queryByText('No verified automation reports are available yet.')).toBeNull()
   })
 })

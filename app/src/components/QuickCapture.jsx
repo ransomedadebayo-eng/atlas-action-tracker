@@ -6,6 +6,7 @@ import MemberSelector from './MemberSelector.jsx'
 import { PRIORITY_LIST, STATUS_LIST, RECURRENCE_LIST, WORK_MODE_LIST } from '../utils/constants.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { useEstimateSettings } from '../hooks/useEstimateSettings.js'
+import { trapTabKey } from '../utils/focusUtils.js'
 
 const DEFAULT_FORM = {
   title: '',
@@ -41,36 +42,15 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
   const modalRef = useRef(null)
 
   useEffect(() => {
-    titleRef.current?.focus()
-  }, [])
-
-  // Focus trap
-  useEffect(() => {
     const previousFocus = document.activeElement
     const panel = modalRef.current
-    if (panel) {
-      panel.focus()
-
-      function trapFocus(e) {
-        if (e.key !== 'Tab') return
-        const focusable = panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
-        if (focusable.length === 0) return
-        const first = focusable[0]
-        const last = focusable[focusable.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-
-      panel.addEventListener('keydown', trapFocus)
-      return () => {
-        panel.removeEventListener('keydown', trapFocus)
-        if (previousFocus && previousFocus.focus) previousFocus.focus()
-      }
+    if (!panel) return
+    titleRef.current?.focus()
+    const trapFocus = event => trapTabKey(event, panel)
+    panel.addEventListener('keydown', trapFocus)
+    return () => {
+      panel.removeEventListener('keydown', trapFocus)
+      if (previousFocus?.isConnected) previousFocus.focus()
     }
   }, [])
 
@@ -106,7 +86,11 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
   }
 
   function handleKeyDown(e) {
-    if (e.key === 'Escape') onClose()
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+    }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(e)
   }
 
@@ -125,11 +109,11 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
       <div
         ref={modalRef}
         tabIndex={-1}
-        className="relative w-full md:max-w-lg glass-card shadow-2xl overflow-hidden rounded-t-3xl md:rounded-3xl max-h-[90vh] md:max-h-none"
+        className="relative flex max-h-[90dvh] w-full flex-col md:max-h-[calc(100dvh-6rem)] md:max-w-lg glass-card shadow-2xl overflow-hidden rounded-t-3xl md:rounded-3xl"
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-white/5">
+        <div className="flex shrink-0 items-center gap-2 px-5 py-4 border-b border-white/5">
           <Zap className="w-4 h-4 text-accent flex-shrink-0" />
           <span className="text-sm font-headline font-semibold text-text-primary">Quick Capture</span>
           <span className="ml-auto text-[10px] text-text-muted font-mono">
@@ -146,11 +130,12 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-3">
+        <form aria-label="New action" onSubmit={handleSubmit} className="min-h-0 overflow-y-auto p-5 space-y-3">
           {/* Title */}
           <input
             ref={titleRef}
             type="text"
+            required
             aria-label="Action title"
             className={`input-field w-full text-base font-medium ${error ? 'border-red-500/60' : ''}`}
             placeholder="What needs to get done?"
@@ -158,7 +143,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
             onChange={e => patch('title', e.target.value)}
             autoComplete="off"
           />
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+          {error && <p role="alert" className="text-red-400 text-xs">{error}</p>}
 
           {/* Business + Priority */}
           <div className="grid grid-cols-2 gap-2">

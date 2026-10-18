@@ -351,7 +351,7 @@ function ProjectDetail({ projectId, onBack, onOpenProject, onSelectAction }) {
         </div>
       </header>
 
-      {notice && <div className="rounded-lg border border-accent/30 bg-accent-muted px-4 py-3 text-sm text-text-primary" role="status">{notice}</div>}
+      <div role="status" aria-live="polite" aria-atomic="true" className={notice ? 'rounded-lg border border-accent/30 bg-accent-muted px-4 py-3 text-sm text-text-primary' : 'sr-only'}>{notice}</div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Project status summary">
         <div className="card p-4"><div className="flex items-center gap-2 text-text-muted"><ListChecks className="h-4 w-4" /><span className="label">Progress</span></div><div className="mt-4"><ProjectProgress progress={project.progress} /></div><p className="mt-2 text-xs text-text-muted">{project.progress?.completed_effort || 0}/{project.progress?.total_effort || 0} effort points</p></div>

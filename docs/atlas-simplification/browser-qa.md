@@ -1,5 +1,7 @@
 # Local browser QA — 2026-10-18
 
+> Initial smoke record. The subsequent [full UI validation](full-ui-validation.md) covers all 15 production routes on desktop/mobile, synthetic workflows and loading/empty/error states, plus captured screenshots and integrity receipts.
+
 Environment: local production Vite build, Chrome on the connected Mac, `http://127.0.0.1:4187`. The supported native computer-use interface supplied accessibility snapshots and screenshots. The fixture serves synthetic data in memory and never forwards requests to Supabase, Cloudflare, PEOS or another service. Only the dedicated Atlas QA tab was operated; HomeFinance tabs/files were preserved.
 
 To reproduce, build the app and run `python3 docs/atlas-simplification/browser-fixture.py` from the repository root, then open the printed localhost URL. The fixture is a UI smoke harness, not a substitute for Worker integration tests or production verification.

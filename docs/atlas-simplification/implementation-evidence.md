@@ -1,5 +1,7 @@
 # Atlas simplification implementation evidence
 
+> This is the initial implementation record. The owner subsequently authorized release and full UI validation. See the [full UI validation record](full-ui-validation.md) for production checks, follow-up fixes, current test counts and the remaining database gate.
+
 Owner outcome: reduce redundant Atlas planning surfaces while preserving existing work and audit history. Specification: [Atlas simplification](../../specs/atlas-simplify-surfaces/spec.md). The accountable integration/delivery owner is Codex. App and Worker specialists own their respective directories; an independent reviewer checks the integrated result.
 
 ## Baseline

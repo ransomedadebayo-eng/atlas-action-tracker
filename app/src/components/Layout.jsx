@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import TopBar from './TopBar.jsx'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
+import { trapTabKey } from '../utils/focusUtils.js'
 
 const NAV_LINKS = [
   { id: 'today', label: 'Today', Icon: Sun },
@@ -63,7 +64,8 @@ export default function Layout({
   const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
   const menuButtonRef = useRef(null)
   const closeMenuRef = useRef(null)
-  const wasSidebarOpen = useRef(false)
+  const sidebarRef = useRef(null)
+  const mobileDrawerOpen = isMobile && sidebarOpen
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)')
@@ -74,14 +76,25 @@ export default function Layout({
   }, [])
 
   useEffect(() => {
-    if (!isMobile) {
-      wasSidebarOpen.current = sidebarOpen
-      return
+    if (!mobileDrawerOpen) return
+    const sidebar = sidebarRef.current
+    if (!sidebar) return
+    const previousFocus = document.activeElement === document.body ? menuButtonRef.current : document.activeElement
+    closeMenuRef.current?.focus()
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        setSidebarOpen(false)
+      } else trapTabKey(event, sidebar)
     }
-    if (sidebarOpen) closeMenuRef.current?.focus()
-    else if (wasSidebarOpen.current) menuButtonRef.current?.focus()
-    wasSidebarOpen.current = sidebarOpen
-  }, [isMobile, sidebarOpen])
+    sidebar.addEventListener('keydown', handleKeyDown)
+    return () => {
+      sidebar.removeEventListener('keydown', handleKeyDown)
+      const target = previousFocus?.isConnected ? previousFocus : menuButtonRef.current
+      target?.focus()
+    }
+  }, [mobileDrawerOpen, setSidebarOpen])
 
   function handleNavClick(viewId) {
     setCurrentView(viewId)
@@ -95,6 +108,8 @@ export default function Layout({
         <button
           type="button"
           aria-label="Dismiss navigation"
+          aria-hidden="true"
+          tabIndex={-1}
           className="fixed inset-0 bg-black/60 z-40 md:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
@@ -102,6 +117,9 @@ export default function Layout({
 
       {/* Sidebar */}
       <aside
+        ref={sidebarRef}
+        role={mobileDrawerOpen ? 'dialog' : undefined}
+        aria-modal={mobileDrawerOpen ? 'true' : undefined}
         aria-label="Sidebar"
         aria-hidden={isMobile && !sidebarOpen ? 'true' : undefined}
         inert={isMobile && !sidebarOpen ? '' : undefined}
@@ -231,7 +249,7 @@ export default function Layout({
       </aside>
 
       {/* Main */}
-      <div className="flex flex-col flex-1 overflow-hidden pb-16 md:pb-0">
+      <div inert={mobileDrawerOpen ? '' : undefined} aria-hidden={mobileDrawerOpen ? 'true' : undefined} className="flex flex-col flex-1 overflow-hidden pb-16 md:pb-0">
         <TopBar
           currentView={currentView}
           selectedBusiness={selectedBusiness}
@@ -252,6 +270,8 @@ export default function Layout({
       {/* Mobile bottom tab bar */}
       <nav
         aria-label="Main"
+        inert={mobileDrawerOpen ? '' : undefined}
+        aria-hidden={mobileDrawerOpen ? 'true' : undefined}
         className="fixed bottom-0 left-0 right-0 z-30 md:hidden border-t border-white/10 flex items-center justify-around glass-panel h-14"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >

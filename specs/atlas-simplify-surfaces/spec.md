@@ -2,6 +2,8 @@
 
 # Atlas simplification spec
 
+> Source SQL is preserved below for provenance and must not be executed directly. The maintained [migration proposal](../../docs/atlas-simplification/migration-proposal.sql) includes reviewed corrections: deterministic empty-table locks and identity-allocated audit IDs. Database execution remains separately gated by the [release runbook](../../docs/atlas-simplification/release-runbook.md).
+
 Oct 17, 2026 · @Ransomed
 
 ## Decision

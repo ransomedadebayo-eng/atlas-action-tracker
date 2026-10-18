@@ -174,7 +174,9 @@ function CompactRows({ rows, empty, getTitle, getMeta }) {
 }
 
 export default function DecidePage() {
-  const { data, isLoading, error } = useDecisionQueue()
+  const { data, isLoading, isError, error } = useDecisionQueue()
+  const failed = isError || Boolean(error)
+  const ready = !isLoading && !failed
   const proposals = Array.isArray(data?.proposals) ? data.proposals : []
   const reports = Array.isArray(data?.reports) ? data.reports : []
   const runs = Array.isArray(data?.runs) ? data.runs : []
@@ -193,15 +195,16 @@ export default function DecidePage() {
             Proposals, blockers, review packets, and agent runs that need a clear accept, reject, defer, or closeout.
           </p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-surface px-3 py-2 text-sm text-text-secondary">
+        {ready && <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-surface px-3 py-2 text-sm text-text-secondary">
           <ShieldAlert className="h-4 w-4 text-accent" />
           {total} open
-        </div>
+        </div>}
       </div>
 
       {isLoading && <div className="glass-card p-6 text-sm text-text-muted">Loading decision queue...</div>}
-      {error && <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-400">{error.message}</div>}
+      {failed && <div role="alert" className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-400">{error?.message || 'Decision queue could not be loaded.'}</div>}
 
+      {ready && <>
       {sourceErrors.length > 0 && (
         <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-400">
           <p className="mb-1 flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />Some supporting sources could not load</p>
@@ -209,7 +212,7 @@ export default function DecidePage() {
         </div>
       )}
 
-      {!isLoading && total === 0 && (
+      {total === 0 && (
         <div className="glass-card flex flex-col items-center gap-2 p-10 text-center">
           <CheckCircle2 className="h-6 w-6 text-emerald-400" />
           <p className="text-sm text-text-secondary">Decision queue is clear.</p>
@@ -252,6 +255,7 @@ export default function DecidePage() {
           />
         </QueueSection>
       </div>
+      </>}
     </div>
   )
 }
