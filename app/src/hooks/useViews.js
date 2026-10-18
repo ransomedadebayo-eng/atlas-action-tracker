@@ -4,7 +4,7 @@ import { viewsApi } from '../api/client.js';
 export function useViews(params = {}) {
   return useQuery({
     queryKey: ['views', params],
-    queryFn: () => viewsApi.list(params),
+    queryFn: async () => (await viewsApi.list(params)).filter(view => view.entity_type !== 'initiative'),
     staleTime: 60000,
   });
 }

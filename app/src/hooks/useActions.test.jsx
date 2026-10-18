@@ -28,8 +28,8 @@ describe('safe action mutation hooks', () => {
 
   it('forwards only edited fields and caches the authoritative saved action', async () => {
     const client = new QueryClient()
-    const releases = [{ id: 'ra1', release: { id: 'r1', name: 'Atlas release' } }]
-    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', notes: 'Old history', releases })
+    const relations = [{ id: 'rel1', related_action: { id: 'a2', title: 'Related action' } }]
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', notes: 'Old history', relations })
     const saved = { id: 'a1', next_action: 'New step', notes: 'Concurrent history', priority: 'p0', revision: 12 }
     actionsApi.update.mockResolvedValue(saved)
     const { result } = renderHook(() => useUpdateAction(), { wrapper: createWrapper(client) })
@@ -37,13 +37,13 @@ describe('safe action mutation hooks', () => {
     await act(() => result.current.mutateAsync({ id: 'a1', next_action: 'New step' }))
 
     expect(actionsApi.update).toHaveBeenCalledExactlyOnceWith('a1', { next_action: 'New step' })
-    expect(client.getQueryData(['action', 'a1'])).toEqual({ ...saved, releases })
+    expect(client.getQueryData(['action', 'a1'])).toEqual({ ...saved, relations })
   })
 
-  it('keeps release summaries during a delayed refetch, then accepts refreshed associations', async () => {
+  it('keeps GET-only enrichment during a delayed refetch, then accepts refreshed associations', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
-    const releases = [{ id: 'ra1', release: { id: 'r1', name: 'Atlas release' } }]
-    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', revision: 11, releases })
+    const relations = [{ id: 'rel1', related_action: { id: 'a2', title: 'Related action' } }]
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', revision: 11, relations })
     const saved = { id: 'a1', next_action: 'Saved step', priority: 'p0', revision: 12 }
     actionsApi.update.mockResolvedValue(saved)
     let resolveRefetch
@@ -54,19 +54,19 @@ describe('safe action mutation hooks', () => {
 
     await waitFor(() => expect(result.current.action.isFetching).toBe(true))
     expect(actionsApi.get).toHaveBeenCalledExactlyOnceWith('a1')
-    expect(result.current.action.data).toEqual({ ...saved, releases })
+    expect(result.current.action.data).toEqual({ ...saved, relations })
 
-    await act(async () => resolveRefetch({ ...saved, releases: [] }))
+    await act(async () => resolveRefetch({ ...saved, relations: [] }))
 
     await waitFor(() => expect(result.current.action.isFetching).toBe(false))
-    expect(result.current.action.data).toEqual({ ...saved, releases: [] })
+    expect(result.current.action.data).toEqual({ ...saved, relations: [] })
     client.clear()
   })
 
-  it('keeps saved fields and release summaries when the refetch fails', async () => {
+  it('keeps saved fields and GET-only enrichment when the refetch fails', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
-    const releases = [{ id: 'ra1', release: { id: 'r1', name: 'Atlas release' } }]
-    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', revision: 11, releases })
+    const relations = [{ id: 'rel1', related_action: { id: 'a2', title: 'Related action' } }]
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', revision: 11, relations })
     const saved = { id: 'a1', next_action: 'Saved step', notes: 'Concurrent history', revision: 12 }
     actionsApi.update.mockResolvedValue(saved)
     actionsApi.get.mockRejectedValue(new Error('Refetch unavailable'))
@@ -75,7 +75,7 @@ describe('safe action mutation hooks', () => {
     await act(() => result.current.update.mutateAsync({ id: 'a1', next_action: 'Saved step' }))
 
     await waitFor(() => expect(result.current.action.isRefetchError).toBe(true))
-    expect(result.current.action.data).toEqual({ ...saved, releases })
+    expect(result.current.action.data).toEqual({ ...saved, relations })
     expect(result.current.update.isSuccess).toBe(true)
     client.clear()
   })
@@ -84,11 +84,11 @@ describe('safe action mutation hooks', () => {
     const client = new QueryClient()
     client.setQueryData(['action', 'a1'], {
       id: 'a1', next_action: 'Old step', notes: 'Old notes', due_date: '2026-10-09',
-      tags: ['old'], owners: ['ransomed'], estimate_points: 3, workflow_status: { id: 'ws1' },
-      releases: [{ id: 'ra1' }],
+      tags: ['old'], owners: ['ransomed'], estimate_points: 3, parent_action_id: 'a2',
+      relations: [{ id: 'rel1' }],
     })
     const fields = { next_action: '  Saved step  ', notes: '', due_date: null, tags: [], owners: [], estimate_points: 0 }
-    const saved = { id: 'a1', ...fields, next_action: 'Saved step', workflow_status: null, releases: [] }
+    const saved = { id: 'a1', ...fields, next_action: 'Saved step', parent_action_id: null, relations: [] }
     actionsApi.update.mockResolvedValue(saved)
     const { result } = renderHook(() => useUpdateAction(), { wrapper: createWrapper(client) })
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import axe from 'axe-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ProjectsPage from './ProjectsPage.jsx';
@@ -9,15 +9,13 @@ import * as actionHooks from '../hooks/useActions.js';
 import * as memberHooks from '../hooks/useMembers.js';
 import * as projectHooks from '../hooks/useProjects.js';
 import * as viewHooks from '../hooks/useViews.js';
-import * as initiativeHooks from '../hooks/useInitiatives.js';
-import * as templateHooks from '../hooks/useTemplates.js';
 
 vi.mock('./LazyDiscussionThread.jsx', () => ({ default: ({ targetType }) => <div data-testid={`${targetType}-discussion`} /> }));
 
 vi.mock('../hooks/useActions.js', () => ({ useActions: vi.fn() }));
 vi.mock('../hooks/useMembers.js', () => ({ useMembers: vi.fn() }));
 vi.mock('../hooks/useBusinesses.js', () => ({
-  useBusinessContext: () => ({ BUSINESS_LIST: [{ id: 'personal', label: 'Personal' }] }),
+  useBusinessContext: () => ({ BUSINESSES: { personal: { label: 'Personal Office' } }, BUSINESS_LIST: [{ id: 'personal', label: 'Personal' }] }),
 }));
 vi.mock('../hooks/useEstimateSettings.js', () => ({
   useEstimateSettings: () => ({ data: { enabled: true, options: [{ value: 1, label: '1' }, { value: 3, label: '3' }] } }),
@@ -47,8 +45,6 @@ vi.mock('../hooks/useViews.js', () => ({
   useUpdateView: vi.fn(),
   useArchiveView: vi.fn(),
 }));
-vi.mock('../hooks/useInitiatives.js', () => ({ useInitiatives: vi.fn() }));
-vi.mock('../hooks/useTemplates.js', () => ({ useTemplates: vi.fn(), useInstantiateTemplate: vi.fn() }));
 
 function mutation() {
   return { mutateAsync: vi.fn(), isPending: false };
@@ -69,7 +65,7 @@ const project = {
   target_date: '2026-09-15',
   update_frequency: 'weekly',
   revision: 3,
-  sort_order: 1000,
+  sort_order: 1000, open_action_count: 3, oldest_open_days: 21, is_stale: true, last_activity_at: '2026-09-01T00:00:00Z',
   progress: {
     total_issues: 2,
     completed_issues: 1,
@@ -89,15 +85,13 @@ const project = {
 describe('ProjectsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState(null, '', '/projects');
     memberHooks.useMembers.mockReturnValue({ data: [{ id: 'ransomed', name: 'Ransomed' }, { id: 'codex', name: 'Codex' }] });
     actionHooks.useActions.mockReturnValue({ data: [] });
     viewHooks.useViews.mockReturnValue({ data: [] });
     viewHooks.useCreateView.mockReturnValue(mutation());
     viewHooks.useUpdateView.mockReturnValue(mutation());
     viewHooks.useArchiveView.mockReturnValue(mutation());
-    initiativeHooks.useInitiatives.mockReturnValue({ data: [] });
-    templateHooks.useTemplates.mockReturnValue({ data: [] });
-    templateHooks.useInstantiateTemplate.mockReturnValue(mutation());
     projectHooks.useProjects.mockReturnValue({ data: [project], isLoading: false, isError: false });
     projectHooks.useProject.mockReturnValue({ data: project, isLoading: false, isError: false });
     for (const name of [
@@ -115,6 +109,13 @@ describe('ProjectsPage', () => {
     const projectButton = screen.getByRole('button', { name: /open project: atlas project foundation/i });
     expect(projectButton.textContent).toContain('40%');
     expect(projectButton.textContent).toContain('on track');
+    expect(projectButton.textContent).toContain('3 open actions');
+    expect(projectButton.textContent).toContain('Oldest open 21 days');
+    expect(projectButton.textContent).toContain('Stale');
+    expect(screen.getByRole('heading', { name: 'Personal Office' })).toBeTruthy();
+    expect(screen.getByLabelText('Group projects by').value).toBe('business');
+    expect(new URLSearchParams(window.location.search).get('group')).toBe('business');
+    expect(screen.queryByLabelText('Filter projects by initiative')).toBeNull();
   });
 
   it('renders the project aggregate and mutation controls', () => {
@@ -127,6 +128,28 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Schema and API are connected.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /^archive$/i })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /Started work/ })).toBeTruthy();
+  });
+
+  it.each([
+    ['canceled', 'cancelled'], ['cancelled', 'canceled'],
+    ['not_started', 'todo'], ['todo', 'not_started'], ['not_started', 'backlog'],
+    ['open', 'triage'], ['triage', 'open'], ['done', 'completed'], ['closed', 'done'],
+  ])('includes historical %s/%s aliases in project action views', (filterStatus, storedStatus) => {
+    projectHooks.useProject.mockReturnValue({ data: {
+      ...project,
+      actions: [
+        { id: 'matching', title: 'Matching historical action', status: storedStatus, priority: 'p1' },
+        { id: 'excluded', title: 'Unrelated blocked action', status: 'blocked', priority: 'p1' },
+      ],
+    }, isLoading: false, isError: false });
+    viewHooks.useViews.mockReturnValue({ data: [{
+      id: 'alias-view', name: 'Saved status view', entity_type: 'action', context_project_id: 'project-1',
+      filters: { status: filterStatus }, layout: 'list', sort_by: 'priority', revision: 0,
+    }] });
+    render(<ProjectsPage projectId="project-1" selectedBusiness={null} searchQuery="" onOpenProject={vi.fn()} onBack={vi.fn()} onSelectAction={vi.fn()} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Saved status view' }));
+    expect(screen.getByText('Matching historical action')).toBeTruthy();
+    expect(screen.queryByText('Unrelated blocked action')).toBeNull();
   });
 
   it('has no automated semantic accessibility violations on project detail', async () => {

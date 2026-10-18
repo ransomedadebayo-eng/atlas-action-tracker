@@ -19,8 +19,6 @@ import { WorkModeBadge } from './StatusBadge.jsx'
 import ActionStructureSection from './ActionStructureSection.jsx'
 import DiscussionThread from './LazyDiscussionThread.jsx'
 import { useEstimateSettings } from '../hooks/useEstimateSettings.js'
-import ActionCycleControl from './ActionCycleControl.jsx'
-import { useWorkflow } from '../hooks/useWorkflows.js'
 
 function evidencePresentation(value) {
   const evidence = parseJsonObject(value)
@@ -34,7 +32,7 @@ function evidencePresentation(value) {
   }
 }
 
-function Select({ label, value, onChange, options }) {
+function Select({ label, value, onChange, options, allowEmpty = true }) {
   const id = useId()
   return (
     <div>
@@ -48,7 +46,7 @@ function Select({ label, value, onChange, options }) {
           value={value || ''}
           onChange={e => onChange(e.target.value)}
         >
-          <option value="">-- None --</option>
+          {allowEmpty && <option value="">-- None --</option>}
           {options.map(o => (
             <option key={o.id} value={o.id} disabled={o.disabled}>{o.label}</option>
           ))}
@@ -69,7 +67,6 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
   const completeAction = useCompleteAction()
   const createAgentAssignment = useCreateAgentAssignment()
   const { data: estimateSettings } = useEstimateSettings()
-  const { data: workflowData } = useWorkflow(action?.business)
 
   const { data: activityLog = [] } = useQuery({
     queryKey: ['activity', actionId],
@@ -96,8 +93,7 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
       const loadedForm = {
         title: action.title || '',
         description: action.description || '',
-        status: action.status === 'archived' ? 'archived' : (canonicalStatus(action.status) || 'not_started'),
-        workflow_status_id: action.workflow_status_id || '',
+        status: canonicalStatus(action.status),
         priority: action.priority || 'p2',
         business: action.business || '',
         due_date: action.due_date || '',
@@ -348,14 +344,11 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
   const businessColor = BUSINESS_COLORS[form.business]
   const existingEvidence = evidencePresentation(action.evidence_json)
   const isArchived = action.status === 'archived'
-  const configuredStatuses = workflowData?.workflow?.statuses || []
-  const statusOptions = configuredStatuses.length
-    ? configuredStatuses
-      .filter(option => ['triage', 'backlog', 'unstarted', 'started'].includes(option.category) || option.id === form.workflow_status_id)
-      .map(option => ({ id: option.id, label: option.name, disabled: ['completed', 'canceled', 'duplicate'].includes(option.category) }))
-    : STATUS_LIST
-      .filter(option => !['done', 'cancelled', 'unknown'].includes(option.id))
-      .map(option => ({ ...option }))
+  const statusOptions = STATUS_LIST.map(option => ({
+    ...option,
+    disabled: ['done', 'archived'].includes(option.id) && option.id !== form.status,
+  }))
+  if (form.status === 'unknown') statusOptions.push({ id: 'unknown', label: 'Unclassified', disabled: true })
 
   return (
     <div
@@ -396,7 +389,6 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
               </span>
             )}
             <WorkModeBadge workMode={form.work_mode} />
-            {action.template_id && <span className="badge border-accent/30 text-accent" title={action.template_instance_id || action.template_id}>Template</span>}
           </div>
           <div className="flex items-center gap-2">
             {saveError && (
@@ -467,8 +459,9 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Status"
-              value={configuredStatuses.length ? form.workflow_status_id : form.status}
-              onChange={val => configuredStatuses.length ? patch('workflow_status_id', val) : patch('status', val)}
+              allowEmpty={false}
+              value={form.status}
+              onChange={val => patch('status', val)}
               options={statusOptions}
             />
             <Select
@@ -487,8 +480,6 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
               options={(estimateSettings.options || []).map(option => ({ id: String(option.value), label: option.label }))}
             />
           )}
-
-          <ActionCycleControl action={action} isArchived={isArchived} />
 
           {/* Business + Due date */}
           <div className="grid grid-cols-2 gap-3">
@@ -764,13 +755,6 @@ export default function ActionDetail({ actionId, onClose, onSelectAction = () =>
               <span>
                 Source: {form.source_label || 'Transcript'}
               </span>
-            </div>
-          )}
-
-          {(action.releases || []).length > 0 && (
-            <div>
-              <p className="label mb-2">Delivery</p>
-              <div className="space-y-2">{action.releases.map(item => <div key={item.id} className="rounded-lg border border-border bg-bg-elevated p-3"><p className="text-sm font-semibold text-text-primary">{item.release?.name || 'Release'}{item.release?.version ? ` · ${item.release.version}` : ''}</p><p className="mt-1 text-xs text-text-muted">{item.pipeline?.name || 'Pipeline'} · {item.stage?.environment || item.stage?.name || 'Unstaged'} · {item.release?.status || 'unknown'}</p>{item.release?.commit_sha && <p className="mt-1 truncate font-mono text-[10px] text-text-muted">{item.release.commit_sha}</p>}</div>)}</div>
             </div>
           )}
 

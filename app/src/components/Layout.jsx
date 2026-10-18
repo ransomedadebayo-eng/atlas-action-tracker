@@ -12,18 +12,12 @@ import {
   FileText,
   Workflow,
   FolderKanban,
-  Repeat2,
-  Target,
-  LayoutTemplate,
   Files,
-  Rocket,
-  BarChart3,
   Command,
   Zap,
   X,
   EyeOff,
   Eye,
-  GitBranch,
   Bell,
   Building2,
 } from 'lucide-react'
@@ -34,16 +28,10 @@ const NAV_LINKS = [
   { id: 'today', label: 'Today', Icon: Sun },
   { id: 'week', label: 'Week', Icon: CalendarRange },
   { id: 'projects', label: 'Projects', Icon: FolderKanban },
-  { id: 'initiatives', label: 'Initiatives', Icon: Target },
-  { id: 'templates', label: 'Templates', Icon: LayoutTemplate },
-  { id: 'documents', label: 'Documents', Icon: Files },
-  { id: 'releases', label: 'Releases', Icon: Rocket },
-  { id: 'insights', label: 'Insights', Icon: BarChart3 },
-  { id: 'workflows', label: 'Workflows', Icon: GitBranch },
-  { id: 'notifications', label: 'Notifications', Icon: Bell },
-  { id: 'cycles', label: 'Cycles', Icon: Repeat2 },
   { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
   { id: 'kanban', label: 'Kanban', Icon: Columns },
+  { id: 'documents', label: 'Documents', Icon: Files },
+  { id: 'notifications', label: 'Notifications', Icon: Bell },
   { id: 'officeDigest', label: 'Office Digest', Icon: Building2 },
   { id: 'review', label: 'Review', Icon: ClipboardCheck },
   { id: 'decide', label: 'Decide', Icon: ListChecks },
@@ -254,7 +242,7 @@ export default function Layout({
           onToggleSidebar={() => setSidebarOpen(v => !v)}
           menuButtonRef={menuButtonRef}
           crossBusiness={currentView === 'week'}
-          hideSearch={currentView === 'week' || currentView === 'cycles'}
+          hideSearch={currentView === 'week'}
         />
         <main id="main-content" className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 bg-bg-primary">
           {children}

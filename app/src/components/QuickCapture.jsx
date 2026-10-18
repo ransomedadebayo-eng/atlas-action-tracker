@@ -6,7 +6,6 @@ import MemberSelector from './MemberSelector.jsx'
 import { PRIORITY_LIST, STATUS_LIST, RECURRENCE_LIST, WORK_MODE_LIST } from '../utils/constants.js'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
 import { useEstimateSettings } from '../hooks/useEstimateSettings.js'
-import { useInstantiateTemplate, useTemplates } from '../hooks/useTemplates.js'
 
 const DEFAULT_FORM = {
   title: '',
@@ -34,47 +33,16 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [templateId, setTemplateId] = useState('')
 
   const createAction = useCreateAction()
   const { data: members = [] } = useMembers()
   const { data: estimateSettings } = useEstimateSettings()
-  const { data: templates = [] } = useTemplates({ template_type: 'action', mode: 'standard', business: form.business || undefined })
-  const instantiateTemplate = useInstantiateTemplate()
   const titleRef = useRef(null)
   const modalRef = useRef(null)
 
   useEffect(() => {
     titleRef.current?.focus()
   }, [])
-
-  useEffect(() => {
-    if (templateId || templates.length === 0) return
-    const selected = templates.find(template => template.is_default && template.scope === 'business' && template.business === form.business)
-      || templates.find(template => template.is_default && template.scope === 'workspace')
-    if (selected) applyTemplate(selected)
-  }, [templates, form.business, templateId])
-
-  function applyTemplate(template) {
-    setTemplateId(template?.id || '')
-    if (!template) return
-    const blueprint = template.blueprint || {}
-    setForm(current => ({
-      ...current,
-      title: blueprint.title || current.title,
-      description: blueprint.description || '',
-      business: blueprint.business || current.business,
-      priority: blueprint.priority || 'p2',
-      status: blueprint.status || 'not_started',
-      owners: Array.isArray(blueprint.owners) ? blueprint.owners : current.owners,
-      recurrence: blueprint.recurrence || 'none',
-      work_mode: blueprint.work_mode || '',
-      next_action: blueprint.next_action || '',
-      definition_of_done: blueprint.definition_of_done || '',
-      review_date: blueprint.review_date || '',
-      estimate_points: blueprint.estimate_points ?? '',
-    }))
-  }
 
   // Focus trap
   useEffect(() => {
@@ -129,17 +97,7 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
         definition_of_done: form.definition_of_done || null,
         estimate_points: form.estimate_points === '' ? null : Number(form.estimate_points),
       }
-      if (templateId) {
-        await instantiateTemplate.mutateAsync({
-          id: templateId,
-          title_override: form.title,
-          business: form.business,
-          form_values: {},
-          overrides: { ...payload, tags: [], owners: payload.owners },
-        })
-      } else {
-        await createAction.mutateAsync(payload)
-      }
+      await createAction.mutateAsync(payload)
       onClose()
     } catch (err) {
       setError(err.message || 'Failed to create action')
@@ -189,7 +147,6 @@ export default function QuickCapture({ onClose, selectedBusiness, prefilledDate 
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
-          {templates.length > 0 && <select aria-label="Action template" className="input-field w-full text-sm" value={templateId} onChange={event => applyTemplate(templates.find(template => template.id === event.target.value) || null)}><option value="">No template</option>{templates.map(template => <option key={template.id} value={template.id}>{template.is_default ? 'Default · ' : ''}{template.name}</option>)}</select>}
           {/* Title */}
           <input
             ref={titleRef}

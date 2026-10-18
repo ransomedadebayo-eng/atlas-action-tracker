@@ -1,3 +1,5 @@
+import { canonicalStatus } from './statuses.js'
+
 export const OFFICE_DIGEST_TERMINAL_STATUSES = Object.freeze(['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'])
 export const OFFICE_DIGEST_BUCKETS = Object.freeze([
   { id: 'done', label: 'Done (48h)', viewId: 'office-digest-done' },
@@ -108,8 +110,8 @@ export function resolveSavedViewFilters(view) {
 export function matchesActionFilters(action, filters = {}, now = new Date()) {
   const normalized = normalizeSavedViewFilters(filters)
   if (normalized.status) {
-    const allowed = new Set(csvValues(normalized.status).map(status => status.toLowerCase()))
-    if (!allowed.has(String(action.status || '').toLowerCase())) return false
+    const allowed = new Set(csvValues(normalized.status).map(canonicalStatus))
+    if (!allowed.has(canonicalStatus(action.status))) return false
   }
   if (normalized.approval_state) {
     const allowed = new Set(csvValues(normalized.approval_state))

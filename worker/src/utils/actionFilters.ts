@@ -1,3 +1,5 @@
+import { canonicalStatus, storedStatusValues } from './statuses';
+
 export const OFFICE_DIGEST_TERMINAL_STATUSES = ['done', 'completed', 'closed', 'cancelled', 'canceled', 'archived'] as const;
 export const OFFICE_DIGEST_BUCKETS = ['done', 'waiting_on_owner', 'blocked_by_office'] as const;
 export type OfficeDigestBucket = (typeof OFFICE_DIGEST_BUCKETS)[number];
@@ -101,8 +103,8 @@ export function resolveSavedViewFilters(view: { id?: string; filters?: FilterMap
 export function matchesActionFilters(action: FilterMap, filters: FilterMap = {}, now = new Date()): boolean {
   const normalized = normalizeSavedViewFilters(filters);
   if (normalized.status) {
-    const allowed = new Set(csvValues(normalized.status).map(status => status.toLowerCase()));
-    if (!allowed.has(String(action.status || '').toLowerCase())) return false;
+    const allowed = new Set(csvValues(normalized.status).map(status => canonicalStatus(status.toLowerCase())));
+    if (!allowed.has(canonicalStatus(String(action.status || '').trim().toLowerCase()))) return false;
   }
   if (normalized.approval_state) {
     const allowed = new Set(csvValues(normalized.approval_state));
@@ -125,6 +127,9 @@ export function matchesActionFilters(action: FilterMap, filters: FilterMap = {},
 
 export function applyActionQueryFilters(query: any, filters: FilterMap = {}, now = new Date()) {
   const normalized = normalizeSavedViewFilters(filters);
+  const statuses = storedStatusValues(csvValues(normalized.status));
+  if (statuses.length) query = query.in('status', statuses);
+
   const approvalStates = csvValues(normalized.approval_state);
   if (approvalStates.length) query = query.in('approval_state', approvalStates);
 

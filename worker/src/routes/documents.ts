@@ -6,11 +6,12 @@ import { apiError } from '../utils/http';
 import { sanitizeBody, validateStringLengths, parsePagination } from '../middleware/validate';
 import { hasRequestScope } from '../middleware/authorize';
 import { changeSummary, singleTextChange } from '../utils/documentCollaboration';
+import { ignoreDeprecatedFields, TEMPLATE_DEPRECATED_FIELDS } from '../utils/deprecatedFields';
 import { sha256Hex } from '../utils/integrations';
 
 const router = new Hono<{ Bindings: Env }>();
 type Row = Record<string, any>;
-const CONTEXTS = new Set(['workspace', 'project', 'initiative', 'action', 'cycle']);
+const CONTEXTS = new Set(['workspace', 'project', 'action']);
 
 export function validateDocumentBody(body: Row, partial = false): string[] {
   const errors: string[] = [];
@@ -44,11 +45,10 @@ async function broadcastDocument(env: Env, documentId: string, document: Row, ac
 
 router.get('/', async c => {
   try {
-    const { context_type, context_id, status, template_id, search } = c.req.query();
+    const { context_type, context_id, status, search } = c.req.query();
     let query = getDb(c.env).from('atlas_documents').select('*');
     if (context_type) query = query.eq('context_type', context_type);
     if (context_id) query = query.eq('context_id', context_id);
-    if (template_id) query = query.eq('template_id', template_id);
     if (status) query = query.eq('status', status); else query = query.eq('status', 'active');
     if (search) { const term=String(search).replace(/[%_,()]/g,' ').slice(0,100); query=query.or(`title.ilike.%${term}%,content.ilike.%${term}%`); }
     const { limit, offset } = parsePagination(c.req.query() as Row);
@@ -60,7 +60,7 @@ router.get('/', async c => {
 
 router.post('/', async c => {
   try {
-    const raw=await c.req.json<Row>().catch(()=>({} as Row));const body=sanitizeBody(raw,['title','icon','color']);const errors=[...validateDocumentBody(body),...validateStringLengths(body)];if(errors.length)return apiError(c,400,'INVALID_DOCUMENT',errors.join('; '));const actor=getActor(c);
+    const raw=ignoreDeprecatedFields(await c.req.json<Row>().catch(()=>({} as Row)), TEMPLATE_DEPRECATED_FIELDS, 'documents');const body=sanitizeBody(raw,['title','icon','color']);const errors=[...validateDocumentBody(body),...validateStringLengths(body)];if(errors.length)return apiError(c,400,'INVALID_DOCUMENT',errors.join('; '));const actor=getActor(c);
     const{data,error}=await getDb(c.env).from('atlas_documents').insert({id:uuidv4(),title:String(body.title).trim(),content:body.content||'',context_type:body.context_type||'workspace',context_id:body.context_type&&body.context_type!=='workspace'?body.context_id:null,icon:body.icon||null,color:body.color||null,status:'active',revision:0,created_by:actor,updated_by:actor}).select().single();if(error)throw error;return c.json(data,201);
   } catch(error){console.error(`[documents] create error: ${(error as Error).message}`);return apiError(c,500,'DOCUMENT_CREATE_FAILED','Unable to create the document.');}
 });
@@ -95,7 +95,7 @@ router.get('/:id', async c => {
 
 router.put('/:id', async c => {
   try {
-    const raw=await c.req.json<Row>().catch(()=>({} as Row));if(!Number.isSafeInteger(raw.expected_revision)||raw.expected_revision<0)return apiError(c,400,'INVALID_REVISION','expected_revision must be a non-negative integer.');const errors=validateDocumentBody(raw,true);if(errors.length)return apiError(c,400,'INVALID_DOCUMENT',errors.join('; '));const supabase=getDb(c.env);const{data:existing,error:fetchError}=await supabase.from('atlas_documents').select('*').eq('id',c.req.param('id')).maybeSingle();if(fetchError)throw fetchError;if(!existing)return apiError(c,404,'DOCUMENT_NOT_FOUND','Document not found.');if(existing.status==='archived')return apiError(c,409,'DOCUMENT_ARCHIVED','Restore the document before editing it.');const actor=getActor(c);let document=existing;
+    const raw=ignoreDeprecatedFields(await c.req.json<Row>().catch(()=>({} as Row)), TEMPLATE_DEPRECATED_FIELDS, 'documents');if(!Number.isSafeInteger(raw.expected_revision)||raw.expected_revision<0)return apiError(c,400,'INVALID_REVISION','expected_revision must be a non-negative integer.');const errors=validateDocumentBody(raw,true);if(errors.length)return apiError(c,400,'INVALID_DOCUMENT',errors.join('; '));const supabase=getDb(c.env);const{data:existing,error:fetchError}=await supabase.from('atlas_documents').select('*').eq('id',c.req.param('id')).maybeSingle();if(fetchError)throw fetchError;if(!existing)return apiError(c,404,'DOCUMENT_NOT_FOUND','Document not found.');if(existing.status==='archived')return apiError(c,409,'DOCUMENT_ARCHIVED','Restore the document before editing it.');const actor=getActor(c);let document=existing;
     if(raw.title!==undefined||raw.content!==undefined){const title=raw.title??existing.title;const content=raw.content??existing.content;const baseHash=await sha256Hex(existing.content);const resultHash=await sha256Hex(content);const change=singleTextChange(existing.content,content);const rpc=await supabase.rpc('apply_atlas_document_realtime_edit',{p_document_id:existing.id,p_client_id:raw.client_id||'legacy-rest',p_operation_id:raw.operation_id||uuidv4(),p_base_revision:existing.revision,p_expected_revision:raw.expected_revision,p_title:title,p_content:content,p_base_content_sha256:baseHash,p_result_content_sha256:resultHash,p_merge_strategy:'legacy_rest',p_change_summary:changeSummary(change),p_selection:null,p_actor:actor});if(rpc.error)return documentError(c,rpc.error);document=rpc.data?.document||rpc.data;}
     const metadata:Row={};for(const field of['context_type','context_id','icon','color'])if(raw[field]!==undefined)metadata[field]=raw[field]===''?null:raw[field];if(Object.keys(metadata).length){metadata.revision=document.revision+1;metadata.updated_by=actor;metadata.updated_at=new Date().toISOString();const updated=await supabase.from('atlas_documents').update(metadata).eq('id',existing.id).eq('revision',document.revision).select().maybeSingle();if(updated.error)throw updated.error;if(!updated.data)return apiError(c,409,'REVISION_CONFLICT','The document changed. Refresh and retry.');document=updated.data;}
     if(document===existing)return apiError(c,400,'DOCUMENT_UPDATE_EMPTY','No document fields were provided.');await broadcastDocument(c.env,existing.id,document,actor);return c.json(document);

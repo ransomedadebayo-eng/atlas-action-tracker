@@ -6,9 +6,9 @@ import { apiError } from '../utils/http';
 
 type Row = Record<string, any>;
 const router = new Hono<{ Bindings: Env }>();
-const CATEGORIES = new Set(['all','assignments','mentions','status_changes','comments','project_updates','initiative_updates','cycles','documents','releases','analytics','workflows','system']);
+const CATEGORIES = new Set(['all','assignments','mentions','status_changes','comments','project_updates','documents','system']);
 const CHANNELS = new Set(['inbox','browser','email','slack','webhook']);
-const TARGETS = new Set(['action','project','initiative','cycle','document','saved_view','workflow','workspace']);
+const TARGETS = new Set(['action','project','document','saved_view','workspace']);
 
 function errorResponse(c: any, error: any, fallback: string) {
   const message = String(error?.message || '');

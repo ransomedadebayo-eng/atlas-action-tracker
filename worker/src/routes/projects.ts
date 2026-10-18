@@ -8,6 +8,7 @@ import { buildSafeIlikePattern } from '../utils/search';
 import { getActor } from '../utils/actors';
 import { apiError } from '../utils/http';
 import { validateConfiguredEstimate } from '../utils/estimates';
+import { ignoreDeprecatedFields, TEMPLATE_DEPRECATED_FIELDS } from '../utils/deprecatedFields';
 
 const router = new Hono<{ Bindings: Env }>();
 const PROJECT_STATUSES = new Set(['backlog', 'planned', 'in_progress', 'paused', 'completed', 'canceled', 'archived']);
@@ -85,6 +86,21 @@ export function calculateProjectProgress(actions: Row[], unestimatedValue = 1) {
   };
 }
 
+export function calculateProjectActivity(project: Row, actions: Row[], updates: Row[], now = new Date()) {
+  const openStatuses = new Set(['open', 'not_started', 'todo', 'in_progress', 'waiting', 'blocked']);
+  const openActions = actions.filter(action => !action.archived_at && openStatuses.has(String(action.status)));
+  const timestamps = (values: unknown[]) => values.map(value => typeof value === 'string' ? Date.parse(value) : NaN).filter(Number.isFinite);
+  const created = timestamps(openActions.map(action => action.created_at));
+  const activity = timestamps([project.updated_at, ...actions.map(action => action.updated_at), ...updates.map(update => update.created_at)]);
+  const latest = activity.length ? Math.max(...activity) : null;
+  return {
+    open_action_count: openActions.length,
+    oldest_open_days: created.length ? Math.max(0, Math.floor((now.valueOf() - Math.min(...created)) / 86400000)) : null,
+    last_activity_at: latest === null ? null : new Date(latest).toISOString(),
+    is_stale: project.status === 'in_progress' && latest !== null && latest < now.valueOf() - 14 * 86400000,
+  };
+}
+
 async function validateProjectReferences(supabase: ReturnType<typeof getDb>, body: Row): Promise<string[]> {
   const errors: string[] = [];
   const businessError = await validateKnownBusinessId(supabase, body.business);
@@ -144,19 +160,34 @@ export function includeProjectByCompletedWindow(project: Row, window = 'month', 
   return Boolean(completed && !Number.isNaN(completed.valueOf()) && completed.valueOf() >= now.valueOf() - days * 86400000);
 }
 
+// Exact counts let pagination tolerate a PostgREST cap below the requested page size.
+// Every caller supplies a stable id tie-breaker so page boundaries cannot skip tied rows.
+async function loadAllProjectRows(query: any): Promise<Row[]> {
+  const rows: Row[] = [];
+  const pageSize = 1000;
+  let offset = 0;
+  while (true) {
+    const { data, error, count } = await query.range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    const batch = (data || []) as Row[];
+    rows.push(...batch);
+    offset += batch.length;
+    if (!batch.length || (typeof count === 'number' && offset >= count)) return rows;
+  }
+}
+
 async function loadProjectAggregate(supabase: ReturnType<typeof getDb>, project: Row) {
   const projectId = String(project.id);
-  const [actionsResult, milestonesResult, updatesResult, blockedResult, blockingResult, activityResult, estimateResult, initiativeMembershipResult] = await Promise.all([
-    supabase.from('atlas_actions').select('*').eq('project_id', projectId).order('priority', { ascending: true }).order('due_date', { ascending: true, nullsFirst: false }),
+  const [actions, milestonesResult, updates, blockedResult, blockingResult, activityResult, estimateResult] = await Promise.all([
+    loadAllProjectRows(supabase.from('atlas_actions').select('*', { count: 'exact' }).eq('project_id', projectId).order('priority', { ascending: true }).order('due_date', { ascending: true, nullsFirst: false }).order('id', { ascending: true })),
     supabase.from('atlas_project_milestones').select('*').eq('project_id', projectId).order('sort_order', { ascending: true }).order('target_date', { ascending: true, nullsFirst: false }),
-    supabase.from('atlas_project_updates').select('*').eq('project_id', projectId).order('created_at', { ascending: false }),
+    loadAllProjectRows(supabase.from('atlas_project_updates').select('*', { count: 'exact' }).eq('project_id', projectId).order('created_at', { ascending: false }).order('id', { ascending: true })),
     supabase.from('atlas_project_dependencies').select('*').eq('blocked_project_id', projectId).eq('status', 'active'),
     supabase.from('atlas_project_dependencies').select('*').eq('blocking_project_id', projectId).eq('status', 'active'),
     supabase.from('atlas_project_activity_log').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).limit(100),
     supabase.from('atlas_config').select('value').eq('key', 'estimate_settings').maybeSingle(),
-    supabase.from('atlas_initiative_projects').select('initiative_id').eq('project_id', projectId).eq('status', 'active'),
   ]);
-  for (const result of [actionsResult, milestonesResult, updatesResult, blockedResult, blockingResult, activityResult, estimateResult, initiativeMembershipResult]) {
+  for (const result of [milestonesResult, blockedResult, blockingResult, activityResult, estimateResult]) {
     if (result.error) throw result.error;
   }
   const dependencies: Row[] = [
@@ -175,24 +206,16 @@ async function loadProjectAggregate(supabase: ReturnType<typeof getDb>, project:
     const otherId = String(row.blocked_project_id) === projectId ? String(row.blocking_project_id) : String(row.blocked_project_id);
     return { ...row, related_project: relatedById.get(otherId) || null };
   });
-  const actions = (actionsResult.data || []) as Row[];
-  const initiativeIds = (initiativeMembershipResult.data || []).map(row => row.initiative_id);
-  let initiatives: Row[] = [];
-  if (initiativeIds.length > 0) {
-    const initiativeResult = await supabase.from('atlas_initiatives').select('id,name,status,health,priority,target_date').in('id', initiativeIds);
-    if (initiativeResult.error) throw initiativeResult.error;
-    initiatives = (initiativeResult.data || []) as Row[];
-  }
   const estimateValue = estimateResult.data?.value as Row | undefined;
   const unestimatedValue = Number.isSafeInteger(estimateValue?.unestimated_value) ? Number(estimateValue?.unestimated_value) : 1;
   return {
     ...project,
+    ...calculateProjectActivity(project, actions, updates),
     progress: calculateProjectProgress(actions, unestimatedValue),
     actions,
     milestones: milestonesResult.data || [],
-    updates: updatesResult.data || [],
+    updates,
     dependencies: hydratedDependencies,
-    initiatives,
     activity: activityResult.data || [],
   };
 }
@@ -218,7 +241,7 @@ async function optimisticProjectUpdate(
 router.get('/', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { status, business, health, lead_id, search, sort_by, sort_dir, completed_window, dependency, milestone, initiative, template_id, start_before, target_after } = c.req.query() as Record<string, string>;
+    const { status, business, health, lead_id, search, sort_by, sort_dir, completed_window, dependency, milestone, start_before, target_after } = c.req.query() as Record<string, string>;
     let query = supabase.from('atlas_projects').select('*');
     if (status) query = query.in('status', status.split(',').filter(value => PROJECT_STATUSES.has(value)));
     else query = query.neq('status', 'archived');
@@ -227,8 +250,6 @@ router.get('/', async (c) => {
     if (lead_id) query = query.eq('lead_id', lead_id);
     if (start_before) query = query.lte('start_date', start_before);
     if (target_after) query = query.gte('target_date', target_after);
-    if (template_id === '__null__') query = query.is('template_id', null);
-    else if (template_id) query = query.eq('template_id', template_id);
     const searchTerm = buildSafeIlikePattern(search);
     if (searchTerm) query = query.or(`name.ilike.${searchTerm},summary.ilike.${searchTerm},description.ilike.${searchTerm}`);
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
@@ -239,29 +260,20 @@ router.get('/', async (c) => {
     let actions: Row[] = [];
     let milestones: Row[] = [];
     let dependencies: Row[] = [];
-    let initiativeMemberships: Row[] = [];
-    let initiatives: Row[] = [];
+    let updates: Row[] = [];
     if (ids.length > 0) {
-      const [actionsResult, milestonesResult, dependenciesResult, initiativeMembershipResult] = await Promise.all([
-        supabase.from('atlas_actions').select('id,project_id,status,estimate_points').in('project_id', ids),
+      const [projectActions, milestonesResult, dependenciesResult, projectUpdates] = await Promise.all([
+        loadAllProjectRows(supabase.from('atlas_actions').select('id,project_id,status,estimate_points,created_at,updated_at,archived_at', { count: 'exact' }).in('project_id', ids).order('id', { ascending: true })),
         supabase.from('atlas_project_milestones').select('*').in('project_id', ids).neq('status', 'archived').order('sort_order', { ascending: true }),
         supabase.from('atlas_project_dependencies').select('*').eq('status', 'active').or(`blocked_project_id.in.(${ids.join(',')}),blocking_project_id.in.(${ids.join(',')})`),
-        supabase.from('atlas_initiative_projects').select('initiative_id,project_id').eq('status', 'active').in('project_id', ids),
+        loadAllProjectRows(supabase.from('atlas_project_updates').select('id,project_id,created_at', { count: 'exact' }).in('project_id', ids).order('created_at', { ascending: false }).order('id', { ascending: true })),
       ]);
-      if (actionsResult.error) throw actionsResult.error;
       if (milestonesResult.error) throw milestonesResult.error;
       if (dependenciesResult.error) throw dependenciesResult.error;
-      if (initiativeMembershipResult.error) throw initiativeMembershipResult.error;
-      actions = (actionsResult.data || []) as Row[];
+      actions = projectActions;
       milestones = (milestonesResult.data || []) as Row[];
       dependencies = (dependenciesResult.data || []) as Row[];
-      initiativeMemberships = (initiativeMembershipResult.data || []) as Row[];
-      const initiativeIds = Array.from(new Set(initiativeMemberships.map(item => String(item.initiative_id))));
-      if (initiativeIds.length > 0) {
-        const initiativeResult = await supabase.from('atlas_initiatives').select('id,name,status,health,priority,target_date').in('id', initiativeIds);
-        if (initiativeResult.error) throw initiativeResult.error;
-        initiatives = (initiativeResult.data || []) as Row[];
-      }
+      updates = projectUpdates;
     }
     const estimateResult = await supabase.from('atlas_config').select('value').eq('key', 'estimate_settings').maybeSingle();
     if (estimateResult.error) throw estimateResult.error;
@@ -276,13 +288,12 @@ router.get('/', async (c) => {
       });
       return {
         ...project,
+        ...calculateProjectActivity(project, actions.filter(action => action.project_id === project.id), updates.filter(update => update.project_id === project.id)),
         progress: calculateProjectProgress(actions.filter(action => action.project_id === project.id), unestimatedValue),
         milestones: milestones.filter(item => item.project_id === project.id),
         dependencies: projectDependencies,
-        initiatives: initiativeMemberships.filter(item => item.project_id === project.id).map(item => initiatives.find(candidate => candidate.id === item.initiative_id)).filter(Boolean),
       };
     });
-    if (initiative) projects = projects.filter(project => (project.initiatives as Row[]).some(item => item.id === initiative || String(item.name).toLowerCase().includes(initiative.toLowerCase())));
     if (milestone) projects = projects.filter(project => (project.milestones as Row[]).some(item => item.id === milestone || String(item.name).toLowerCase().includes(milestone.toLowerCase())));
     if (dependency === 'any') projects = projects.filter(project => (project.dependencies as Row[]).length > 0);
     if (dependency === 'blocking') projects = projects.filter(project => (project.dependencies as Row[]).some(item => item.blocking_project_id === project.id));
@@ -309,7 +320,7 @@ router.get('/', async (c) => {
 router.post('/', async (c) => {
   try {
     const raw = await c.req.json<Row>().catch(() => ({} as Row));
-    const body = sanitizeBody(raw, PROJECT_TEXT_FIELDS);
+    const body = sanitizeBody(ignoreDeprecatedFields(raw, TEMPLATE_DEPRECATED_FIELDS, 'projects'), PROJECT_TEXT_FIELDS);
     const supabase = getDb(c.env);
     const errors = [...validateProjectBody(body), ...validateStringLengths(body), ...await validateProjectReferences(supabase, body)];
     if (errors.length > 0) return apiError(c, 400, 'INVALID_PROJECT', errors.join('; '));
@@ -362,7 +373,7 @@ router.put('/:id', async (c) => {
     const raw = await c.req.json<Row>().catch(() => ({} as Row));
     const revision = parseExpectedRevision(raw.expected_revision);
     if (revision.error) return apiError(c, 400, 'INVALID_REVISION', revision.error);
-    const body = sanitizeBody(raw, PROJECT_TEXT_FIELDS);
+    const body = sanitizeBody(ignoreDeprecatedFields(raw, TEMPLATE_DEPRECATED_FIELDS, 'projects'), PROJECT_TEXT_FIELDS);
     if (body.status === 'archived') return apiError(c, 400, 'PROJECT_TRANSITION_REQUIRED', 'Use the archive endpoint.');
     const supabase = getDb(c.env);
     const project = await getProject(supabase, c.req.param('id'));

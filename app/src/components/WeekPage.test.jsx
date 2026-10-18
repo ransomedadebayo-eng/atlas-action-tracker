@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import axe from 'axe-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import WeekPage, { ItemCard } from './WeekPage.jsx';
+import WeekPage, { ItemCard, weekScorecard } from './WeekPage.jsx';
 import * as actionHooks from '../hooks/useActions.js';
 import * as weekHooks from '../hooks/useWeekPlan.js';
 
@@ -158,6 +158,34 @@ describe('WeekPage readability', () => {
     expect(screen.getByText('Source task unavailable. The saved weekly note is still shown.')).toBeTruthy();
     expect(screen.getByText('Published source: Archived source title')).toBeTruthy();
     expect(screen.getByRole('button', { name: `Open source task: ${linkedAction.title}` })).toBeTruthy();
+  });
+
+  it('counts the linked current action status for each scorecard kind', () => {
+    const items = [
+      { kind: 'must_win', action: { status: 'done' } },
+      { kind: 'must_win', action: { status: 'completed' } },
+      { kind: 'must_win', action: { status: 'waiting' }, action_snapshot: { status: 'done' } },
+      { kind: 'day_focus', action: { status: 'closed' } },
+      { kind: 'day_focus', action: null, action_snapshot: { status: 'done' } },
+      { id: 'carry-done', kind: 'carryover', action: { status: 'done' } },
+      { id: 'carry-blocked', kind: 'carryover', action: { status: 'blocked' } },
+      { kind: 'risk', action: { status: 'done' } },
+    ];
+    expect(weekScorecard(items)).toEqual({ mustWins: { done: 2, total: 3 }, dayFocus: { done: 1, total: 2 }, carriedOver: 2 });
+    weekHooks.useWeekPlan.mockReturnValue({ data: { published: { ...published, items }, diagnostics: {} }, isLoading: false });
+    renderWeek();
+    expect(screen.getByLabelText('Week scorecard').textContent).toBe('Must wins done 2 of 3 · Day focus done 1 of 2 · Carried over 2');
+  });
+
+  it('refreshes completion counts when action status changes without a plan revision', () => {
+    const view = renderWeek();
+    expect(screen.getByLabelText('Week scorecard').textContent).toContain('Day focus done 0 of 2');
+    weekHooks.useWeekPlan.mockReturnValue({
+      data: { published: { ...published, items: published.items.map(item => item.id === 'focus-1' ? { ...item, action: { ...linkedAction, status: 'done' } } : item) }, diagnostics: {} },
+      isLoading: false,
+    });
+    view.rerender(<QueryClientProvider client={new QueryClient()}><WeekPage weekStart="2026-08-17" onNavigateWeek={vi.fn()} onSelectAction={vi.fn()} /></QueryClientProvider>);
+    expect(screen.getByLabelText('Week scorecard').textContent).toContain('Day focus done 1 of 2');
   });
 
   it('labels every plan-item editor control', () => {

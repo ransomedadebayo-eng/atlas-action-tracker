@@ -2,13 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { app } from '../index';
 import { getDb } from '../db';
 import type { Env } from '../db';
-import { loadWorkflowAction } from '../services/workflows';
 
 vi.mock('../db', () => ({ getDb: vi.fn() }));
-vi.mock('../services/workflows', () => ({
-  executeWorkflowRules: vi.fn().mockResolvedValue(null),
-  loadWorkflowAction: vi.fn(),
-}));
 
 const token = 'codex-partial-update-test-only-token';
 const env: Env = {
@@ -55,7 +50,6 @@ describe('partial action update HTTP contract', () => {
       return query;
     });
     vi.mocked(getDb).mockReturnValue({ from } as unknown as ReturnType<typeof getDb>);
-    vi.mocked(loadWorkflowAction).mockImplementation(async () => ({ ...record }));
   });
 
   function put(body: Record<string, unknown>) {

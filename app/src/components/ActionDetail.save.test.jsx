@@ -14,29 +14,24 @@ vi.mock('../api/client.js', () => ({
 }))
 vi.mock('./LazyDiscussionThread.jsx', () => ({ default: () => null }))
 vi.mock('./ActionStructureSection.jsx', () => ({ default: () => null }))
-vi.mock('./ActionCycleControl.jsx', () => ({ default: () => null }))
 vi.mock('../hooks/useMembers.js', () => ({ useMembers: () => ({ data: [] }) }))
 vi.mock('../hooks/useBusinesses.js', () => ({
   useBusinessContext: () => ({ BUSINESSES: {}, BUSINESS_LIST: [], BUSINESS_COLORS: {} }),
 }))
 vi.mock('../hooks/useEstimateSettings.js', () => ({ useEstimateSettings: () => ({ data: { enabled: false } }) }))
-vi.mock('../hooks/useWorkflows.js', () => ({ useWorkflow: () => ({ data: null }) }))
 
 describe('ActionDetail saved detail cache', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it.each(['delayed', 'failed'])('keeps Delivery and the authoritative form after saving with a %s refetch', async refetch => {
+  it.each(['delayed', 'failed'])('keeps GET enrichment and the authoritative form after saving with a %s refetch', async refetch => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     const notes = '  Historical notes <keep>\n' + 'n'.repeat(10598) + '\n  '
     const action = {
       id: 'a1', title: 'Repair follow-up', status: 'waiting', priority: 'p1',
       due_date: '2026-10-09', owners: [], tags: [], next_action: 'Old step', notes, revision: 11,
     }
-    const releases = [{
-      id: 'ra1', release: { id: 'r1', name: 'Atlas release', version: 'v1', status: 'scheduled' },
-      pipeline: { name: 'Atlas pipeline' }, stage: { environment: 'Production' },
-    }]
-    client.setQueryData(['action', 'a1'], { ...action, releases })
+    const relations = [{ id: 'rel1', related_action: { id: 'a2', title: 'Related action' } }]
+    client.setQueryData(['action', 'a1'], { ...action, relations })
     const saved = { ...action, next_action: 'Saved step', due_date: null, priority: 'p0', revision: 12 }
     actionsApi.update.mockResolvedValue(saved)
     let resolveRefetch
@@ -48,7 +43,6 @@ describe('ActionDetail saved detail cache', () => {
     render(<ActionDetail actionId="a1" onClose={vi.fn()} />, {
       wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
     })
-    expect(screen.getByText('Delivery')).toBeTruthy()
 
     fireEvent.change(screen.getByLabelText('Next action'), { target: { value: '  Saved step  ' } })
     fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '' } })
@@ -59,13 +53,10 @@ describe('ActionDetail saved detail cache', () => {
       refetch === 'failed' ? { status: 'error', fetchStatus: 'idle' } : { fetchStatus: 'fetching' },
     ))
     expect(actionsApi.update).toHaveBeenCalledExactlyOnceWith('a1', { next_action: '  Saved step  ', due_date: null })
-    expect(screen.getByText('Delivery')).toBeTruthy()
-    expect(screen.getByText('Atlas release · v1')).toBeTruthy()
-    expect(screen.getByText('Atlas pipeline · Production · scheduled')).toBeTruthy()
     expect(screen.getByLabelText('Next action').value).toBe('Saved step')
     expect(screen.getByLabelText('Due date').value).toBe('')
     expect(screen.getByLabelText('Action notes').value).toBe(notes)
-    expect(client.getQueryData(['action', 'a1'])).toEqual({ ...saved, releases })
+    expect(client.getQueryData(['action', 'a1'])).toEqual({ ...saved, relations })
 
     // The server-normalized form becomes the next baseline, even without a GET.
     fireEvent.change(screen.getByLabelText('Action title'), { target: { value: 'Updated title' } })
@@ -74,7 +65,7 @@ describe('ActionDetail saved detail cache', () => {
     expect(actionsApi.update).toHaveBeenLastCalledWith('a1', { title: 'Updated title' })
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Sav(e|ing)/ })).toBeNull())
 
-    if (resolveRefetch) await act(async () => resolveRefetch({ ...saved, releases: [] }))
+    if (resolveRefetch) await act(async () => resolveRefetch({ ...saved, relations: [] }))
     client.clear()
   })
 })

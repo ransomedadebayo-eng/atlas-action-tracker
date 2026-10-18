@@ -11,7 +11,7 @@ import { buildSafeIlikePattern } from '../utils/search';
 import { buildCompletionEvidence } from '../utils/evidence';
 import { apiError } from '../utils/http';
 import { validateConfiguredEstimate } from '../utils/estimates';
-import { executeWorkflowRules, loadWorkflowAction } from '../services/workflows';
+import { ACTION_DEPRECATED_FIELDS, ignoreDeprecatedFields } from '../utils/deprecatedFields';
 import { applyActionQueryFilters, matchesActionFilters } from '../utils/actionFilters';
 
 const router = new Hono<{ Bindings: Env }>();
@@ -29,7 +29,7 @@ const PROTOCOL_FIELDS = [
 ];
 const FILTERABLE_WORK_MODES = new Set(['autonomous', 'review_required', 'user_only']);
 const EXPLICIT_TRANSITION_STATUSES = new Set(['done', 'archived']);
-const ACTION_SELECT = '*,workflow_status:atlas_workflow_statuses!workflow_status_id(id,workflow_id,status_key,name,description,color,category,position,is_default,is_system)';
+const ACTION_SELECT = '*';
 
 function parseExpectedRevision(value: unknown): { value: number | null; error: string | null } {
   if (value === undefined || value === null) return { value: null, error: null };
@@ -221,44 +221,6 @@ export function filterByOwner(actions: Record<string, unknown>[], ownerId?: stri
   return actions.filter(action => Array.isArray(action.owners) && action.owners.includes(ownerId));
 }
 
-async function hydrateReleaseSummaries(supabase: ReturnType<typeof getDb>, actions: Record<string, unknown>[]) {
-  const actionIds = actions.map(action => String(action.id));
-  if (!actionIds.length) return actions;
-  const associationResult = await supabase.from('atlas_release_actions').select('*').eq('status', 'active').in('action_id', actionIds);
-  if (associationResult.error) throw associationResult.error;
-  const associations = associationResult.data || [];
-  const releaseIds = Array.from(new Set(associations.map(item => String(item.release_id))));
-  if (!releaseIds.length) return actions.map(action => ({ ...action, releases: [] }));
-  const releaseResult = await supabase.from('atlas_releases').select('id,pipeline_id,name,version,commit_sha,status,scheduled_at,released_at').in('id', releaseIds);
-  if (releaseResult.error) throw releaseResult.error;
-  const releases = releaseResult.data || [];
-  const pipelineIds = Array.from(new Set(releases.map(item => String(item.pipeline_id))));
-  const pipelineResult = await supabase.from('atlas_release_pipelines').select('id,name,pipeline_type').in('id', pipelineIds);
-  if (pipelineResult.error) throw pipelineResult.error;
-  const stageRunIds = Array.from(new Set(associations.map(item => item.stage_run_id).filter(Boolean).map(String)));
-  let stageRuns: Record<string, unknown>[] = [];
-  let stages: Record<string, unknown>[] = [];
-  if (stageRunIds.length) {
-    const runResult = await supabase.from('atlas_release_stage_runs').select('id,stage_id,status,frozen_at,started_at,completed_at').in('id', stageRunIds);
-    if (runResult.error) throw runResult.error;
-    stageRuns = runResult.data || [];
-    const stageIds = Array.from(new Set(stageRuns.map(item => String(item.stage_id))));
-    const stageResult = await supabase.from('atlas_release_stages').select('id,stage_key,name,environment,position').in('id', stageIds);
-    if (stageResult.error) throw stageResult.error;
-    stages = stageResult.data || [];
-  }
-  return actions.map(action => ({
-    ...action,
-    releases: associations.filter(item => item.action_id === action.id).map(association => {
-      const release = releases.find(item => item.id === association.release_id);
-      const pipeline = release ? (pipelineResult.data || []).find(item => item.id === release.pipeline_id) : null;
-      const run = stageRuns.find(item => item.id === association.stage_run_id) as Record<string, unknown> | undefined;
-      const stage = run ? stages.find(item => item.id === run.stage_id) : null;
-      return { ...association, release, pipeline, stage_run: run || null, stage: stage || null };
-    }),
-  }));
-}
-
 function assignmentPriority(priority: unknown): string {
   if (priority === 'p0') return 'critical';
   if (priority === 'p1') return 'high';
@@ -274,12 +236,11 @@ function assignmentTypeForWorkMode(workMode: unknown): string {
 router.get('/', async (c) => {
   try {
     const supabase = getDb(c.env);
-    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked, stewardship, parent_id, hierarchy, estimate_points, resolution, cycle_id, template_id, release_id, pipeline_id, stage_run_id, include_triage, approval_state, exclude_approval_state, completed_within, completed_after, has_blocked_by, open } = c.req.query() as Record<string, string>;
+    const { status, business, priority, owner_id, due_before, due_after, search, source_id, work_mode, sort_by, sort_dir, show_blocked, stewardship, parent_id, hierarchy, estimate_points, resolution, approval_state, exclude_approval_state, completed_within, completed_after, has_blocked_by, open } = c.req.query() as Record<string, string>;
     const digestFilters = { approval_state, exclude_approval_state, completed_within, completed_after, has_blocked_by, open, status, business };
 
     let query = supabase.from('atlas_actions').select(ACTION_SELECT);
 
-    if (status) query = query.in('status', status.split(','));
     if (business) query = query.eq('business', business);
     query = applyActionQueryFilters(query, digestFilters);
     if (priority) query = query.in('priority', priority.split(','));
@@ -297,40 +258,13 @@ router.get('/', async (c) => {
     else if (estimate_points && /^\d+$/.test(estimate_points)) query = query.eq('estimate_points', Number(estimate_points));
     if (resolution === '__null__') query = query.is('resolution', null);
     else if (['completed', 'canceled', 'duplicate'].includes(resolution)) query = query.eq('resolution', resolution);
-    if (cycle_id === '__null__') query = query.is('cycle_id', null);
-    else if (cycle_id) query = query.eq('cycle_id', cycle_id);
-    if (template_id === '__null__') query = query.is('template_id', null);
-    else if (template_id) query = query.eq('template_id', template_id);
-    if (release_id || pipeline_id || stage_run_id) {
-      let releaseIds: string[] | null = null;
-      if (pipeline_id) {
-        const releaseResult = await supabase.from('atlas_releases').select('id').eq('pipeline_id', pipeline_id);
-        if (releaseResult.error) throw releaseResult.error;
-        releaseIds = (releaseResult.data || []).map(item => item.id);
-      }
-      let associationQuery = supabase.from('atlas_release_actions').select('action_id').eq('status', 'active');
-      if (release_id) associationQuery = associationQuery.eq('release_id', release_id);
-      else if (releaseIds) associationQuery = releaseIds.length ? associationQuery.in('release_id', releaseIds) : associationQuery.eq('release_id', '__none__');
-      if (stage_run_id) associationQuery = associationQuery.eq('stage_run_id', stage_run_id);
-      const associationResult = await associationQuery;
-      if (associationResult.error) throw associationResult.error;
-      const matchedIds = Array.from(new Set((associationResult.data || []).map(item => item.action_id)));
-      query = matchedIds.length ? query.in('id', matchedIds) : query.eq('id', '__no_release_match__');
-    }
-
-    const validSorts = ['priority', 'due_date', 'review_date', 'status', 'resolution', 'title', 'business', 'work_mode', 'approval_state', 'estimate_points', 'parent_action_id', 'cycle_id', 'created_at', 'updated_at', 'completed_at'];
+    const validSorts = ['priority', 'due_date', 'review_date', 'status', 'resolution', 'title', 'business', 'work_mode', 'approval_state', 'estimate_points', 'parent_action_id', 'created_at', 'updated_at', 'completed_at'];
     const sortField = validSorts.includes(sort_by) ? sort_by : 'priority';
     const direction = sort_dir === 'desc' ? 'DESC' : 'ASC';
     const { limit, offset } = parsePagination(c.req.query() as Record<string, string>);
     const hideBlocked = show_blocked === 'false';
     const asOf = new Date().toISOString();
     let parentsWithChildren = new Set<string>();
-    let triageActionIds = new Set<string>();
-    if (include_triage !== 'true') {
-      const triageResult = await supabase.from('atlas_triage_entries').select('action_id').in('state', ['pending', 'snoozed']);
-      if (triageResult.error) throw triageResult.error;
-      triageActionIds = new Set((triageResult.data || []).map(item => String(item.action_id)));
-    }
     if (hierarchy === 'with_children') {
       const { data: childRows, error: childError } = await supabase.from('atlas_actions').select('parent_action_id').not('parent_action_id', 'is', null);
       if (childError) throw childError;
@@ -338,8 +272,8 @@ router.get('/', async (c) => {
     }
 
     if (sortField === 'priority') {
-      let results = filterByOwner(annotateBlocked(await hydrateReleaseSummaries(supabase, await loadAllRows(query))), owner_id);
-      results = filterHierarchy(results, hierarchy, parentsWithChildren).filter(action => !triageActionIds.has(String(action.id)));
+      let results = filterByOwner(annotateBlocked(await loadAllRows(query)), owner_id);
+      results = filterHierarchy(results, hierarchy, parentsWithChildren);
       results = results.filter(action => matchesActionFilters(action, digestFilters));
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
@@ -355,8 +289,8 @@ router.get('/', async (c) => {
       });
     } else {
       query = query.order(sortField, { ascending: direction === 'ASC', nullsFirst: false });
-      let results = filterByOwner(annotateBlocked(await hydrateReleaseSummaries(supabase, await loadAllRows(query))), owner_id);
-      results = filterHierarchy(results, hierarchy, parentsWithChildren).filter(action => !triageActionIds.has(String(action.id)));
+      let results = filterByOwner(annotateBlocked(await loadAllRows(query)), owner_id);
+      results = filterHierarchy(results, hierarchy, parentsWithChildren);
       results = results.filter(action => matchesActionFilters(action, digestFilters));
       if (stewardship === 'stale') results = results.filter(action => isProtocolStale(action, new Date().toISOString().slice(0, 10)));
       if (hideBlocked) results = results.filter(a => !a.is_blocked);
@@ -704,7 +638,7 @@ router.get('/:id', async (c) => {
     const supabase = getDb(c.env);
     const { data, error } = await supabase.from('atlas_actions').select(ACTION_SELECT).eq('id', c.req.param('id')).single();
     if (error || !data) return c.json({ error: 'Action not found' }, 404);
-    return c.json((await hydrateReleaseSummaries(supabase, [data]))[0]);
+    return c.json(data);
   } catch (err) {
     console.error(`[actions] GET/:id error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);
@@ -779,7 +713,8 @@ router.post('/', async (c) => {
   try {
     const supabase = getDb(c.env);
     const rawBody = await c.req.json();
-    const body = coerceActionBody(sanitizeBody(rawBody, ACTION_TEXT_FIELDS));
+    const body = coerceActionBody(sanitizeBody(ignoreDeprecatedFields(rawBody, ACTION_DEPRECATED_FIELDS, 'actions'), ACTION_TEXT_FIELDS));
+    if (body.triage === true) body.status = 'open';
     const actor = getActor(c);
     const {
       title, description = '', status = 'not_started', business, priority = 'p2',
@@ -810,28 +745,13 @@ router.post('/', async (c) => {
 
     const { data: action, error } = await supabase
       .from('atlas_actions')
-      .insert({ id, title, description, status, workflow_status_id: body.workflow_status_id || null, business, priority, due_date, owners: serializeJsonArray(owners), source_transcript_id, source_label, tags: serializeJsonArray(tags), notes, recurrence, work_mode, estimate_points, ...protocolFields, created_at: now, updated_at: now })
+      .insert({ id, title, description, status, business, priority, due_date, owners: serializeJsonArray(owners), source_transcript_id, source_label, tags: serializeJsonArray(tags), notes, recurrence, work_mode, estimate_points, ...protocolFields, created_at: now, updated_at: now })
       .select(ACTION_SELECT).single();
 
     if (error) throw error;
 
     await supabase.from('atlas_activity_log').insert({ action_id: id, event: 'created', new_value: title, actor });
-    let latest = action;
-    const automations: unknown[] = [];
-    const createdRun = await executeWorkflowRules(supabase, latest, 'action_created', actor, `action-created:${id}`, false);
-    if (createdRun) automations.push(createdRun);
-    if (body.triage === true) {
-      const entered = await supabase.rpc('enter_atlas_triage_action', {
-        p_action_id: id, p_source_type: body.triage_source_type || 'manual',
-        p_source_ref: body.triage_source_ref || null, p_actor: actor,
-      });
-      if (entered.error) throw entered.error;
-      latest = await loadWorkflowAction(supabase, id);
-      const triageRun = await executeWorkflowRules(supabase, latest, 'triage_entered', actor, `triage-entered:${id}:${(entered.data as any)?.entry?.revision || 0}`, false);
-      if (triageRun) automations.push(triageRun);
-    }
-    latest = await loadWorkflowAction(supabase, id);
-    return c.json({ ...latest, workflow_automation_runs: automations }, 201);
+    return c.json(action, 201);
   } catch (err) {
     console.error(`[actions] POST error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);
@@ -847,9 +767,10 @@ router.post('/bulk', async (c) => {
     if (!Array.isArray(rawActions)) return c.json({ error: 'actions array required' }, 400);
     if (rawActions.length > BULK_MAX) return c.json({ error: `Bulk operations limited to ${BULK_MAX} items` }, 400);
 
-    const actionsList = rawActions.map((item: unknown) => coerceActionBody(sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS)));
+    const actionsList = rawActions.map((item: unknown) => coerceActionBody(sanitizeBody(ignoreDeprecatedFields(item as Record<string, unknown>, ACTION_DEPRECATED_FIELDS, 'actions'), ACTION_TEXT_FIELDS)));
     for (let i = 0; i < actionsList.length; i++) {
       const action = actionsList[i];
+      if (action.triage === true) action.status = 'open';
       if (!action.title || !action.business) return c.json({ error: `Item ${i}: title and business are required` }, 400);
       if (EXPLICIT_TRANSITION_STATUSES.has(String(action.status))) {
         return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', `Item ${i}: completion and archiving require their explicit action endpoints.`);
@@ -881,7 +802,6 @@ router.post('/bulk', async (c) => {
       notes: action.notes || '',
       recurrence: action.recurrence || 'none',
       work_mode: action.work_mode || null,
-      workflow_status_id: action.workflow_status_id || null,
       estimate_points: action.estimate_points ?? null,
       next_action: action.next_action || null,
       definition_of_done: action.definition_of_done || null,
@@ -896,11 +816,6 @@ router.post('/bulk', async (c) => {
 
     const logRows = rows.map(row => ({ action_id: row.id, event: 'created', new_value: row.title, actor }));
       await supabase.from('atlas_activity_log').insert(logRows);
-
-    for (const row of rows) {
-      const action = await loadWorkflowAction(supabase, row.id);
-      await executeWorkflowRules(supabase, action, 'action_created', actor, `action-created:${row.id}`, false);
-    }
 
     return c.json({ created: rows.length, ids: rows.map(r => r.id) }, 201);
   } catch (err) {
@@ -918,7 +833,7 @@ router.put('/bulk', async (c) => {
     if (!Array.isArray(rawUpdates)) return c.json({ error: 'updates array required' }, 400);
     if (rawUpdates.length > BULK_MAX) return c.json({ error: `Bulk operations limited to ${BULK_MAX} items` }, 400);
 
-    const updates = rawUpdates.map((item: unknown) => coerceActionBody(sanitizeBody(item as Record<string, unknown>, ACTION_TEXT_FIELDS)));
+    const updates = rawUpdates.map((item: unknown) => coerceActionBody(sanitizeBody(ignoreDeprecatedFields(item as Record<string, unknown>, ACTION_DEPRECATED_FIELDS, 'actions'), ACTION_TEXT_FIELDS)));
     for (let i = 0; i < updates.length; i++) {
       if (EXPLICIT_TRANSITION_STATUSES.has(String(updates[i].status))) {
         return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', `Item ${i}: completion and archiving require their explicit action endpoints.`);
@@ -966,7 +881,6 @@ router.put('/bulk', async (c) => {
       if (update.recurrence !== undefined) fields.recurrence = update.recurrence;
       if (update.work_mode !== undefined) fields.work_mode = update.work_mode;
       if (update.estimate_points !== undefined) fields.estimate_points = update.estimate_points;
-      if (update.workflow_status_id !== undefined) fields.workflow_status_id = update.workflow_status_id || null;
       applyProtocolFields(fields, update);
 
       if (Object.keys(fields).length === 0) continue;
@@ -984,15 +898,6 @@ router.put('/bulk', async (c) => {
       }
       if (update.notes !== undefined || appendNote !== undefined || update.description !== undefined || update.tags !== undefined || update.owners !== undefined || update.work_mode !== undefined || update.estimate_points !== undefined || PROTOCOL_FIELDS.some(field => update[field] !== undefined)) {
         await supabase.from('atlas_activity_log').insert({ action_id: update.id, event: 'updated', new_value: JSON.stringify(Object.keys(update).filter(k => k !== 'id')), actor });
-      }
-
-      const refreshed = await loadWorkflowAction(supabase, String(update.id));
-      await executeWorkflowRules(supabase, refreshed, 'action_updated', actor, `action-updated:${update.id}:${now}`, false);
-      if (update.status !== undefined && update.status !== existing.status) {
-        await executeWorkflowRules(supabase, await loadWorkflowAction(supabase, String(update.id)), 'status_changed', actor, `status-changed:${update.id}:${now}`, false);
-      }
-      if (update.priority !== undefined && update.priority !== existing.priority) {
-        await executeWorkflowRules(supabase, await loadWorkflowAction(supabase, String(update.id)), 'priority_changed', actor, `priority-changed:${update.id}:${now}`, false);
       }
 
       updatedCount += 1;
@@ -1013,7 +918,7 @@ router.put('/:id', async (c) => {
     if (fetchErr || !existing) return c.json({ error: 'Action not found' }, 404);
 
     const rawBody = await c.req.json();
-    const body = coerceActionBody(sanitizeBody(rawBody, ACTION_TEXT_FIELDS));
+    const body = coerceActionBody(sanitizeBody(ignoreDeprecatedFields(rawBody, ACTION_DEPRECATED_FIELDS, 'actions'), ACTION_TEXT_FIELDS));
 
     if (EXPLICIT_TRANSITION_STATUSES.has(String(body.status))) {
       return apiError(c, 400, 'EXPLICIT_TRANSITION_REQUIRED', 'Use the action completion or archive endpoint for this status change.');
@@ -1054,7 +959,6 @@ router.put('/:id', async (c) => {
     if (recurrence !== undefined) updates.recurrence = recurrence;
     if (work_mode !== undefined) updates.work_mode = work_mode;
     if (estimate_points !== undefined) updates.estimate_points = estimate_points;
-    if (body.workflow_status_id !== undefined) updates.workflow_status_id = body.workflow_status_id || null;
     applyProtocolFields(updates, body);
 
     const mutableKeys = Object.keys(updates);
@@ -1075,19 +979,7 @@ router.put('/:id', async (c) => {
       await supabase.from('atlas_activity_log').insert({ action_id: c.req.param('id'), event: 'updated', new_value: JSON.stringify(mutableKeys), actor });
     }
 
-    const automationRuns: unknown[] = [];
-    const updatedRun = await executeWorkflowRules(supabase, action, 'action_updated', actor, `action-updated:${action.id}:${now}`, false);
-    if (updatedRun) automationRuns.push(updatedRun);
-    if ((status !== undefined && status !== existing.status) || (body.workflow_status_id !== undefined && body.workflow_status_id !== existing.workflow_status_id)) {
-      const statusRun = await executeWorkflowRules(supabase, await loadWorkflowAction(supabase, action.id), 'status_changed', actor, `status-changed:${action.id}:${now}`, false);
-      if (statusRun) automationRuns.push(statusRun);
-    }
-    if (priority !== undefined && priority !== existing.priority) {
-      const priorityRun = await executeWorkflowRules(supabase, await loadWorkflowAction(supabase, action.id), 'priority_changed', actor, `priority-changed:${action.id}:${now}`, false);
-      if (priorityRun) automationRuns.push(priorityRun);
-    }
-    const latest = await loadWorkflowAction(supabase, action.id);
-    return c.json({ ...latest, workflow_automation_runs: automationRuns });
+    return c.json(action);
   } catch (err) {
     console.error(`[actions] PUT/:id error: ${(err as Error).message}`);
     return c.json({ error: 'Internal server error' }, 500);

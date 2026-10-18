@@ -30,7 +30,7 @@ select has_trigger('public','atlas_actions','atlas_actions_sync_notification_sub
 select has_trigger('public','atlas_discussion_subscriptions','atlas_discussion_sync_notification_subscription','discussion subscriptions synchronize');
 select has_trigger('public','atlas_activity_log','atlas_activity_log_notify','action activity emits notifications');
 select has_trigger('public','atlas_project_activity_log','atlas_project_activity_log_notify','project activity emits notifications');
-select has_trigger('public','atlas_initiative_activity_log','atlas_initiative_activity_log_notify','initiative activity emits notifications');
+select has_trigger('atlas_archive','atlas_initiative_activity_log','atlas_initiative_activity_log_notify','initiative activity emits notifications');
 select has_trigger('public','atlas_collaboration_activity_log','atlas_collaboration_activity_log_notify','collaboration activity emits notifications');
 select has_trigger('public','atlas_delivery_attempts','atlas_delivery_attempts_immutable','delivery attempts are immutable');
 select has_index('public','atlas_outbox_deliveries','atlas_outbox_deliveries_subscription_idx','outbox subscription FK is indexed');

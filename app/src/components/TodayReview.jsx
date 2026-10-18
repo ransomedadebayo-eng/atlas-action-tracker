@@ -41,7 +41,7 @@ function ActionRow({ action, members, onSelectAction }) {
       <div className="min-w-0 flex-1">
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityBadge priority={action.priority} />
-          <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
+          <StatusBadge status={action.status} />
           <BusinessBadge business={action.business} />
           <WorkModeBadge workMode={action.work_mode} />
         </div>

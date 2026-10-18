@@ -41,22 +41,12 @@ const projectRegressionPath = join(root, 'supabase/tests/atlas_projects_test.sql
 const projectRegression = existsSync(projectRegressionPath) ? readFileSync(projectRegressionPath, 'utf8') : ''
 const actionStructureRegressionPath = join(root, 'supabase/tests/atlas_action_structure_test.sql')
 const actionStructureRegression = existsSync(actionStructureRegressionPath) ? readFileSync(actionStructureRegressionPath, 'utf8') : ''
-const cycleRegressionPath = join(root, 'supabase/tests/atlas_cycles_test.sql')
-const cycleRegression = existsSync(cycleRegressionPath) ? readFileSync(cycleRegressionPath, 'utf8') : ''
 const projectViewRegressionPath = join(root, 'supabase/tests/atlas_project_views_test.sql')
 const projectViewRegression = existsSync(projectViewRegressionPath) ? readFileSync(projectViewRegressionPath, 'utf8') : ''
-const initiativeRegressionPath = join(root, 'supabase/tests/atlas_initiatives_test.sql')
-const initiativeRegression = existsSync(initiativeRegressionPath) ? readFileSync(initiativeRegressionPath, 'utf8') : ''
 const templateDocumentRegressionPath = join(root, 'supabase/tests/atlas_templates_documents_test.sql')
 const templateDocumentRegression = existsSync(templateDocumentRegressionPath) ? readFileSync(templateDocumentRegressionPath, 'utf8') : ''
 const collaborationRegressionPath = join(root, 'supabase/tests/atlas_collaboration_test.sql')
 const collaborationRegression = existsSync(collaborationRegressionPath) ? readFileSync(collaborationRegressionPath, 'utf8') : ''
-const releasesRegressionPath = join(root, 'supabase/tests/atlas_releases_test.sql')
-const releasesRegression = existsSync(releasesRegressionPath) ? readFileSync(releasesRegressionPath, 'utf8') : ''
-const insightsExportsRegressionPath = join(root, 'supabase/tests/atlas_insights_exports_test.sql')
-const insightsExportsRegression = existsSync(insightsExportsRegressionPath) ? readFileSync(insightsExportsRegressionPath, 'utf8') : ''
-const workflowsTriageRegressionPath = join(root, 'supabase/tests/atlas_workflows_triage_test.sql')
-const workflowsTriageRegression = existsSync(workflowsTriageRegressionPath) ? readFileSync(workflowsTriageRegressionPath, 'utf8') : ''
 const notificationsIntegrationsRegressionPath = join(root, 'supabase/tests/atlas_notifications_integrations_test.sql')
 const notificationsIntegrationsRegression = existsSync(notificationsIntegrationsRegressionPath) ? readFileSync(notificationsIntegrationsRegressionPath, 'utf8') : ''
 const realtimeDocumentsRegressionPath = join(root, 'supabase/tests/atlas_realtime_documents_test.sql')
@@ -97,43 +87,17 @@ requireContract(/create table if not exists public\.atlas_action_relations/.test
 requireContract(/set_atlas_action_parent/.test(migrationText) && /create_atlas_sub_action/.test(migrationText), 'transactional action hierarchy RPCs are required')
 requireContract(/mark_atlas_action_duplicate/.test(migrationText) && /duplicate_resolution/.test(migrationText), 'typed duplicate resolution is required')
 requireContract(/select plan\(39\)/i.test(actionStructureRegression) && /select \* from finish\(\)/i.test(actionStructureRegression), '39-assertion action structure pgTAP regression contract is required')
-requireContract(/create table if not exists public\.atlas_cycle_schedules/.test(migrationText) && /create table if not exists public\.atlas_cycles/.test(migrationText), 'ATLAS cycle schedule and timebox migrations are required')
-requireContract(/configure_atlas_cycle_schedule/.test(migrationText) && /complete_atlas_cycle/.test(migrationText), 'transactional cycle generation and rollover RPCs are required')
-requireContract(/atlas_cycle_scope_events/.test(migrationText) && /success_percent_snapshot/.test(migrationText), 'cycle graph and immutable success snapshots are required')
-requireContract(/select plan\(50\)/i.test(cycleRegression) && /select \* from finish\(\)/i.test(cycleRegression), '50-assertion cycle pgTAP regression contract is required')
 requireContract(/atlas_saved_view_activity_log/.test(migrationText) && /atlas_saved_views_one_default_idx/.test(migrationText), 'typed, auditable saved project views are required')
 requireContract(/move_atlas_project_order/.test(migrationText) && /move_atlas_project_timeline/.test(migrationText), 'transactional project ordering and timeline movement RPCs are required')
 requireContract(/atlas_projects_manage_completed_at/.test(migrationText), 'project completion-window timestamps are required')
 requireContract(/select plan\(50\)/i.test(projectViewRegression) && /select \* from finish\(\)/i.test(projectViewRegression), '50-assertion project-view pgTAP regression contract is required')
-requireContract(/create table if not exists public\.atlas_initiatives/.test(migrationText), 'first-class ATLAS initiatives migration is required')
-requireContract(/atlas_initiative_projects/.test(migrationText) && /atlas_initiative_relations/.test(migrationText), 'initiative project membership and multi-parent hierarchy are required')
-requireContract(/set_atlas_initiative_parent/.test(migrationText) && /atlas_initiative_max_depth/.test(migrationText) && /atlas_initiative_cycle/.test(migrationText), 'initiative DAG cycle and five-level depth enforcement are required')
-requireContract(/post_atlas_initiative_update/.test(migrationText) && /atlas_initiative_activity_log/.test(migrationText), 'structured initiative updates and audit history are required')
-requireContract(/select plan\(72\)/i.test(initiativeRegression) && /select \* from finish\(\)/i.test(initiativeRegression), '72-assertion initiative pgTAP regression contract is required')
-requireContract(/atlas_validate_initiative_resource_target/.test(migrationText), 'initiative resources require database-level safe target validation')
-requireContract(/create table if not exists public\.atlas_templates/.test(migrationText) && /create table if not exists public\.atlas_template_instances/.test(migrationText), 'typed ATLAS templates and immutable instance provenance are required')
-requireContract(/instantiate_atlas_template/.test(migrationText) && /atlas_template_form_field/.test(migrationText), 'transactional action, project, document, and form template instantiation is required')
 requireContract(/create table if not exists public\.atlas_documents/.test(migrationText) && /atlas_document_versions/.test(migrationText), 'first-class versioned ATLAS documents are required')
-requireContract(/select plan\(81\)/i.test(templateDocumentRegression) && /select \* from finish\(\)/i.test(templateDocumentRegression), '81-assertion template/document pgTAP regression contract is required')
+requireContract(/select plan\(26\)/i.test(templateDocumentRegression) && /select \* from finish\(\)/i.test(templateDocumentRegression), '26-assertion document pgTAP regression contract is required')
 requireContract(/create table if not exists public\.atlas_comments/.test(migrationText) && /create table if not exists public\.atlas_reactions/.test(migrationText), 'canonical Atlas comments and reactions are required')
 requireContract(/resolve_atlas_comment_thread/.test(migrationText) && /resolution_comment_id/.test(migrationText), 'thread resolution with selected reply is required')
 requireContract(/atlas_discussion_subscriptions/.test(migrationText) && /atlas_comment_anchor_invalid/.test(migrationText) && /atlas_comment_attachment_invalid/.test(migrationText), 'subscriptions, inline anchors, and attachment validation are required')
-requireContract(/select plan\(83\)/i.test(collaborationRegression) && /select \* from finish\(\)/i.test(collaborationRegression), '83-assertion collaboration pgTAP regression contract is required')
-requireContract(/create table if not exists public\.atlas_release_pipelines/.test(migrationText) && /create table if not exists public\.atlas_release_events/.test(migrationText), 'release pipelines and immutable CI events are required')
-requireContract(/ingest_atlas_release_event/.test(migrationText) && /event_key/.test(migrationText) && /pg_advisory_xact_lock/.test(migrationText), 'idempotent serialized CI release ingestion is required')
-requireContract(/atlas_release_stage_frozen/.test(migrationText) && /release_delivery/.test(migrationText) && /generate_atlas_release_notes/.test(migrationText), 'stage freeze, completion evidence, and release notes are required')
-requireContract(/body\.status===['"]archived['"]&&getAuthKind\(c\)!==['"]owner_access['"]/.test(workerText), 'release archive must be owner-gated on the actual transition route')
-requireContract(/select plan\(91\)/i.test(releasesRegression) && /select \* from finish\(\)/i.test(releasesRegression), '91-assertion releases pgTAP regression contract is required')
-requireContract(/create table if not exists public\.atlas_insights/.test(migrationText) && /create table if not exists public\.atlas_dashboards/.test(migrationText), 'saved Insights and dashboards are required')
+requireContract(/select plan\(81\)/i.test(collaborationRegression) && /select \* from finish\(\)/i.test(collaborationRegression), '81-assertion collaboration pgTAP regression contract is required')
 requireContract(/atlas_manage_action_lifecycle_timestamps/.test(migrationText) && /started_at/.test(migrationText) && /triaged_at/.test(migrationText), 'prospective analytics lifecycle timestamps are required')
-requireContract(/atlas_insight_snapshots/.test(migrationText) && /atlas_export_receipts/.test(migrationText) && /content_sha256/.test(migrationText), 'immutable Insight snapshots and hashed export receipts are required')
-requireContract(/select plan\(63\)/i.test(insightsExportsRegression) && /select \* from finish\(\)/i.test(insightsExportsRegression), '63-assertion Insights/export pgTAP regression contract is required')
-requireContract(/create table if not exists public\.atlas_workflows/.test(migrationText) && /create table if not exists public\.atlas_workflow_statuses/.test(migrationText), 'business-scoped workflows and ordered statuses are required')
-requireContract(/atlas_triage_entries/.test(migrationText) && /transition_atlas_triage_action/.test(migrationText), 'revisioned Triage decisions are required')
-requireContract(/atlas_workflow_rules/.test(migrationText) && /record_atlas_workflow_rule_run/.test(migrationText) && /event_key/.test(migrationText), 'deterministic idempotent workflow-rule receipts are required')
-requireContract(/apply_atlas_inactivity_action/.test(migrationText) && /atlas_inactivity_policy_runs/.test(migrationText), 'receipt-backed inactivity policy application is required')
-requireContract(/atlas_triage_entries_canonical_action_idx/.test(migrationText) && /atlas_triage_events_action_idx/.test(migrationText) && /atlas_triage_settings_accept_status_idx/.test(migrationText), 'workflow foreign-key advisor corrections are required')
-requireContract(/select plan\(101\)/i.test(workflowsTriageRegression) && /select \* from finish\(\)/i.test(workflowsTriageRegression), '101-assertion workflows/Triage pgTAP regression contract is required')
 requireContract(/create table if not exists public\.atlas_notification_events/.test(migrationText) && /create table if not exists public\.atlas_notifications/.test(migrationText), 'canonical notification events and Inbox are required')
 requireContract(/atlas_integration_connections/.test(migrationText) && /record_atlas_connection_verification/.test(migrationText) && /verified_endpoint_sha256/.test(migrationText), 'verified integration connection identity is required')
 requireContract(/atlas_outbox_deliveries/.test(migrationText) && /claim_atlas_delivery/.test(migrationText) && /complete_atlas_delivery_attempt/.test(migrationText), 'idempotent retryable delivery outbox is required')
@@ -145,6 +109,21 @@ requireContract(/apply_atlas_document_realtime_edit/.test(migrationText) && /rec
 requireContract(/name\s*=\s*["']DOCUMENT_ROOM["']/.test(wrangler) && /class_name\s*=\s*["']DocumentRoom["']/.test(wrangler) && /new_sqlite_classes\s*=\s*\[[^\]]*["']DocumentRoom["']/.test(wrangler), 'SQLite DocumentRoom Durable Object binding and forward migration are required')
 requireContract(!/deleted_classes\s*=/.test(wrangler), 'Durable Object configuration must not delete classes')
 requireContract(/select plan\(76\)/i.test(realtimeDocumentsRegression) && /select \* from finish\(\)/i.test(realtimeDocumentsRegression), '76-assertion realtime documents pgTAP regression contract is required')
+
+// The runtime must work both before and after the separately gated database retirement.
+const runtimeWorkerText = workerSources.filter(({ path }) => !/\.(test|spec)\.ts$/.test(path)).map(({ text }) => text).join('\n')
+const retiredTable = /\.from\(['"]atlas_(?:release[^'"]*|template[^'"]*|insight[^'"]*|dashboard[^'"]*|analytics_activity_log|export_receipts|cycle[^'"]*|initiative[^'"]*|workflow[^'"]*|triage[^'"]*|inactivity_policy_runs|hierarchy_automation_events)['"]\)/
+requireContract(!retiredTable.test(runtimeWorkerText), 'kept Worker runtime must not query any retired table')
+requireContract(/ATLAS_SURFACE_RETIRED/.test(runtimeWorkerText), 'retired API prefixes must have a stable 410 response')
+for (const field of ['open_action_count', 'oldest_open_days', 'last_activity_at', 'is_stale']) {
+  requireContract(runtimeWorkerText.includes(field), `project list must expose ${field}`)
+}
+for (const path of ['worker/src/utils/statuses.ts', 'app/src/utils/statuses.js']) {
+  requireContract(existsSync(join(root, path)), 'app and Worker must each define the shared status contract')
+}
+for (const feature of ['Cycles', 'Initiatives', 'Templates', 'Releases', 'Insights', 'Workflows']) {
+  requireContract(!existsSync(join(root, `app/src/components/${feature}Page.jsx`)), `${feature} page is retired`)
+}
 
 requireContract(Boolean(migrationReconciliation), 'migration ledger reconciliation evidence is required')
 if (migrationReconciliation) {

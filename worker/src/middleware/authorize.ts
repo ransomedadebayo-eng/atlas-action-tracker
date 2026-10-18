@@ -18,24 +18,10 @@ export type AtlasScope =
   | 'weeks:request_review'
   | 'projects:read'
   | 'projects:write'
-  | 'cycles:read'
-  | 'cycles:write'
-  | 'initiatives:read'
-  | 'initiatives:write'
-  | 'templates:read'
-  | 'templates:write'
   | 'documents:read'
   | 'documents:write'
   | 'comments:read'
   | 'comments:write'
-  | 'releases:read'
-  | 'releases:write'
-  | 'releases:ingest'
-  | 'insights:read'
-  | 'insights:write'
-  | 'exports:read'
-  | 'workflows:read'
-  | 'workflows:write'
   | 'notifications:read'
   | 'notifications:write'
   | 'integrations:read'
@@ -65,16 +51,8 @@ function ownerOnlyRequest(path: string, method: string): boolean {
   if (path.startsWith('/api/views') && method !== 'GET') return true;
   if (/^\/api\/weeks\/revisions\/[^/]+\/publish$/.test(path)) return true;
   if (/^\/api\/projects\/[^/]+\/(archive|restore)$/.test(path)) return true;
-  if (path === '/api/cycles/configure' || /^\/api\/cycles\/[^/]+\/(complete|start-today)$/.test(path) || /^\/api\/cycles\/schedules\/[^/]+\/disable$/.test(path)) return true;
-  if (/^\/api\/initiatives\/[^/]+\/(archive|restore)$/.test(path)) return true;
-  if (path.startsWith('/api/templates') && method !== 'GET' && !/^\/api\/templates\/[^/]+\/instantiate$/.test(path)) return true;
   if (/^\/api\/documents\/[^/]+\/(archive|restore)$/.test(path)) return true;
   if (/^\/api\/documents\/[^/]+\/revert$/.test(path)) return true;
-  if (path.startsWith('/api/releases/pipelines') && method !== 'GET') return true;
-  if (/^\/api\/releases\/items\/[^/]+\/archive$/.test(path)) return true;
-  if ((path.startsWith('/api/insights') || path.startsWith('/api/dashboards')) && method !== 'GET') return true;
-  if (path.startsWith('/api/exports') || /^\/api\/insights\/[^/]+\/export\.csv$/.test(path)) return true;
-  if ((path.startsWith('/api/workflows') || path.startsWith('/api/triage')) && method !== 'GET') return true;
   if ((path.startsWith('/api/notifications') || path.startsWith('/api/integrations')) && method !== 'GET') return true;
   return false;
 }
@@ -103,16 +81,8 @@ export function requiredScopeForRequest(path: string, method: string): AtlasScop
     return 'weeks:write';
   }
   if (path.startsWith('/api/projects')) return method === 'GET' ? 'projects:read' : 'projects:write';
-  if (path.startsWith('/api/cycles')) return method === 'GET' ? 'cycles:read' : 'cycles:write';
-  if (path.startsWith('/api/initiatives')) return method === 'GET' ? 'initiatives:read' : 'initiatives:write';
-  if (path.startsWith('/api/templates')) return method === 'GET' ? 'templates:read' : 'templates:write';
   if (path.startsWith('/api/documents')) return method === 'GET' ? 'documents:read' : 'documents:write';
   if (path.startsWith('/api/comments')) return method === 'GET' ? 'comments:read' : 'comments:write';
-  if (/^\/api\/releases\/ingest\/[^/]+$/.test(path)) return 'releases:ingest';
-  if (path.startsWith('/api/releases')) return method === 'GET' ? 'releases:read' : 'releases:write';
-  if (path.startsWith('/api/insights') || path.startsWith('/api/dashboards')) return method === 'GET' ? 'insights:read' : 'insights:write';
-  if (path.startsWith('/api/exports')) return 'exports:read';
-  if (path.startsWith('/api/workflows') || path.startsWith('/api/triage')) return method === 'GET' ? 'workflows:read' : 'workflows:write';
   if (path.startsWith('/api/notifications')) return method === 'GET' ? 'notifications:read' : 'notifications:write';
   if (path.startsWith('/api/integrations')) return method === 'GET' ? 'integrations:read' : 'integrations:write';
   return null;

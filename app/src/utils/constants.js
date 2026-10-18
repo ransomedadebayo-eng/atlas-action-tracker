@@ -1,26 +1,4 @@
-export const STATUSES = {
-  not_started: { label: 'Not Started', order: 0 },
-  in_progress: { label: 'In Progress', order: 1 },
-  waiting: { label: 'Waiting', order: 2 },
-  blocked: { label: 'Blocked', order: 3 },
-  done: { label: 'Done', order: 4 },
-  cancelled: { label: 'Cancelled', order: 5 },
-  unknown: { label: 'Unclassified', order: 6 },
-};
-
-export const STATUS_LIST = Object.entries(STATUSES).map(([id, val]) => ({
-  id,
-  ...val,
-}));
-
-export function canonicalStatus(status) {
-  const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
-  if (normalized === 'todo' || normalized === 'open') return 'not_started';
-  if (normalized === 'canceled') return 'cancelled';
-  return STATUSES[normalized] ? normalized : 'unknown';
-}
-
-export const KANBAN_COLUMNS = ['not_started', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled', 'unknown'];
+export { STATUSES, STATUS_LIST, canonicalStatus, KANBAN_COLUMNS } from './statuses.js';
 
 export const PRIORITIES = {
   p0: { label: 'P0 Urgent', shortLabel: 'P0' },

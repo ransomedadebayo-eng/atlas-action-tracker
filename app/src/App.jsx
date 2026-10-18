@@ -20,28 +20,16 @@ import ViewErrorBoundary from './components/ViewErrorBoundary.jsx'
 import { useKeyboard } from './hooks/useKeyboard.js'
 import { getPacificWeekStart } from './utils/dateUtils.js'
 
-const InitiativesPage = React.lazy(() => import('./components/InitiativesPage.jsx'))
 const ProjectsPage = React.lazy(() => import('./components/ProjectsPage.jsx'))
-const CyclesPage = React.lazy(() => import('./components/CyclesPage.jsx'))
-const TemplatesPage = React.lazy(() => import('./components/TemplatesPage.jsx'))
 const DocumentsPage = React.lazy(() => import('./components/DocumentsPage.jsx'))
-const ReleasesPage = React.lazy(() => import('./components/ReleasesPage.jsx'))
-const InsightsPage = React.lazy(() => import('./components/InsightsPage.jsx'))
-const WorkflowsPage = React.lazy(() => import('./components/WorkflowsPage.jsx'))
 const NotificationsPage = React.lazy(() => import('./components/NotificationsPage.jsx'))
 
 const VIEW_PATHS = {
   today: '/today',
   week: '/week',
   projects: '/projects',
-  initiatives: '/initiatives',
-  templates: '/templates',
   documents: '/documents',
-  releases: '/releases',
-  insights: '/insights',
-  workflows: '/workflows',
   notifications: '/notifications',
-  cycles: '/cycles',
   dashboard: '/tasks',
   kanban: '/tasks?view=kanban',
   review: '/review',
@@ -54,8 +42,18 @@ const VIEW_PATHS = {
   officeDigest: '/updates/office-digest',
 }
 
-function routeFromLocation() {
-  const path = window.location.pathname.replace(/\/$/, '') || '/today'
+export function routeFromLocation() {
+  let path = window.location.pathname.replace(/\/$/, '') || '/today'
+  const retiredPath = [
+    [/^\/cycles(?:\/|$)/, '/week'],
+    [/^\/initiatives(?:\/|$)/, '/projects?group=business'],
+    [/^\/(?:insights|dashboards)(?:\/|$)/, '/projects'],
+    [/^\/(?:templates|releases|workflows)(?:\/|$)/, '/today'],
+  ].find(([pattern]) => pattern.test(path))
+  if (retiredPath) {
+    window.history.replaceState(null, '', retiredPath[1])
+    path = window.location.pathname
+  }
   const weekMatch = path.match(/^\/week(?:\/([^/]+))?$/)
   if (weekMatch) {
     return { view: 'week', actionId: null, weekStart: weekMatch[1] || getPacificWeekStart() }
@@ -64,25 +62,9 @@ function routeFromLocation() {
   if (projectMatch) {
     return { view: 'projects', actionId: null, projectId: projectMatch[1] ? decodeURIComponent(projectMatch[1]) : null }
   }
-  const initiativeMatch = path.match(/^\/initiatives(?:\/([^/]+))?$/)
-  if (initiativeMatch) {
-    return { view: 'initiatives', actionId: null, initiativeId: initiativeMatch[1] ? decodeURIComponent(initiativeMatch[1]) : null }
-  }
   const documentMatch = path.match(/^\/documents(?:\/([^/]+))?$/)
   if (documentMatch) {
     return { view: 'documents', actionId: null, documentId: documentMatch[1] ? decodeURIComponent(documentMatch[1]) : null }
-  }
-  const releaseMatch = path.match(/^\/releases(?:\/([^/]+))?$/)
-  if (releaseMatch) {
-    return { view: 'releases', actionId: null, releasePipelineId: releaseMatch[1] ? decodeURIComponent(releaseMatch[1]) : null }
-  }
-  const insightMatch = path.match(/^\/insights(?:\/([^/]+))?$/)
-  if (insightMatch) return { view: 'insights', actionId: null, insightId: insightMatch[1] ? decodeURIComponent(insightMatch[1]) : null }
-  const dashboardMatch = path.match(/^\/dashboards\/([^/]+)$/)
-  if (dashboardMatch) return { view: 'insights', actionId: null, dashboardId: decodeURIComponent(dashboardMatch[1]) }
-  const cycleMatch = path.match(/^\/cycles(?:\/([^/]+))?$/)
-  if (cycleMatch) {
-    return { view: 'cycles', actionId: null, cycleId: cycleMatch[1] ? decodeURIComponent(cycleMatch[1]) : null }
   }
   const actionMatch = path.match(/^\/actions\/([^/]+)$/)
   if (actionMatch) {
@@ -100,7 +82,7 @@ function routeFromLocation() {
     }
   }
   const match = Object.entries(VIEW_PATHS).find(([, routePath]) => routePath.split('?')[0] === path)
-  return { view: match?.[0] || 'today', actionId: null, weekStart: null, projectId: null, initiativeId: null, documentId: null, releasePipelineId: null, insightId: null, dashboardId: null, cycleId: null, savedViewId: null }
+  return { view: match?.[0] || 'today', actionId: null, weekStart: null, projectId: null, documentId: null, savedViewId: null }
 }
 
 export default function App() {
@@ -110,12 +92,7 @@ export default function App() {
   const [selectedActionId, setSelectedActionId] = useState(initialRoute.actionId)
   const [weekStart, setWeekStart] = useState(initialRoute.weekStart || getPacificWeekStart())
   const [projectId, setProjectId] = useState(initialRoute.projectId || null)
-  const [initiativeId, setInitiativeId] = useState(initialRoute.initiativeId || null)
   const [documentId, setDocumentId] = useState(initialRoute.documentId || null)
-  const [releasePipelineId, setReleasePipelineId] = useState(initialRoute.releasePipelineId || null)
-  const [insightId, setInsightId] = useState(initialRoute.insightId || null)
-  const [dashboardId, setDashboardId] = useState(initialRoute.dashboardId || null)
-  const [cycleId, setCycleId] = useState(initialRoute.cycleId || null)
   const [savedViewId, setSavedViewId] = useState(initialRoute.savedViewId || null)
   const [showQuickCapture, setShowQuickCapture] = useState(false)
   const [quickCaptureDate, setQuickCaptureDate] = useState(null)
@@ -140,12 +117,7 @@ export default function App() {
     setCurrentView(view)
     setSelectedActionId(null)
     setProjectId(null)
-    setInitiativeId(null)
     setDocumentId(null)
-    setReleasePipelineId(null)
-    setInsightId(null)
-    setDashboardId(null)
-    setCycleId(null)
     setSavedViewId(null)
     setSearchQuery('')
   }, [weekStart])
@@ -159,47 +131,11 @@ export default function App() {
     setSearchQuery('')
   }, [])
 
-  const navigateInitiative = useCallback((nextInitiativeId, { replace = false } = {}) => {
-    const path = nextInitiativeId ? `/initiatives/${encodeURIComponent(nextInitiativeId)}` : '/initiatives'
-    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'initiatives', initiativeId: nextInitiativeId }, '', path)
-    setCurrentView('initiatives')
-    setInitiativeId(nextInitiativeId || null)
-    setSelectedActionId(null)
-    setSearchQuery('')
-  }, [])
-
   const navigateDocument = useCallback((nextDocumentId, { replace = false } = {}) => {
     const path = nextDocumentId ? `/documents/${encodeURIComponent(nextDocumentId)}` : '/documents'
     window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'documents', documentId: nextDocumentId }, '', path)
     setCurrentView('documents')
     setDocumentId(nextDocumentId || null)
-    setSelectedActionId(null)
-    setSearchQuery('')
-  }, [])
-
-  const navigateReleasePipeline = useCallback((nextPipelineId, { replace = false } = {}) => {
-    const path = nextPipelineId ? `/releases/${encodeURIComponent(nextPipelineId)}` : '/releases'
-    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'releases', releasePipelineId: nextPipelineId }, '', path)
-    setCurrentView('releases')
-    setReleasePipelineId(nextPipelineId || null)
-    setSelectedActionId(null)
-    setSearchQuery('')
-  }, [])
-
-  const navigateInsight = useCallback((nextInsightId, { replace = false } = {}) => {
-    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'insights', insightId: nextInsightId }, '', nextInsightId ? `/insights/${encodeURIComponent(nextInsightId)}` : '/insights')
-    setCurrentView('insights'); setInsightId(nextInsightId || null); setDashboardId(null); setSelectedActionId(null); setSearchQuery('')
-  }, [])
-  const navigateDashboard = useCallback((nextDashboardId, { replace = false } = {}) => {
-    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'insights', dashboardId: nextDashboardId }, '', nextDashboardId ? `/dashboards/${encodeURIComponent(nextDashboardId)}` : '/insights')
-    setCurrentView('insights'); setDashboardId(nextDashboardId || null); setInsightId(null); setSelectedActionId(null); setSearchQuery('')
-  }, [])
-
-  const navigateCycle = useCallback((nextCycleId, { replace = false } = {}) => {
-    const path = nextCycleId ? `/cycles/${encodeURIComponent(nextCycleId)}` : '/cycles'
-    window.history[replace ? 'replaceState' : 'pushState']({ atlasView: 'cycles', cycleId: nextCycleId }, '', path)
-    setCurrentView('cycles')
-    setCycleId(nextCycleId || null)
     setSelectedActionId(null)
     setSearchQuery('')
   }, [])
@@ -228,14 +164,12 @@ export default function App() {
       ? `/week/${weekStart}`
       : (currentView === 'projects' && projectId
         ? `/projects/${encodeURIComponent(projectId)}`
-        : (currentView === 'cycles' && cycleId
-          ? `/cycles/${encodeURIComponent(cycleId)}`
-          : (currentView === 'dashboard' && savedViewId
-            ? `/tasks?saved_view=${encodeURIComponent(savedViewId)}`
-            : (VIEW_PATHS[currentView] || VIEW_PATHS.dashboard))))
+        : (currentView === 'dashboard' && savedViewId
+          ? `/tasks?saved_view=${encodeURIComponent(savedViewId)}`
+          : (VIEW_PATHS[currentView] || VIEW_PATHS.dashboard)))
     window.history.pushState({ atlasAction: true, backgroundPath }, '', `/actions/${encodeURIComponent(actionId)}`)
     setSelectedActionId(actionId)
-  }, [currentView, weekStart, projectId, cycleId, savedViewId])
+  }, [currentView, weekStart, projectId, savedViewId])
 
   const closeAction = useCallback(() => {
     const backgroundPath = window.history.state?.backgroundPath || (currentView === 'week' ? `/week/${weekStart}` : (VIEW_PATHS[currentView] || VIEW_PATHS.dashboard))
@@ -250,12 +184,7 @@ export default function App() {
       setSelectedActionId(route.actionId)
       if (route.weekStart) setWeekStart(route.weekStart)
       setProjectId(route.projectId || null)
-      setInitiativeId(route.initiativeId || null)
       setDocumentId(route.documentId || null)
-      setReleasePipelineId(route.releasePipelineId || null)
-      setInsightId(route.insightId || null)
-      setDashboardId(route.dashboardId || null)
-      setCycleId(route.cycleId || null)
       setSavedViewId(route.savedViewId || null)
       setSearchQuery('')
     }
@@ -311,23 +240,11 @@ export default function App() {
       case 'week':
         return <WeekPage weekStart={weekStart} onNavigateWeek={navigateWeek} onSelectAction={openAction} />
       case 'projects':
-        return <ProjectsPage projectId={projectId} selectedBusiness={selectedBusiness} searchQuery={searchQuery} onOpenProject={navigateProject} onOpenInitiative={navigateInitiative} onBack={() => navigateProject(null)} onSelectAction={openAction} />
-      case 'initiatives':
-        return <InitiativesPage initiativeId={initiativeId} selectedBusiness={selectedBusiness} searchQuery={searchQuery} onOpenInitiative={navigateInitiative} onBack={() => navigateInitiative(null)} onOpenProject={navigateProject} />
-      case 'templates':
-        return <TemplatesPage selectedBusiness={selectedBusiness} onOpenAction={openAction} onOpenProject={navigateProject} onOpenDocument={navigateDocument} />
+        return <ProjectsPage projectId={projectId} selectedBusiness={selectedBusiness} searchQuery={searchQuery} onOpenProject={navigateProject} onBack={() => navigateProject(null)} onSelectAction={openAction} />
       case 'documents':
         return <DocumentsPage documentId={documentId} searchQuery={searchQuery} onOpenDocument={navigateDocument} onBack={() => navigateDocument(null)} />
-      case 'releases':
-        return <ReleasesPage pipelineId={releasePipelineId} selectedBusiness={selectedBusiness} onOpenPipeline={navigateReleasePipeline} onBack={() => navigateReleasePipeline(null)} />
-      case 'insights':
-        return <InsightsPage insightId={insightId} dashboardId={dashboardId} selectedBusiness={selectedBusiness} onOpenInsight={navigateInsight} onOpenDashboard={navigateDashboard} onOpenAction={openAction} onBack={() => navigateInsight(null)} />
-      case 'workflows':
-        return <WorkflowsPage selectedBusiness={selectedBusiness} onOpenAction={openAction} />
       case 'notifications':
         return <NotificationsPage />
-      case 'cycles':
-        return <CyclesPage cycleId={cycleId} selectedBusiness={selectedBusiness} onOpenCycle={navigateCycle} onBack={() => navigateCycle(null)} onSelectAction={openAction} />
       case 'review':
         return (
           <TodayReview

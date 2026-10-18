@@ -1,3 +1,5 @@
+> Oct 18, 2026: Templates retired; Documents remain active. See [Atlas simplification](../atlas-simplify-surfaces/spec.md). Production database retirement remains separately gated.
+
 # Linear Templates And Documents
 
 ## Purpose

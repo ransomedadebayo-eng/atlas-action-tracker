@@ -1,3 +1,5 @@
+import { STATUS_LIST } from './statuses.js';
+
 export const BUSINESS_COLORS = {
   riddim_exchange: '#f4b860',
   real_estate: '#3b82f6',
@@ -15,15 +17,7 @@ export const PRIORITY_COLORS = {
   p3: '#71717a',
 };
 
-export const STATUS_COLORS = {
-  not_started: '#71717a',
-  in_progress: '#3b82f6',
-  waiting: '#f59e0b',
-  blocked: '#ef4444',
-  done: '#f4b860',
-  cancelled: '#a1a1aa',
-  unknown: '#71717a',
-};
+export const STATUS_COLORS = { ...Object.fromEntries(STATUS_LIST.map(status => [status.id, status.color])), unknown: '#71717a' };
 
 export const WORK_MODE_COLORS = {
   autonomous: '#14b8a6',

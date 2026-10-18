@@ -1,3 +1,5 @@
+> Oct 18, 2026: Cycles, Initiatives, Templates, Releases, Insights/exports and Workflows/triage are retired in the current implementation. Their entries below are historical. See [the simplification spec](../specs/atlas-simplify-surfaces/spec.md); database retirement is gated separately.
+
 # Linear-to-ATLAS Project Management Parity
 
 Last researched: 2026-08-20. This inventory uses current Linear documentation

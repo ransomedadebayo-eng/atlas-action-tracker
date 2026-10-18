@@ -181,75 +181,6 @@ export const projectsApi = {
   moveTimeline: (id, data) => request(`/projects/${encodeURIComponent(id)}/move-timeline`, { method: 'POST', body: data }),
 };
 
-// Cycles
-export const cyclesApi = {
-  list: (params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.set(key, value);
-    });
-    const qs = query.toString();
-    return request(`/cycles${qs ? `?${qs}` : ''}`);
-  },
-  get: (id) => request(`/cycles/${encodeURIComponent(id)}`),
-  configure: (data) => request('/cycles/configure', { method: 'POST', body: data }),
-  assignAction: (id, actionId) => request(`/cycles/${encodeURIComponent(id)}/actions/${encodeURIComponent(actionId)}/assign`, { method: 'POST', body: {} }),
-  removeAction: (id, actionId) => request(`/cycles/${encodeURIComponent(id)}/actions/${encodeURIComponent(actionId)}/remove`, { method: 'POST', body: {} }),
-  complete: (id, data) => request(`/cycles/${encodeURIComponent(id)}/complete`, { method: 'POST', body: data }),
-  startToday: (id, data) => request(`/cycles/${encodeURIComponent(id)}/start-today`, { method: 'POST', body: data }),
-  disable: (id, data) => request(`/cycles/schedules/${encodeURIComponent(id)}/disable`, { method: 'POST', body: data }),
-  calendarUrl: (business) => `/api/cycles/calendar.ics${business ? `?business=${encodeURIComponent(business)}` : ''}`,
-  cycleCalendarUrl: (id) => `/api/cycles/${encodeURIComponent(id)}/calendar.ics`,
-};
-
-// Initiatives
-export const initiativesApi = {
-  list: (params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') query.set(key, value);
-    });
-    const qs = query.toString();
-    return request(`/initiatives${qs ? `?${qs}` : ''}`);
-  },
-  get: (id) => request(`/initiatives/${encodeURIComponent(id)}`),
-  graph: (id, weeks = 26) => request(`/initiatives/${encodeURIComponent(id)}/graph?weeks=${encodeURIComponent(weeks)}`),
-  create: (data) => request('/initiatives', { method: 'POST', body: data }),
-  update: (id, data) => request(`/initiatives/${encodeURIComponent(id)}`, { method: 'PUT', body: data }),
-  archive: (id, data) => request(`/initiatives/${encodeURIComponent(id)}/archive`, { method: 'POST', body: data }),
-  restore: (id, data) => request(`/initiatives/${encodeURIComponent(id)}/restore`, { method: 'POST', body: data }),
-  reorder: (id, data) => request(`/initiatives/${encodeURIComponent(id)}/reorder`, { method: 'POST', body: data }),
-  attachProject: (id, projectId) => request(`/initiatives/${encodeURIComponent(id)}/projects/${encodeURIComponent(projectId)}/attach`, { method: 'POST', body: {} }),
-  detachProject: (id, projectId) => request(`/initiatives/${encodeURIComponent(id)}/projects/${encodeURIComponent(projectId)}/detach`, { method: 'POST', body: {} }),
-  attachParent: (id, parentId) => request(`/initiatives/${encodeURIComponent(id)}/parents/${encodeURIComponent(parentId)}/attach`, { method: 'POST', body: {} }),
-  detachParent: (id, parentId) => request(`/initiatives/${encodeURIComponent(id)}/parents/${encodeURIComponent(parentId)}/detach`, { method: 'POST', body: {} }),
-  postUpdate: (id, data) => request(`/initiatives/${encodeURIComponent(id)}/updates`, { method: 'POST', body: data }),
-  createResource: (id, data) => request(`/initiatives/${encodeURIComponent(id)}/resources`, { method: 'POST', body: data }),
-  updateResource: (id, resourceId, data) => request(`/initiatives/${encodeURIComponent(id)}/resources/${encodeURIComponent(resourceId)}`, { method: 'PUT', body: data }),
-  archiveResource: (id, resourceId, data) => request(`/initiatives/${encodeURIComponent(id)}/resources/${encodeURIComponent(resourceId)}/archive`, { method: 'POST', body: data }),
-};
-
-// Templates
-export const templatesApi = {
-  list: (params = {}) => {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') query.set(key, value); });
-    const qs = query.toString();
-    return request(`/templates${qs ? `?${qs}` : ''}`);
-  },
-  getDefault: (params = {}) => {
-    const query = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') query.set(key, value); });
-    return request(`/templates/default?${query.toString()}`);
-  },
-  get: (id) => request(`/templates/${encodeURIComponent(id)}`),
-  create: (data) => request('/templates', { method: 'POST', body: data }),
-  update: (id, data) => request(`/templates/${encodeURIComponent(id)}`, { method: 'PUT', body: data }),
-  instantiate: (id, data) => request(`/templates/${encodeURIComponent(id)}/instantiate`, { method: 'POST', body: data }),
-  archive: (id, data) => request(`/templates/${encodeURIComponent(id)}/archive`, { method: 'POST', body: data }),
-  restore: (id, data) => request(`/templates/${encodeURIComponent(id)}/restore`, { method: 'POST', body: data }),
-  duplicate: (id, data) => request(`/templates/${encodeURIComponent(id)}/duplicate`, { method: 'POST', body: data }),
-};
-
 // Documents
 export const documentsApi = {
   list: (params = {}) => {
@@ -276,45 +207,6 @@ export const commentsApi = {
   toggleReaction: (data) => request('/comments/reactions/toggle', { method: 'POST', body: data }),
   setSubscription: (data) => request('/comments/subscription', { method: 'POST', body: data }),
 };
-
-// Releases
-export const releasesApi = {
-  pipelines: (params = {}) => { const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!==null&&value!=='')query.set(key,value)});const qs=query.toString();return request(`/releases/pipelines${qs?`?${qs}`:''}`); },
-  pipeline: id => request(`/releases/pipelines/${encodeURIComponent(id)}`),
-  createPipeline: data => request('/releases/pipelines',{method:'POST',body:data}),
-  updatePipeline: (id,data) => request(`/releases/pipelines/${encodeURIComponent(id)}`,{method:'PUT',body:data}),
-  archivePipeline: (id,data) => request(`/releases/pipelines/${encodeURIComponent(id)}/archive`,{method:'POST',body:data}),
-  restorePipeline: (id,data) => request(`/releases/pipelines/${encodeURIComponent(id)}/restore`,{method:'POST',body:data}),
-  setAccessKey: (id,data) => request(`/releases/pipelines/${encodeURIComponent(id)}/access-key`,{method:'POST',body:data}),
-  createStage: (id,data) => request(`/releases/pipelines/${encodeURIComponent(id)}/stages`,{method:'POST',body:data}),
-  updateStage: (id,stageId,data) => request(`/releases/pipelines/${encodeURIComponent(id)}/stages/${encodeURIComponent(stageId)}`,{method:'PUT',body:data}),
-  createRelease: (id,data) => request(`/releases/pipelines/${encodeURIComponent(id)}/releases`,{method:'POST',body:data}),
-  release: id => request(`/releases/items/${encodeURIComponent(id)}`),
-  updateRelease: (id,data) => request(`/releases/items/${encodeURIComponent(id)}`,{method:'PUT',body:data}),
-  attachAction: (id,actionId,data) => request(`/releases/items/${encodeURIComponent(id)}/actions/${encodeURIComponent(actionId)}/attach`,{method:'POST',body:data}),
-  detachAction: (id,actionId) => request(`/releases/items/${encodeURIComponent(id)}/actions/${encodeURIComponent(actionId)}/detach`,{method:'POST',body:{}}),
-  transitionStage: (id,data) => request(`/releases/stage-runs/${encodeURIComponent(id)}/transition`,{method:'POST',body:data}),
-  transitionRelease: (id,data) => request(`/releases/items/${encodeURIComponent(id)}/transition`,{method:'POST',body:data}),
-  restoreRelease: (id,data) => request(`/releases/items/${encodeURIComponent(id)}/restore`,{method:'POST',body:data}),
-  generateNotes: id => request(`/releases/items/${encodeURIComponent(id)}/notes/generate`,{method:'POST',body:{}}),
-  changelog: id => request(`/releases/pipelines/${encodeURIComponent(id)}/changelog`),
-};
-
-// Insights, dashboards, and exports
-export const insightsApi = {
-  list: (params={}) => {const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!==null&&value!=='')query.set(key,value)});const qs=query.toString();return request(`/insights${qs?`?${qs}`:''}`)},
-  get: id => request(`/insights/${encodeURIComponent(id)}`),
-  create: data => request('/insights',{method:'POST',body:data}),
-  update: (id,data) => request(`/insights/${encodeURIComponent(id)}`,{method:'PUT',body:data}),
-  run: (id,data={}) => request(`/insights/${encodeURIComponent(id)}/run`,{method:'POST',body:data}),
-  archive: (id,data) => request(`/insights/${encodeURIComponent(id)}/archive`,{method:'POST',body:data}),
-  restore: (id,data) => request(`/insights/${encodeURIComponent(id)}/restore`,{method:'POST',body:data}),
-  exportUrl: id => `/api/insights/${encodeURIComponent(id)}/export.csv`,
-};
-export const dashboardsApi = {
-  list: () => request('/dashboards'),get:id=>request(`/dashboards/${encodeURIComponent(id)}`),create:data=>request('/dashboards',{method:'POST',body:data}),update:(id,data)=>request(`/dashboards/${encodeURIComponent(id)}`,{method:'PUT',body:data}),addCard:(id,data)=>request(`/dashboards/${encodeURIComponent(id)}/cards`,{method:'POST',body:data}),updateCard:(id,cardId,data)=>request(`/dashboards/${encodeURIComponent(id)}/cards/${encodeURIComponent(cardId)}`,{method:'PUT',body:data}),archive:(id,data)=>request(`/dashboards/${encodeURIComponent(id)}/archive`,{method:'POST',body:data}),restore:(id,data)=>request(`/dashboards/${encodeURIComponent(id)}/restore`,{method:'POST',body:data}),
-};
-export const exportsApi = { actionsUrl:'/api/exports/actions.csv',projectsUrl:'/api/exports/projects.csv',initiativesUrl:'/api/exports/initiatives.csv' };
 
 // Journal
 export const journalApi = {
@@ -358,34 +250,6 @@ export const atlasOsApi = {
 export const automationsApi = {
   list: () => request('/automations'),
   registry: () => request('/automations/registry'),
-};
-
-export const workflowsApi = {
-  list: (business) => request(`/workflows${business !== undefined ? `?business=${encodeURIComponent(business || '')}` : ''}`),
-  get: (id) => request(`/workflows/${encodeURIComponent(id)}`),
-  create: (data) => request('/workflows', { method: 'POST', body: data }),
-  update: (id, data) => request(`/workflows/${encodeURIComponent(id)}`, { method: 'PUT', body: data }),
-  createStatus: (id, data) => request(`/workflows/${encodeURIComponent(id)}/statuses`, { method: 'POST', body: data }),
-  updateStatus: (id, statusId, data) => request(`/workflows/${encodeURIComponent(id)}/statuses/${encodeURIComponent(statusId)}`, { method: 'PUT', body: data }),
-  archiveStatus: (id, statusId, data) => request(`/workflows/${encodeURIComponent(id)}/statuses/${encodeURIComponent(statusId)}/archive`, { method: 'POST', body: data }),
-  reorderStatuses: (id, status_ids) => request(`/workflows/${encodeURIComponent(id)}/statuses/reorder`, { method: 'POST', body: { status_ids } }),
-  updateTriageSettings: (id, data) => request(`/workflows/${encodeURIComponent(id)}/triage-settings`, { method: 'PUT', body: data }),
-  createRule: (id, data) => request(`/workflows/${encodeURIComponent(id)}/rules`, { method: 'POST', body: data }),
-  updateRule: (id, ruleId, data) => request(`/workflows/${encodeURIComponent(id)}/rules/${encodeURIComponent(ruleId)}`, { method: 'PUT', body: data }),
-  transitionRule: (id, ruleId, transition, data = {}) => request(`/workflows/${encodeURIComponent(id)}/rules/${encodeURIComponent(ruleId)}/${transition}`, { method: 'POST', body: data }),
-  previewRule: (id, ruleId, data) => request(`/workflows/${encodeURIComponent(id)}/rules/${encodeURIComponent(ruleId)}/preview`, { method: 'POST', body: data }),
-  evaluate: (id, data) => request(`/workflows/${encodeURIComponent(id)}/evaluate`, { method: 'POST', body: data }),
-  previewInactivity: (id, data = {}) => request(`/workflows/${encodeURIComponent(id)}/inactivity/preview`, { method: 'POST', body: data }),
-  applyInactivity: (id, data = {}) => request(`/workflows/${encodeURIComponent(id)}/inactivity/apply`, { method: 'POST', body: data }),
-};
-
-export const triageApi = {
-  list: (business, includeSnoozed = false) => request(`/triage?business=${encodeURIComponent(business || '')}&include_snoozed=${includeSnoozed}`),
-  enter: (actionId, data = {}) => request(`/triage/${encodeURIComponent(actionId)}/enter`, { method: 'POST', body: data }),
-  accept: (actionId, data = {}) => request(`/triage/${encodeURIComponent(actionId)}/accept`, { method: 'POST', body: data }),
-  decline: (actionId, data = {}) => request(`/triage/${encodeURIComponent(actionId)}/decline`, { method: 'POST', body: data }),
-  duplicate: (actionId, data = {}) => request(`/triage/${encodeURIComponent(actionId)}/duplicate`, { method: 'POST', body: data }),
-  snooze: (actionId, data = {}) => request(`/triage/${encodeURIComponent(actionId)}/snooze`, { method: 'POST', body: data }),
 };
 
 export const notificationsApi = {

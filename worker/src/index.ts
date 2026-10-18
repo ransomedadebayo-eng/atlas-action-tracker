@@ -18,16 +18,8 @@ import decideRouter from './routes/decide';
 import atlasOsRouter from './routes/atlasOs';
 import weeksRouter from './routes/weeks';
 import projectsRouter from './routes/projects';
-import cyclesRouter from './routes/cycles';
-import initiativesRouter from './routes/initiatives';
-import templatesRouter from './routes/templates';
 import documentsRouter from './routes/documents';
 import commentsRouter from './routes/comments';
-import releasesRouter from './routes/releases';
-import insightsRouter from './routes/insights';
-import dashboardsRouter from './routes/dashboards';
-import exportsRouter from './routes/exports';
-import { workflowRouter, triageRouter } from './routes/workflows';
 import notificationsRouter from './routes/notifications';
 import { integrationsRouter, hooksRouter } from './routes/integrations';
 import updatesRouter from './routes/updates';
@@ -59,6 +51,14 @@ app.get('/api/health', (c) => c.json({ status: 'ok' }));
 app.get('/favicon.ico', (c) => c.redirect('/favicon.svg', 302));
 app.route('/hooks', hooksRouter);
 
+// Retired surfaces have a stable response before either owner or principal authentication.
+for (const surface of ['cycles', 'initiatives', 'templates', 'releases', 'insights', 'dashboards', 'exports', 'workflows', 'triage']) {
+  const retired = (c: Parameters<typeof apiError>[0]) => apiError(c, 410, 'ATLAS_SURFACE_RETIRED',
+    surface === 'cycles' ? 'Cycles are retired. Use Week.' : 'This Atlas surface is retired. Use Projects or Week.');
+  app.all(`/api/${surface}`, retired);
+  app.all(`/api/${surface}/*`, retired);
+}
+
 // Auth on all /api/* routes
 app.use('/api/*', authMiddleware);
 app.use('/api/*', authorizationMiddleware);
@@ -89,17 +89,8 @@ app.route('/api/decide', decideRouter);
 app.route('/api/atlas-os', atlasOsRouter);
 app.route('/api/weeks', weeksRouter);
 app.route('/api/projects', projectsRouter);
-app.route('/api/cycles', cyclesRouter);
-app.route('/api/initiatives', initiativesRouter);
-app.route('/api/templates', templatesRouter);
 app.route('/api/documents', documentsRouter);
 app.route('/api/comments', commentsRouter);
-app.route('/api/releases', releasesRouter);
-app.route('/api/insights', insightsRouter);
-app.route('/api/dashboards', dashboardsRouter);
-app.route('/api/exports', exportsRouter);
-app.route('/api/workflows', workflowRouter);
-app.route('/api/triage', triageRouter);
 app.route('/api/notifications', notificationsRouter);
 app.route('/api/integrations', integrationsRouter);
 app.route('/api/updates', updatesRouter);

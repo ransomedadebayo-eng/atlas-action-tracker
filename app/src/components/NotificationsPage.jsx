@@ -17,7 +17,7 @@ const CHANNELS = [
   ['inbox', 'Atlas Inbox', Inbox], ['browser', 'Browser', Bell], ['email', 'Email', Mail],
   ['slack', 'Slack', MessageSquare], ['webhook', 'Webhook', Webhook],
 ]
-const CATEGORIES = ['assignments','mentions','status_changes','comments','project_updates','initiative_updates','cycles','documents','releases','analytics','workflows','system']
+const CATEGORIES = ['assignments','mentions','status_changes','comments','project_updates','documents','system']
 const PROVIDERS = ['webhook','slack','email','calendar','github','generic']
 
 function ErrorNotice({ error }) { return error ? <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">{error.message || String(error)}</p> : null }
