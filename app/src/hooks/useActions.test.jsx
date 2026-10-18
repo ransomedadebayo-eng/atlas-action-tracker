@@ -1,22 +1,23 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { actionsApi } from '../api/client.js'
-import { useArchiveAction, useCompleteAction, useRestoreAction } from './useActions.js'
+import { useAction, useArchiveAction, useCompleteAction, useRestoreAction, useUpdateAction } from './useActions.js'
 
 vi.mock('../api/client.js', () => ({
   actionsApi: {
+    get: vi.fn(),
+    update: vi.fn(),
     complete: vi.fn(),
     archive: vi.fn(),
     restore: vi.fn(),
   },
 }))
 
-function createWrapper() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+function createWrapper(client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })) {
   return function TestQueryProvider({ children }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
@@ -24,6 +25,91 @@ function createWrapper() {
 
 describe('safe action mutation hooks', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('forwards only edited fields and caches the authoritative saved action', async () => {
+    const client = new QueryClient()
+    const releases = [{ id: 'ra1', release: { id: 'r1', name: 'Atlas release' } }]
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', notes: 'Old history', releases })
+    const saved = { id: 'a1', next_action: 'New step', notes: 'Concurrent history', priority: 'p0', revision: 12 }
+    actionsApi.update.mockResolvedValue(saved)
+    const { result } = renderHook(() => useUpdateAction(), { wrapper: createWrapper(client) })
+
+    await act(() => result.current.mutateAsync({ id: 'a1', next_action: 'New step' }))
+
+    expect(actionsApi.update).toHaveBeenCalledExactlyOnceWith('a1', { next_action: 'New step' })
+    expect(client.getQueryData(['action', 'a1'])).toEqual({ ...saved, releases })
+  })
+
+  it('keeps release summaries during a delayed refetch, then accepts refreshed associations', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    const releases = [{ id: 'ra1', release: { id: 'r1', name: 'Atlas release' } }]
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', revision: 11, releases })
+    const saved = { id: 'a1', next_action: 'Saved step', priority: 'p0', revision: 12 }
+    actionsApi.update.mockResolvedValue(saved)
+    let resolveRefetch
+    actionsApi.get.mockReturnValue(new Promise(resolve => { resolveRefetch = resolve }))
+    const { result } = renderHook(() => ({ action: useAction('a1'), update: useUpdateAction() }), { wrapper: createWrapper(client) })
+
+    await act(() => result.current.update.mutateAsync({ id: 'a1', next_action: 'Saved step' }))
+
+    await waitFor(() => expect(result.current.action.isFetching).toBe(true))
+    expect(actionsApi.get).toHaveBeenCalledExactlyOnceWith('a1')
+    expect(result.current.action.data).toEqual({ ...saved, releases })
+
+    await act(async () => resolveRefetch({ ...saved, releases: [] }))
+
+    await waitFor(() => expect(result.current.action.isFetching).toBe(false))
+    expect(result.current.action.data).toEqual({ ...saved, releases: [] })
+    client.clear()
+  })
+
+  it('keeps saved fields and release summaries when the refetch fails', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    const releases = [{ id: 'ra1', release: { id: 'r1', name: 'Atlas release' } }]
+    client.setQueryData(['action', 'a1'], { id: 'a1', next_action: 'Old step', revision: 11, releases })
+    const saved = { id: 'a1', next_action: 'Saved step', notes: 'Concurrent history', revision: 12 }
+    actionsApi.update.mockResolvedValue(saved)
+    actionsApi.get.mockRejectedValue(new Error('Refetch unavailable'))
+    const { result } = renderHook(() => ({ action: useAction('a1'), update: useUpdateAction() }), { wrapper: createWrapper(client) })
+
+    await act(() => result.current.update.mutateAsync({ id: 'a1', next_action: 'Saved step' }))
+
+    await waitFor(() => expect(result.current.action.isRefetchError).toBe(true))
+    expect(result.current.action.data).toEqual({ ...saved, releases })
+    expect(result.current.update.isSuccess).toBe(true)
+    client.clear()
+  })
+
+  it('accepts authoritative clears, empty arrays, zero estimates and server normalization', async () => {
+    const client = new QueryClient()
+    client.setQueryData(['action', 'a1'], {
+      id: 'a1', next_action: 'Old step', notes: 'Old notes', due_date: '2026-10-09',
+      tags: ['old'], owners: ['ransomed'], estimate_points: 3, workflow_status: { id: 'ws1' },
+      releases: [{ id: 'ra1' }],
+    })
+    const fields = { next_action: '  Saved step  ', notes: '', due_date: null, tags: [], owners: [], estimate_points: 0 }
+    const saved = { id: 'a1', ...fields, next_action: 'Saved step', workflow_status: null, releases: [] }
+    actionsApi.update.mockResolvedValue(saved)
+    const { result } = renderHook(() => useUpdateAction(), { wrapper: createWrapper(client) })
+
+    await act(() => result.current.mutateAsync({ id: 'a1', ...fields }))
+
+    expect(actionsApi.update).toHaveBeenCalledExactlyOnceWith('a1', fields)
+    expect(client.getQueryData(['action', 'a1'])).toEqual(saved)
+    client.clear()
+  })
+
+  it('seeds the detail cache when no GET data is cached', async () => {
+    const client = new QueryClient()
+    const saved = { id: 'a1', next_action: 'Saved step', due_date: null, revision: 12 }
+    actionsApi.update.mockResolvedValue(saved)
+    const { result } = renderHook(() => useUpdateAction(), { wrapper: createWrapper(client) })
+
+    await act(() => result.current.mutateAsync({ id: 'a1', next_action: 'Saved step' }))
+
+    expect(client.getQueryData(['action', 'a1'])).toEqual(saved)
+    client.clear()
+  })
 
   it('sends explicit completion evidence and revision', async () => {
     actionsApi.complete.mockResolvedValue({ id: 'a1', revision: 8 })
