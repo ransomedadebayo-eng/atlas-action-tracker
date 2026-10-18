@@ -23,6 +23,18 @@ const integrations={connections:[],deliveries:[],inbound:[],external_references:
 describe('NotificationsPage',()=>{
   beforeEach(()=>{vi.clearAllMocks();hooks.useNotifications.mockReturnValue({data:{items:[notification],unread:1},isLoading:false,isError:false});hooks.useNotificationSummary.mockReturnValue({data:{unread_count:1,preferences,subscriptions:[]},isLoading:false,isError:false});hooks.useIntegrations.mockReturnValue({data:integrations,isLoading:false,isError:false});for(const name of Object.keys(hooks).filter(name=>!['useNotifications','useNotificationSummary','useIntegrations'].includes(name)))hooks[name].mockReturnValue(mutation())});
   it('renders the always-available Inbox and notification controls',()=>{render(<NotificationsPage/>);expect(screen.getByRole('heading',{name:'Notifications & Integrations'})).toBeTruthy();expect(screen.getByText('Action completed')).toBeTruthy();expect(screen.getByRole('button',{name:/Read all/})).toBeTruthy();expect(screen.getByRole('button',{name:/Archive/})).toBeTruthy()});
+  it('announces a failed Inbox read without showing the empty notification claim',()=>{
+    hooks.useNotifications.mockReturnValue({isLoading:false,isError:true,error:new Error('Inbox unavailable')});
+    render(<NotificationsPage/>);
+    expect(screen.getByRole('alert').textContent).toBe('Inbox unavailable');
+    expect(screen.queryByText('No notifications in this view.')).toBeNull();
+  });
+  it('shows empty notification copy after a successful empty read',()=>{
+    hooks.useNotifications.mockReturnValue({data:{items:[],unread:0},isLoading:false,isError:false});
+    render(<NotificationsPage/>);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('No notifications in this view.')).toBeTruthy();
+  });
   it('shows per-channel preferences with external channels disabled',()=>{render(<NotificationsPage/>);fireEvent.click(screen.getByRole('tab',{name:'Preferences'}));expect(screen.getByRole('heading',{name:'Notification preferences'})).toBeTruthy();expect(screen.getByLabelText('Atlas Inbox delivery mode').value).toBe('immediate');expect(screen.getByLabelText('Slack delivery mode').value).toBe('disabled')});
   it('creates only draft connections from the UI',()=>{render(<NotificationsPage/>);fireEvent.click(screen.getByRole('tab',{name:'Connections'}));expect(screen.getByRole('heading',{name:'New integration connection'})).toBeTruthy();expect(screen.getByText(/No destination activates/)).toBeTruthy();expect(screen.getByRole('button',{name:/Create draft/})).toBeTruthy();expect(screen.getByText('No integration destination is configured.')).toBeTruthy()});
   it('shows disabled automatic delivery and empty immutable receipts',()=>{render(<NotificationsPage/>);fireEvent.click(screen.getByRole('tab',{name:'Deliveries'}));expect(screen.getByRole('heading',{name:'Delivery receipts'})).toBeTruthy();expect(screen.getByText(/Automatic post-mutation delivery is disabled/)).toBeTruthy();expect(screen.getByRole('button',{name:/Process pending/}).disabled).toBe(true)});

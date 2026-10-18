@@ -18,6 +18,32 @@ function realtime(overrides={}) { return { clientId:'browser:test',document,draf
 describe('DocumentsPage', () => {
   beforeEach(() => { vi.clearAllMocks(); hooks.useDocuments.mockReturnValue({ data: [document], isLoading: false }); hooks.useDocument.mockReturnValue({ data: document, isLoading: false, isError: false }); for (const name of ['useCreateDocument', 'useUpdateDocument', 'useArchiveDocument', 'useRestoreDocument','useRevertDocument']) hooks[name].mockReturnValue(mutation()); useDocumentRealtime.mockReturnValue(realtime()); });
   it('renders document list and stable open control', () => { render(<DocumentsPage documentId={null} searchQuery="" onOpenDocument={vi.fn()} onBack={vi.fn()} />); expect(screen.getByRole('heading', { name: 'Documents' })).toBeTruthy(); expect(screen.getByRole('button', { name: 'Open document: Launch plan' })).toBeTruthy(); expect([...screen.getByLabelText('Filter documents by context').options].map(option => option.value)).toEqual(['','workspace','project','action']); });
+  it('announces a failed document list read without showing the empty result', () => {
+    hooks.useDocuments.mockReturnValue({ isLoading: false, isError: true, error: new Error('Documents unavailable') });
+    render(<DocumentsPage documentId={null} onOpenDocument={vi.fn()} />);
+    expect(screen.getByRole('alert').textContent).toBe('Documents unavailable');
+    expect(screen.queryByText('No documents in this view.')).toBeNull();
+  });
+  it('shows empty document copy after a successful empty read', () => {
+    hooks.useDocuments.mockReturnValue({ data: [], isLoading: false, isError: false });
+    render(<DocumentsPage documentId={null} onOpenDocument={vi.fn()} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('No documents in this view.')).toBeTruthy();
+  });
+  it('announces a pending document list read without showing the empty result', () => {
+    hooks.useDocuments.mockReturnValue({ isLoading: true, isError: false });
+    render(<DocumentsPage documentId={null} onOpenDocument={vi.fn()} />);
+    expect(screen.getByRole('status', { name: 'Loading documents' }).textContent).toBe('Loading documents...');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('No documents in this view.')).toBeNull();
+  });
+  it('announces a failed detail read even when no realtime document or draft exists', () => {
+    hooks.useDocument.mockReturnValue({ isLoading: false, isError: true, error: new Error('Document unavailable') });
+    useDocumentRealtime.mockReturnValue(realtime({ document: null, draft: null }));
+    render(<DocumentsPage documentId="d1" onBack={vi.fn()} />);
+    expect(screen.getByRole('alert').textContent).toBe('Document unavailable');
+    expect(screen.queryByLabelText('Loading document')).toBeNull();
+  });
   it('renders realtime presence, Markdown tools, outline, operations and versions', () => { render(<DocumentsPage documentId="d1" searchQuery="" onOpenDocument={vi.fn()} onBack={vi.fn()} />); expect(screen.getByRole('heading', { name: 'Launch plan' })).toBeTruthy(); expect(screen.getByLabelText('Document Markdown content')).toBeTruthy(); expect(screen.getByRole('button',{name:'Format Bold'})).toBeTruthy(); expect(screen.getByRole('button',{name:'Copy link to Launch'})).toBeTruthy(); expect(screen.getByText(/this device/)).toBeTruthy(); expect(screen.getByText(/Revision 2 · three way/)).toBeTruthy(); expect(screen.getByText('Revision 2', { selector: 'summary' })).toBeTruthy(); expect(screen.getByRole('button',{name:'Revert to this version'})).toBeTruthy(); expect(screen.queryByText('Template provenance')).toBeNull(); });
   it('shows merge conflicts without replacing the local draft',()=>{useDocumentRealtime.mockReturnValue(realtime({syncState:'conflict',conflict:{reason:'overlapping_change',document,draft:{title:'Launch plan',content:'Local draft'}}}));render(<DocumentsPage documentId="d1" searchQuery="" onOpenDocument={vi.fn()} onBack={vi.fn()}/>);expect(screen.getByRole('heading',{name:'Your draft needs review'})).toBeTruthy();expect(screen.getByRole('button',{name:'Use latest'})).toBeTruthy();expect(screen.getByRole('button',{name:'Retry merge'})).toBeTruthy()});
   it('has no automated semantic accessibility violations', async () => { const { container } = render(<DocumentsPage documentId="d1" searchQuery="" onOpenDocument={vi.fn()} onBack={vi.fn()} />); const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } }); expect(results.violations).toEqual([]); });

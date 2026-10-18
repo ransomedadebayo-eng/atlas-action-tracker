@@ -165,13 +165,14 @@ export default function JournalPage({ searchQuery = '' }) {
   const [body, setBody] = useState('')
   const [tags, setTags] = useState('')
   const { BUSINESS_LIST } = useBusinessContext()
-  const { data, isLoading, error } = useJournalEntries({
+  const { data, isLoading, isError, error } = useJournalEntries({
     kind,
     review_state: reviewState,
     search: searchQuery,
     include_archived: reviewState === 'archived' ? 'true' : 'false',
   })
   const createEntry = useCreateJournalEntry()
+  const failed = isError || Boolean(error)
   const entries = Array.isArray(data?.entries) ? data.entries : []
 
   const counts = useMemo(() => ({
@@ -207,12 +208,12 @@ export default function JournalPage({ searchQuery = '' }) {
             User-authored notes stay here until reviewed. Promote only what should become tracked Atlas work.
           </p>
         </div>
-        <div className="grid grid-cols-4 gap-2 rounded-lg border border-border bg-bg-surface p-2 text-center text-xs">
+        {!isLoading && !failed && <div className="grid grid-cols-4 gap-2 rounded-lg border border-border bg-bg-surface p-2 text-center text-xs">
           <span><strong className="block text-text-primary">{counts.total}</strong><span className="text-text-muted">Shown</span></span>
           <span><strong className="block text-text-primary">{counts.unreviewed}</strong><span className="text-text-muted">New</span></span>
           <span><strong className="block text-text-primary">{counts.reviewed}</strong><span className="text-text-muted">Reviewed</span></span>
           <span><strong className="block text-text-primary">{counts.promoted}</strong><span className="text-text-muted">Promoted</span></span>
-        </div>
+        </div>}
       </div>
 
       <form className="glass-card grid gap-3 p-4 md:grid-cols-6" onSubmit={submit}>
@@ -253,10 +254,10 @@ export default function JournalPage({ searchQuery = '' }) {
         </select>
       </div>
 
-      {error && <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-400">{error.message}</div>}
+      {failed && <div role="alert" className="rounded-lg border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-400">{error?.message || 'Journal could not be loaded.'}</div>}
       {isLoading ? (
         <div className="glass-card p-6 text-sm text-text-muted">Loading journal...</div>
-      ) : entries.length === 0 ? (
+      ) : failed ? null : entries.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-bg-surface p-8 text-center text-sm text-text-muted">
           No journal entries match this view.
         </div>

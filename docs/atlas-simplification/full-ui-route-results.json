@@ -1,0 +1,965 @@
+{
+  "production_routes": [
+    {
+      "label": "Office Digest",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/updates/office-digest",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Review",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/review",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Decide",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/decide",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Journal",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/journal",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Calendar",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/calendar",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Principals",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/settings/principals",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Transcripts",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/transcripts",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Automations",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/automations",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Today",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/today",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Week",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/week/2026-10-12",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Projects",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/projects?layout=list&group=business&order=priority&dir=asc&zoom=quarter&completed=month",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "All Tasks",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/tasks",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Kanban",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/tasks?view=kanban",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Documents",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/documents",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Notifications",
+      "size": "desktop",
+      "url": "https://atlas.ransomed.app/notifications",
+      "width": 1440,
+      "height": 1000,
+      "scrollWidth": 1440,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Today",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/today",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Week",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/week/2026-10-12",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Projects",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/projects?layout=list&group=business&order=priority&dir=asc&zoom=quarter&completed=month",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "All Tasks",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/tasks",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Kanban",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/tasks?view=kanban",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Documents",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/documents",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Notifications",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/notifications",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Office Digest",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/updates/office-digest",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Review",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/review",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Decide",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/decide",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Journal",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/journal",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Calendar",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/calendar",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Principals",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/settings/principals",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Transcripts",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/transcripts",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "Automations",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/automations",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-cycles",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/week/2026-10-12",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": true,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-initiatives",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/projects?group=business&layout=list&order=priority&dir=asc&zoom=quarter&completed=month",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-insights",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/projects?layout=list&group=business&order=priority&dir=asc&zoom=quarter&completed=month",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-dashboards",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/projects?layout=list&group=business&order=priority&dir=asc&zoom=quarter&completed=month",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-templates",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/today",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-releases",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/today",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    },
+    {
+      "label": "redirect-workflows",
+      "size": "mobile",
+      "url": "https://atlas.ransomed.app/today",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "unlabeledButtons": 0,
+      "truncated": false,
+      "request_methods": [
+        "GET"
+      ],
+      "response_statuses": [
+        200
+      ]
+    }
+  ],
+  "synthetic_states": [
+    {
+      "label": "Today",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Week",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Projects",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "All Tasks",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Kanban",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Office Digest",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Review",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Principals",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Transcripts",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Today",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Week",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Projects",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "All Tasks",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Kanban",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Notifications",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Office Digest",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Review",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Decide",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Journal",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Calendar",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Principals",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Transcripts",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Automations",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true
+    },
+    {
+      "label": "Today",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Week",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Projects",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "All Tasks",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Kanban",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Documents",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Notifications",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Office Digest",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Review",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Decide",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Journal",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Calendar",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Principals",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Transcripts",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Automations",
+      "mode": "error",
+      "viewport": 390,
+      "errorVisible": true,
+      "falseClear": false,
+      "falseEmpty": false,
+      "width": {
+        "scroll": 390,
+        "viewport": 390
+      }
+    },
+    {
+      "label": "Documents",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Notifications",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Decide",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Journal",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Automations",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true
+    },
+    {
+      "label": "Calendar",
+      "mode": "empty",
+      "viewport": 1440,
+      "expected": true,
+      "calendarEmpty": {
+        "dayCells": 35,
+        "heading": "October 2026",
+        "titledButtons": 2
+      },
+      "keyboardQuickCaptureDue": "2026-10-18"
+    },
+    {
+      "label": "Documents",
+      "mode": "loading",
+      "viewport": 1440,
+      "loadingVisible": true,
+      "role": "status"
+    }
+  ]
+}

@@ -26,6 +26,8 @@ The proposal locks all 18 empty-table candidates in deterministic order using `A
 
 The proposed scope is 18 verified-empty table drops, 18 history tables moved to `atlas_archive`, one action-pointer snapshot table, six live-trigger removals, 13 archive-trigger removals, 53 named retired-function removals, two kept-function rewrites, 10 foreign-key removals and 10 deprecated-column comments. The only live business-row edits are the FamilyOS charter context, the initiative saved-view archive flag and the Company Operations description, plus existing audit/notification side effects. No action status, owner, priority, due date, approval or evidence is rewritten.
 
+The three taxonomy audit rows omit `id` so the existing identity default allocates their keys. Their input ordinal controls row order only; it does not reserve ids using `max(id)` or change the sequence manually.
+
 The proposal also restricts the new archive schema/tables to service-role read-only access. **Those schema/ACL changes are unapproved until the owner approves this exact database scope.** No credentials, existing live principals, Cloudflare Access configuration or secrets are changed in the code release.
 
 Before requesting execution approval:

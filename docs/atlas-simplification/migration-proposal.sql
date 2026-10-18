@@ -88,10 +88,10 @@ select a.id as action_id,
 alter table atlas_archive.action_retired_pointers enable row level security;
 
 -- 3. The only row writes: one document, one saved view, one project, plus their audit rows
+-- Let the identity default allocate audit ids; v.n only orders the three rows.
 insert into public.atlas_taxonomy_migration_audit
-  (id, migration_key, source_table, source_id, field_name, old_value, new_value)
-select coalesce((select max(id) from public.atlas_taxonomy_migration_audit), 0) + v.n,
-       '20261018_atlas_simplify_surfaces', v.source_table, v.source_id, v.field_name, v.old_value, v.new_value
+  (migration_key, source_table, source_id, field_name, old_value, new_value)
+select '20261018_atlas_simplify_surfaces', v.source_table, v.source_id, v.field_name, v.old_value, v.new_value
   from (values
     (1, 'atlas_documents', 'document-familyos-operating-charter', 'context',
         '{"context_type":"initiative","context_id":"initiative-familyos-return-time"}'::jsonb,
@@ -110,7 +110,8 @@ select coalesce((select max(id) from public.atlas_taxonomy_migration_audit), 0) 
                            where initiative_id = 'initiative-familyos-return-time'
                              and status = 'active') r
                    where p.id = 'project-familyos-operations')))
-  ) as v(n, source_table, source_id, field_name, old_value, new_value);
+  ) as v(n, source_table, source_id, field_name, old_value, new_value)
+ order by v.n;
 
 update public.atlas_documents
    set context_type = 'project',

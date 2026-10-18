@@ -7,7 +7,7 @@ export default function AutomationRegistry() {
   const jobs = data?.jobs || []
 
   if (isLoading) return <div className="space-y-3">{[1, 2, 3].map(i => <div key={i} className="h-24 animate-pulse rounded-xl bg-bg-elevated" />)}</div>
-  if (isError) return <div className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger">{error?.message || 'Automations could not load.'}</div>
+  if (isError) return <div role="alert" className="rounded-xl border border-danger/30 bg-danger/10 p-5 text-sm text-danger">{error?.message || 'Automations could not load.'}</div>
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
