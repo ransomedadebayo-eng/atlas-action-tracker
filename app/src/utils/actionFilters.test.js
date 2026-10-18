@@ -80,3 +80,19 @@ describe('office digest filter helpers', () => {
     expect(sections[1].offices.map(office => office.label)).toEqual(['Riddim Exchange', 'Personal'])
   })
 })
+
+
+describe('action status alias filters', () => {
+  it.each([
+    ['canceled', 'cancelled'], ['cancelled', 'canceled'],
+    ['open', 'triage'], ['triage', 'open'],
+    ['not_started', 'todo'], ['todo', 'not_started'], ['not_started', 'backlog'], ['backlog', 'not_started'],
+    ['done', 'completed'], ['completed', 'done'], ['done', 'closed'], ['closed', 'done'],
+  ])('matches filter %s with stored status %s', (filterStatus, storedStatus) => {
+    expect(matchesActionFilters({ status: storedStatus }, { status: filterStatus })).toBe(true)
+  })
+  it('matches aliases inside a multi-status filter without including unrelated work', () => {
+    expect(matchesActionFilters({ status: 'cancelled' }, { status: ' done, canceled ' })).toBe(true)
+    expect(matchesActionFilters({ status: 'blocked' }, { status: ' done, canceled ' })).toBe(false)
+  })
+})

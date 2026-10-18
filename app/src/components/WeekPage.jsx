@@ -22,6 +22,7 @@ import { useActions } from '../hooks/useActions.js';
 import { useWeekPlan, useForkWeekPlan, usePublishWeekPlan, useRequestWeekReview, useSaveWeekPlan } from '../hooks/useWeekPlan.js';
 import { addISODate, formatDate, formatDateLong, getPacificWeekDates } from '../utils/dateUtils.js';
 import { StatusBadge } from './StatusBadge.jsx';
+import { canonicalStatus } from '../utils/statuses.js';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const EDITABLE_KINDS = new Set(['must_win', 'day_focus', 'risk', 'deferred', 'carryover', 'context']);
@@ -36,6 +37,14 @@ const KIND_LABELS = {
   carryover: 'Carryover',
   context: 'Context',
 };
+
+export function weekScorecard(items = []) {
+  const counts = kind => {
+    const rows = items.filter(item => item.kind === kind);
+    return { total: rows.length, done: rows.filter(item => canonicalStatus(item.action?.status) === 'done').length };
+  };
+  return { mustWins: counts('must_win'), dayFocus: counts('day_focus'), carriedOver: items.filter(item => item.kind === 'carryover').length };
+}
 
 function statusLabel(status) {
   const labels = {
@@ -112,7 +121,7 @@ export function ItemCard({ item, editing, actions, onChange, onRemove, onSelectA
       <article className="min-w-0 rounded-lg border border-border bg-bg-surface px-4 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="badge border-border bg-bg-primary text-text-secondary">{kindLabel}</span>
-          {linkedAction && <StatusBadge status={linkedAction.status} workflowStatus={linkedAction.workflow_status} />}
+          {linkedAction && <StatusBadge status={linkedAction.status} />}
         </div>
         <h3 className="mt-3 text-base font-semibold leading-6 text-text-primary [overflow-wrap:anywhere]">
           {item.title || linkedAction?.title || 'Untitled weekly item'}
@@ -245,6 +254,7 @@ export default function WeekPage({ weekStart, onNavigateWeek, onSelectAction }) 
       return `${parsed.year}-${parsed.month}-${parsed.day}` === date;
     }) || [],
   })), [dates, items, source?.commitments]);
+  const scorecard = weekScorecard(editing ? items : (source?.items || []));
   const supportingSections = useMemo(() => SUPPORTING_KINDS.map(kind => ({
     kind,
     items: items.filter(item => item.kind === kind && !item.plan_date),
@@ -383,6 +393,8 @@ export default function WeekPage({ weekStart, onNavigateWeek, onSelectAction }) 
             </div>
             {editing && <div className="mt-4 flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between"><button type="button" className="btn-ghost flex min-h-11 items-center gap-2" onClick={addItem}><Plus className="h-4 w-4" aria-hidden="true" />Add weekly item</button>{isStaleCalendar && <label className="flex min-h-11 items-center gap-3 text-sm text-text-secondary"><input className="h-5 w-5" type="checkbox" checked={calendarAcknowledged} onChange={event => setCalendarAcknowledged(event.target.checked)} />I reviewed the calendar warning</label>}</div>}
           </section>
+
+          <p className="text-sm text-text-secondary" aria-label="Week scorecard">Must wins done {scorecard.mustWins.done} of {scorecard.mustWins.total} · Day focus done {scorecard.dayFocus.done} of {scorecard.dayFocus.total} · Carried over {scorecard.carriedOver}</p>
 
           <section aria-labelledby="must-wins-heading" className="card p-4 sm:p-5">
             <div className="mb-4 flex items-center gap-2"><ClipboardCheck className="h-5 w-5 text-accent" aria-hidden="true" /><h2 id="must-wins-heading" className="text-lg font-semibold text-text-primary">Must-win outcomes</h2></div>

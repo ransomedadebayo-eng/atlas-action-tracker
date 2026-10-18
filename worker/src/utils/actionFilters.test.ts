@@ -129,3 +129,14 @@ describe('office digest filter helpers', () => {
     ]));
   });
 });
+
+describe('status alias read equivalence', () => {
+  it.each([
+    ['open', 'triage'], ['not_started', 'todo'], ['not_started', 'backlog'],
+    ['done', 'completed'], ['done', 'closed'], ['canceled', 'cancelled'],
+  ])('matches canonical %s and stored %s in either filter direction', (canonical, alias) => {
+    expect(matchesActionFilters({ status: alias }, { status: canonical })).toBe(true);
+    expect(matchesActionFilters({ status: canonical }, { status: alias })).toBe(true);
+    expect(matchesActionFilters({ status: 'archived' }, { status: canonical })).toBe(false);
+  });
+});

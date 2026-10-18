@@ -32,23 +32,7 @@ describe('machine principal scope routing', () => {
     expect(requiredScopeForRequest('/api/projects/project-1/updates', 'POST')).toBe('projects:write');
   });
 
-  it('separates cycle reads and scoped membership writes', () => {
-    expect(requiredScopeForRequest('/api/cycles', 'GET')).toBe('cycles:read');
-    expect(requiredScopeForRequest('/api/cycles/cycle-1', 'GET')).toBe('cycles:read');
-    expect(requiredScopeForRequest('/api/cycles/cycle-1/actions/action-1/assign', 'POST')).toBe('cycles:write');
-    expect(requiredScopeForRequest('/api/cycles/calendar.ics', 'GET')).toBe('cycles:read');
-    expect(requiredScopeForRequest('/api/cycles/cycle-1/start-today', 'POST')).toBe('cycles:write');
-  });
-
-  it('separates initiative strategy reads and writes', () => {
-    expect(requiredScopeForRequest('/api/initiatives', 'GET')).toBe('initiatives:read');
-    expect(requiredScopeForRequest('/api/initiatives/i1/graph', 'GET')).toBe('initiatives:read');
-    expect(requiredScopeForRequest('/api/initiatives/i1/projects/p1/attach', 'POST')).toBe('initiatives:write');
-  });
-
-  it('separates template and document reads from writes', () => {
-    expect(requiredScopeForRequest('/api/templates', 'GET')).toBe('templates:read');
-    expect(requiredScopeForRequest('/api/templates/t1/instantiate', 'POST')).toBe('templates:write');
+  it('separates document reads from writes', () => {
     expect(requiredScopeForRequest('/api/documents/d1', 'GET')).toBe('documents:read');
     expect(requiredScopeForRequest('/api/documents/d1', 'PUT')).toBe('documents:write');
   });
@@ -57,26 +41,6 @@ describe('machine principal scope routing', () => {
     expect(requiredScopeForRequest('/api/comments', 'GET')).toBe('comments:read');
     expect(requiredScopeForRequest('/api/comments', 'POST')).toBe('comments:write');
     expect(requiredScopeForRequest('/api/comments/c1/resolve', 'POST')).toBe('comments:write');
-  });
-
-  it('separates release reads, owner configuration, and CI ingestion', () => {
-    expect(requiredScopeForRequest('/api/releases/pipelines', 'GET')).toBe('releases:read');
-    expect(requiredScopeForRequest('/api/releases/items/r1/transition', 'POST')).toBe('releases:write');
-    expect(requiredScopeForRequest('/api/releases/ingest/p1', 'POST')).toBe('releases:ingest');
-  });
-
-  it('separates analytical reads, mutations, and exports', () => {
-    expect(requiredScopeForRequest('/api/insights', 'GET')).toBe('insights:read');
-    expect(requiredScopeForRequest('/api/insights/i1/run', 'POST')).toBe('insights:write');
-    expect(requiredScopeForRequest('/api/dashboards/d1', 'GET')).toBe('insights:read');
-    expect(requiredScopeForRequest('/api/exports/actions.csv', 'GET')).toBe('exports:read');
-  });
-
-  it('separates workflow and Triage reads from owner-only mutations', () => {
-    expect(requiredScopeForRequest('/api/workflows', 'GET')).toBe('workflows:read');
-    expect(requiredScopeForRequest('/api/workflows/w1/statuses', 'POST')).toBe('workflows:write');
-    expect(requiredScopeForRequest('/api/triage', 'GET')).toBe('workflows:read');
-    expect(requiredScopeForRequest('/api/triage/a1/accept', 'POST')).toBe('workflows:write');
   });
 
   it('separates notification and integration reads from mutations', () => {

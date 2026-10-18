@@ -39,7 +39,7 @@ function TodayTask({ item, members, onSelectAction }) {
         >
           <div className="flex flex-wrap items-center gap-1.5">
             <PriorityBadge priority={action.priority} />
-            <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
+            <StatusBadge status={action.status} />
             <BusinessBadge business={action.business} />
             {item.estimated_effort && (
               <span className="badge text-text-muted border-border bg-bg-primary">

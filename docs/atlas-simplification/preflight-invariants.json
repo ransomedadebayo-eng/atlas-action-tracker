@@ -1,0 +1,29 @@
+{
+  "captured_at": "2026-10-18T06:43:51.886Z",
+  "read_only": true,
+  "route": "hosted Supabase connector",
+  "rows": [
+    {
+      "invariants": {
+        "action_template_refs": 0,
+        "project_template_refs": 0,
+        "document_template_refs": 0,
+        "cycle_documents": 0,
+        "initiative_documents": [
+          {
+            "id": "document-familyos-operating-charter",
+            "context_id": "initiative-familyos-return-time"
+          }
+        ],
+        "active_initiative_views": 1,
+        "view_initiative_pointers": 0,
+        "subscription_initiative_pointers": 0,
+        "target_project": {
+          "id": "project-familyos-operations",
+          "status": "paused"
+        },
+        "archive_schema_exists": false
+      }
+    }
+  ]
+}

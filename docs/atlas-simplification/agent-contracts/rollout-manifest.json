@@ -1,0 +1,25 @@
+{
+  "rollout": "After Phase 2 only; no live files changed",
+  "files": [
+    {
+      "source": "/Users/music/.codex/automations/atlas-full-app-operating-contract.md",
+      "prepared": "docs/atlas-simplification/agent-contracts/atlas-full-app-operating-contract.md",
+      "expected_live_sha256": "39d2203911fd4372c349a0ba1f320c3cca6f118c15e0e758c7785b0181580c4a"
+    },
+    {
+      "source": "/Users/music/.codex/automations/proactive-execution-protocol.md",
+      "prepared": "docs/atlas-simplification/agent-contracts/proactive-execution-protocol.md",
+      "expected_live_sha256": "7dfabbc1e7d6fcf1e99fb15ea441e76195c232eec5fd131ce027b9888aaaa047"
+    },
+    {
+      "source": "/Users/music/.codex/automations/automation-core-contract.md",
+      "prepared": "docs/atlas-simplification/agent-contracts/automation-core-contract.md",
+      "expected_live_sha256": "1de45a5a414d1f11b823d5dae5c352b597edd235d2eddd16e8d05cf52f966a02"
+    },
+    {
+      "source": "/Users/music/.codex/automations/case-ownership-protocol.md",
+      "prepared": "docs/atlas-simplification/agent-contracts/case-ownership-protocol.md",
+      "expected_live_sha256": "29389863dbc7284a9aab59a5ba343dec2bca9869b49228deab1d5a4ec4dcde74"
+    }
+  ]
+}

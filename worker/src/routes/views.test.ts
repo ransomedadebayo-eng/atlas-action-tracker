@@ -30,16 +30,15 @@ describe('saved view validation', () => {
 
   it('rejects timeline action views and invalid project display options', () => {
     expect(validateSavedView({ name: 'Bad', entity_type: 'action', layout: 'timeline' }))
-      .toContain('timeline layout is available only for project or initiative views');
+      .toContain('timeline layout is available only for project views');
     expect(validateSavedView({ name: 'Bad', entity_type: 'project', sort_by: 'due_date' }))
       .toContain('sort_by is invalid for the entity type');
     expect(validateSavedView({ name: 'Bad', entity_type: 'project', display_options: { zoom: 'decade' } }))
       .toContain('display_options.zoom must be week, month, quarter, or year');
   });
 
-  it('accepts initiative list and timeline views but rejects initiative boards', () => {
-    expect(validateSavedView({ name: 'Strategy', entity_type: 'initiative', layout: 'timeline', group_by: 'owner', sort_by: 'health', display_options: { zoom: 'year' } })).toEqual([]);
-    expect(validateSavedView({ name: 'Bad board', entity_type: 'initiative', layout: 'board' })).toContain('board layout is not available for initiative views');
+  it('rejects retired initiative entities', () => {
+    expect(validateSavedView({ name: 'Old view', entity_type: 'initiative' })).toContain('entity_type must be action or project');
   });
 
   it('accepts office-digest action filters and completed_at sort', () => {
@@ -65,9 +64,6 @@ describe('saved view validation', () => {
     ]));
   });
 
-  it('rejects competing project and initiative contexts', () => {
-    expect(validateSavedView({ name: 'Bad context', entity_type: 'action', context_project_id: 'p1', context_initiative_id: 'i1' })).toContain('a saved view can have only one context');
-  });
 });
 
 describe('saved view HTTP boundary', () => {

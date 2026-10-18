@@ -1,3 +1,5 @@
+> Oct 18, 2026: Surface retired by the Atlas simplification implementation. See [Atlas simplification](../atlas-simplify-surfaces/spec.md). Production database retirement remains separately gated.
+
 # Linear Cycle Planning
 
 ## Purpose

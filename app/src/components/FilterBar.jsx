@@ -3,8 +3,8 @@ import { X, SlidersHorizontal, EyeOff, Eye } from 'lucide-react'
 import { STATUSES, PRIORITIES, WORK_MODES } from '../utils/constants.js'
 import { STATUS_COLORS, PRIORITY_COLORS, WORK_MODE_COLORS } from '../utils/colors.js'
 
-export default function FilterBar({ filters, onFilterChange, members = [], cycles = [], hideDone = true, onToggleHideDone }) {
-  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.hierarchy || filters.resolution || filters.cycle_id || filters.search || filters.completed_within || filters.approval_state || filters.has_blocked_by || filters.open || filters.exclude_approval_state
+export default function FilterBar({ filters, onFilterChange, members = [], hideDone = true, onToggleHideDone }) {
+  const hasFilters = filters.status || filters.priority || filters.owner_id || filters.work_mode || filters.stewardship || filters.hierarchy || filters.resolution || filters.search || filters.completed_within || filters.approval_state || filters.has_blocked_by || filters.open || filters.exclude_approval_state
 
   function clearAll() {
     onFilterChange({ business: filters.business })
@@ -100,17 +100,6 @@ export default function FilterBar({ filters, onFilterChange, members = [], cycle
         <option value="duplicate">Duplicate</option>
       </select>
 
-      <select
-        aria-label="Filter by cycle"
-        className="input-field text-[11px] md:text-xs py-1 px-1.5 md:px-2 bg-bg-surface flex-shrink-0"
-        value={filters.cycle_id || ''}
-        onChange={e => onFilterChange({ ...filters, cycle_id: e.target.value || undefined })}
-      >
-        <option value="">Cycle</option>
-        <option value="__null__">No cycle</option>
-        {cycles.map(cycle => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
-      </select>
-
       {/* Hide Done Toggle */}
       {onToggleHideDone && (
         <button
@@ -184,13 +173,6 @@ export default function FilterBar({ filters, onFilterChange, members = [], cycle
               label={filters.resolution}
               color="#f4b860"
               onRemove={() => removeFilter('resolution')}
-            />
-          )}
-          {filters.cycle_id && (
-            <FilterChip
-              label={filters.cycle_id === '__null__' ? 'No cycle' : cycles.find(cycle => cycle.id === filters.cycle_id)?.name || 'Cycle'}
-              color="#3b82f6"
-              onRemove={() => removeFilter('cycle_id')}
             />
           )}
           {filters.search && (

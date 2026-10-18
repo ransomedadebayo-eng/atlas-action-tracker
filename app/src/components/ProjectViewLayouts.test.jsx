@@ -6,6 +6,8 @@ import axe from 'axe-core';
 import { describe, expect, it, vi } from 'vitest';
 import ProjectViewLayouts, { groupProjects, projectGroupValue, timelineGeometry } from './ProjectViewLayouts.jsx';
 
+vi.mock('../hooks/useBusinesses.js', () => ({ useBusinessContext: () => ({ BUSINESSES: { personal: { label: 'Personal Office' } } }) }));
+
 const projects = [
   {
     id: 'foundation', name: 'Foundation', status: 'in_progress', health: 'on_track', priority: 'p1',
@@ -49,6 +51,24 @@ describe('project view layouts', () => {
     rerender(<ProjectViewLayouts {...callbacks} projects={projects} layout="board" groupBy="status" />);
     expect(screen.getByLabelText('Project board')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Open project: Launch' })).toBeTruthy();
+  });
+
+  it.each(['list', 'board'])('shows business labels, open age and stale activity in the %s layout', layout => {
+    const rows = [
+      { ...projects[0], business: 'personal', open_action_count: 1, oldest_open_days: 0, is_stale: true },
+      { ...projects[1], business: 'unlisted_office', open_action_count: 0, oldest_open_days: null, is_stale: false },
+    ];
+    render(<ProjectViewLayouts {...callbacks} projects={rows} layout={layout} groupBy="business" />);
+    expect(screen.getByRole('heading', { name: 'Personal Office' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'unlisted office' })).toBeTruthy();
+    const active = screen.getByRole('button', { name: 'Open project: Foundation' });
+    expect(active.textContent).toContain('1 open action');
+    expect(active.textContent).toContain('Oldest open 0 days');
+    expect(active.textContent).toContain('Stale');
+    const empty = screen.getByRole('button', { name: 'Open project: Launch' });
+    expect(empty.textContent).toContain('0 open actions');
+    expect(empty.textContent).toContain('No open actions');
+    expect(empty.textContent).not.toContain('Stale');
   });
 
   it('renders milestones and violation-colored dependency lines on the timeline', () => {

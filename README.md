@@ -2,6 +2,10 @@
 
 ATLAS is the owner-only execution surface for AEGIS. Ransomed is the sole human owner; Codex and Claude are scoped machine principals. The application is not collaborative and does not support invitations, sharing, or additional active people.
 
+## Simplified planning model
+
+The October 18, 2026 implementation retires Cycles, Initiatives, Templates, Releases, Insights/dashboards/exports and Workflows/triage surfaces. Projects grouped by business, the fixed action status list and the weekly plan are the planning model. Existing history is preserved; database retirement is a separate approved rollout. See [the specification](specs/atlas-simplify-surfaces/spec.md) and [release gates](docs/atlas-simplification/release-runbook.md). Older feature descriptions below are historical architecture context, not current UI/API contracts.
+
 ## Architecture
 
 - `app/`: React/Vite UI and Capacitor wrapper.

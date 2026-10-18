@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path=public,extensions;
-select plan(83);
+select plan(81);
 
 select has_table('public','atlas_comments','comments table exists');
 select has_table('public','atlas_reactions','reactions table exists');
@@ -33,10 +33,8 @@ select ok((select bool_and(relrowsecurity) from pg_class where oid in ('public.a
 insert into public.atlas_actions(id,title,description,status,business,priority,owners,tags,evidence_json,created_at,updated_at)
 values('__atlas_comment_action__','Comment action','','not_started','personal','p2','["ransomed"]'::jsonb,'[]'::jsonb,'{}'::jsonb,timezone('utc',now()),timezone('utc',now()));
 insert into public.atlas_projects(id,name,status,health,created_by,updated_by) values('__atlas_comment_project__','Comment project','planned','on_track','ransomed','ransomed');
-insert into public.atlas_initiatives(id,name,status,health,owner_id,labels,created_by,updated_by) values('__atlas_comment_initiative__','Comment initiative','active','on_track','ransomed','[]'::jsonb,'ransomed','ransomed');
 insert into public.atlas_documents(id,title,content,context_type,status,revision,created_by,updated_by) values('__atlas_comment_document__','Comment document','Selected text for discussion','workspace','active',0,'ransomed','ransomed');
 insert into public.atlas_project_updates(id,project_id,health,body,created_by) values('__atlas_comment_project_update__','__atlas_comment_project__','on_track','Project update','ransomed');
-insert into public.atlas_initiative_updates(id,initiative_id,health,body,context_snapshot,created_by) values('__atlas_comment_initiative_update__','__atlas_comment_initiative__','on_track','Initiative update','{}'::jsonb,'ransomed');
 
 create temporary table atlas_comment_results(kind text,result jsonb);
 select lives_ok($$insert into atlas_comment_results values('root',public.create_atlas_comment('action','__atlas_comment_action__',null,'Question for @codex','["codex"]'::jsonb,'[{"title":"Design","url":"https://example.com/design","mime_type":"text/html","size_bytes":42}]'::jsonb,'{"field":"description","quote":"Selected text","start":0,"end":13,"source_revision":1}'::jsonb,'ransomed'))$$,'root action comment can be created');
@@ -95,10 +93,8 @@ select lives_ok($$select public.set_atlas_discussion_subscription('action','__at
 select is((select count(*) from public.atlas_discussion_subscriptions where target_type='action' and target_id='__atlas_comment_action__' and principal_id='ransomed'),1::bigint,'subscription transition remains one row');
 
 select lives_ok($$select public.create_atlas_comment('project','__atlas_comment_project__',null,'Project comment','[]'::jsonb,'[]'::jsonb,null,'ransomed')$$,'projects accept comments');
-select lives_ok($$select public.create_atlas_comment('initiative','__atlas_comment_initiative__',null,'Initiative comment','[]'::jsonb,'[]'::jsonb,null,'ransomed')$$,'initiatives accept comments');
 select lives_ok($$select public.create_atlas_comment('document','__atlas_comment_document__',null,'Document comment','[]'::jsonb,'[]'::jsonb,null,'ransomed')$$,'documents accept comments');
 select lives_ok($$select public.create_atlas_comment('project_update','__atlas_comment_project_update__',null,'Project update comment','[]'::jsonb,'[]'::jsonb,null,'ransomed')$$,'project updates accept comments');
-select lives_ok($$select public.create_atlas_comment('initiative_update','__atlas_comment_initiative_update__',null,'Initiative update comment','[]'::jsonb,'[]'::jsonb,null,'ransomed')$$,'initiative updates accept comments');
 
 select throws_ok($$delete from public.atlas_comments where id=(select result->>'id' from atlas_comment_results where kind='root')$$,'55000','ATLAS_IMMUTABLE_HISTORY','comments cannot be physically deleted');
 select throws_ok($$delete from public.atlas_reactions where target_type='action' and target_id='__atlas_comment_action__'$$,'55000','ATLAS_IMMUTABLE_HISTORY','reactions cannot be physically deleted');

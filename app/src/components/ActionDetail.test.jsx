@@ -22,9 +22,7 @@ vi.mock('../hooks/useBusinesses.js', () => ({
   useBusinessContext: () => ({ BUSINESSES: {}, BUSINESS_LIST: [], BUSINESS_COLORS: {} }),
 }))
 vi.mock('../hooks/useEstimateSettings.js', () => ({ useEstimateSettings: () => ({ data: { enabled: false } }) }))
-vi.mock('../hooks/useWorkflows.js', () => ({ useWorkflow: () => ({ data: null }) }))
 vi.mock('./ActionStructureSection.jsx', () => ({ default: () => <div>Action structure</div> }))
-vi.mock('./ActionCycleControl.jsx', () => ({ default: () => <div>Action cycle</div> }))
 vi.mock('../api/client.js', () => ({ activityApi: { get: vi.fn().mockResolvedValue([]) } }))
 
 function renderDetail() {
@@ -154,6 +152,41 @@ describe('ActionDetail partial saves', () => {
     expect(update).toHaveBeenCalledExactlyOnceWith({ id: 'a1', next_action: 'Await the approved schedule.' })
     expect(action).toEqual({ ...concurrent, next_action: 'Await the approved schedule.' })
   })
+
+  it.each(['open', 'canceled', 'cancelled'])('leaves stored %s unchanged when only the title changes', async status => {
+    action.status = status;
+    renderDetail();
+    const statusSelect = screen.getByLabelText('Status');
+    expect([...statusSelect.options].map(option => option.value)).toEqual(['open','not_started','in_progress','waiting','blocked','done','canceled','archived']);
+    expect(statusSelect.value).toBe(status === 'cancelled' ? 'canceled' : status);
+    fireEvent.change(screen.getByLabelText('Action title'), { target: { value: 'Renamed action' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await waitFor(() => expect(update).toHaveBeenCalledExactlyOnceWith({ id: 'a1', title: 'Renamed action' }));
+    expect(action.status).toBe(status);
+  });
+
+  it.each(['open', 'done', 'archived'])('restricts terminal status choices while displaying current %s', status => {
+    action.status = status;
+    renderDetail();
+    const select = screen.getByLabelText('Status');
+    const options = Object.fromEntries([...select.options].map(option => [option.value, option]));
+    expect(select.value).toBe(status);
+    expect(options.done.disabled).toBe(status !== 'done');
+    expect(options.archived.disabled).toBe(status !== 'archived');
+    expect(options.in_progress.disabled).toBe(false);
+    expect(options.canceled.disabled).toBe(false);
+    expect(screen.getByRole('button', { name: 'Mark Done' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: status === 'archived' ? 'Restore action' : 'Archive action' })).toBeTruthy();
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('sends a deliberately changed status from the fixed status list', async () => {
+    action.status = 'open';
+    renderDetail();
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'in_progress' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await waitFor(() => expect(update).toHaveBeenCalledExactlyOnceWith({ id: 'a1', status: 'in_progress' }));
+  });
 
   it('skips a save when edits were reverted to the loaded values', async () => {
     renderDetail()

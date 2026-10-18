@@ -14,8 +14,7 @@ Current operating rule:
 
 For task creation, project work, execution, planning, or reporting, load
 `/Users/music/.codex/automations/atlas-full-app-operating-contract.md`. Use the
-live action/project/milestone/initiative/cycle/view/document/collaboration/
-notification/Insight/release model while work is underway. Correlate and resume
+live action/project/milestone/view/document/comment/notification/weekly-plan model while work is underway. Correlate and resume
 before creating, checkpoint material changes, and preserve the no-filler rule.
 
 The local duplicate-run preflight guard is disabled. Do not add it to prompts

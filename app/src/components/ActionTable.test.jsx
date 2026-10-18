@@ -8,7 +8,6 @@ import { useActions } from '../hooks/useActions.js'
 
 vi.mock('../hooks/useActions.js', () => ({ useActions: vi.fn() }))
 vi.mock('../hooks/useMembers.js', () => ({ useMembers: () => ({ data: [] }) }))
-vi.mock('../hooks/useCycles.js', () => ({ useCycles: () => ({ data: { cycles: [] } }) }))
 vi.mock('../hooks/useViews.js', () => ({ useViews: () => ({ data: [] }) }))
 vi.mock('../hooks/useBusinesses.js', () => ({
   useBusinessContext: () => ({ BUSINESS_LIST: [], BUSINESSES: {}, BUSINESS_COLORS: {} }),
@@ -63,6 +62,12 @@ describe('ActionTable digest saved views', () => {
     expect(screen.getByRole('button', { name: 'Waiting-on-owner' }).className).not.toContain('bg-accent-muted')
     expect(screen.getAllByLabelText(/^Open action:/)[0].textContent).toContain('Older update')
   })
+
+  it('opens Needs triage as the fixed open status queue', () => {
+    render(<ActionTable />);
+    fireEvent.click(screen.getByRole('button', { name: 'Needs triage' }));
+    expect(latestQuery().status).toBe('open');
+  });
 
   it('preserves a protocol filter selected while leaving a digest', () => {
     render(<Harness />)

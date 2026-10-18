@@ -32,18 +32,19 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
   }
   const { data: rawActions = [], isLoading, isError, error } = useActions(queryFilters)
   const { data: rawMembers = [] } = useMembers()
-  const actions = Array.isArray(rawActions) ? rawActions : []
+  const actions = Array.isArray(rawActions) ? rawActions.filter(action => canonicalStatus(action.status) !== 'archived') : []
   const members = Array.isArray(rawMembers) ? rawMembers : []
   const updateAction = useUpdateAction()
 
   const columns = useMemo(() => {
     if (groupBy === 'status') {
+      const statusColumns = actions.some(action => canonicalStatus(action.status) === 'unknown') ? [...KANBAN_COLUMNS, 'unknown'] : KANBAN_COLUMNS
       const visibleColumns = hideDone
-        ? KANBAN_COLUMNS.filter(s => s !== 'done' && s !== 'cancelled')
-        : KANBAN_COLUMNS
+        ? statusColumns.filter(s => s !== 'done' && s !== 'canceled')
+        : statusColumns
       return visibleColumns.map(status => ({
         id: status,
-        label: STATUSES[status]?.label || status,
+        label: STATUSES[status]?.label || 'Unclassified',
         color: STATUS_COLORS[status] || STATUS_COLORS.unknown,
         actions: actions.filter(a => canonicalStatus(a.status) === status),
       }))
@@ -140,7 +141,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
     const actionId = e.dataTransfer.getData('text/plain')
     if (!actionId) return
 
-    if (groupBy === 'status' && ['done', 'cancelled', 'archived'].includes(columnId)) return
+    if (groupBy === 'status' && ['done', 'canceled', 'archived', 'unknown'].includes(columnId)) return
 
     if (groupBy === 'status') {
       updateAction.mutate({ id: actionId, status: columnId })
@@ -235,7 +236,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
       <div className="flex gap-3 md:gap-4 flex-1 overflow-x-auto pb-2 min-h-0 snap-x snap-mandatory md:snap-none -mx-4 px-4 md:mx-0 md:px-0">
         {columns.map(column => {
           const isDragOver = dragState.overColumn === column.id && dragState.actionId
-          const canDrop = (groupBy === 'status' && !['done', 'cancelled', 'archived'].includes(column.id))
+          const canDrop = (groupBy === 'status' && !['done', 'canceled', 'archived', 'unknown'].includes(column.id))
             || groupBy === 'business'
             || groupBy === 'work_mode'
 
@@ -289,7 +290,7 @@ export default function KanbanBoard({ selectedBusiness, onSelectAction, hideDone
                           isDragging ? 'opacity-40' : ''
                         } ${normalizedStatus === 'done' ? 'opacity-50' : ''}`}
                         style={overdue ? { borderLeftColor: '#ef444460', borderLeftWidth: 2 } : {}}
-                        draggable={!['done', 'cancelled', 'archived'].includes(normalizedStatus)}
+                        draggable={!['done', 'canceled', 'archived'].includes(normalizedStatus)}
                         onDragStart={(e) => handleDragStart(e, action.id)}
                         onDragEnd={handleDragEnd}
                       >

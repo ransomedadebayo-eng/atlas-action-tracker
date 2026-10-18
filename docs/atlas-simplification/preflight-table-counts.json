@@ -1,0 +1,152 @@
+{
+  "captured_at": "2026-10-18T06:41:55.398Z",
+  "route": "hosted Supabase connector; local supabase-aegis execute tool unavailable",
+  "project_id": "vdezxdeushxaacyfjeeh",
+  "read_only": true,
+  "table_counts": [
+    {
+      "table_name": "atlas_analytics_activity_log",
+      "n": 9
+    },
+    {
+      "table_name": "atlas_cycle_activity_log",
+      "n": 22
+    },
+    {
+      "table_name": "atlas_cycle_schedules",
+      "n": 1
+    },
+    {
+      "table_name": "atlas_cycle_scope_events",
+      "n": 53
+    },
+    {
+      "table_name": "atlas_cycles",
+      "n": 4
+    },
+    {
+      "table_name": "atlas_dashboard_insights",
+      "n": 4
+    },
+    {
+      "table_name": "atlas_dashboards",
+      "n": 1
+    },
+    {
+      "table_name": "atlas_export_receipts",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_hierarchy_automation_events",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_inactivity_policy_runs",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_initiative_activity_log",
+      "n": 39
+    },
+    {
+      "table_name": "atlas_initiative_projects",
+      "n": 27
+    },
+    {
+      "table_name": "atlas_initiative_relations",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_initiative_resources",
+      "n": 3
+    },
+    {
+      "table_name": "atlas_initiative_updates",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_initiatives",
+      "n": 6
+    },
+    {
+      "table_name": "atlas_insight_snapshots",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_insights",
+      "n": 4
+    },
+    {
+      "table_name": "atlas_release_actions",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_release_activity_log",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_release_events",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_release_pipelines",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_release_stage_runs",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_release_stages",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_releases",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_template_activity_log",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_template_instances",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_templates",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_triage_entries",
+      "n": 1
+    },
+    {
+      "table_name": "atlas_triage_events",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_triage_settings",
+      "n": 25
+    },
+    {
+      "table_name": "atlas_workflow_activity_log",
+      "n": 19
+    },
+    {
+      "table_name": "atlas_workflow_rule_runs",
+      "n": 18
+    },
+    {
+      "table_name": "atlas_workflow_rules",
+      "n": 0
+    },
+    {
+      "table_name": "atlas_workflow_statuses",
+      "n": 225
+    },
+    {
+      "table_name": "atlas_workflows",
+      "n": 25
+    }
+  ]
+}

@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MemberList from './MemberList.jsx'
+import MemberDetail from './MemberDetail.jsx'
 import * as memberHooks from '../hooks/useMembers.js'
 
 vi.mock('../hooks/useMembers.js', () => ({
@@ -48,3 +49,22 @@ describe('MemberList principals', () => {
     expect(screen.queryByText('Ransomed')).toBeNull()
   })
 })
+
+
+describe('principal action statuses', () => {
+  it('counts open actions as active and legacy canceled actions as terminal', () => {
+    memberHooks.useMember.mockReturnValue({ data: members[0], isLoading: false });
+    memberHooks.useMembers.mockReturnValue({ data: members });
+    memberHooks.useMemberActions.mockReturnValue({ data: [
+      { id: 'a1', title: 'Unclassified intake', status: 'open', due_date: '2000-01-01', owners: [] },
+      { id: 'a2', title: 'Canceled task', status: 'cancelled', due_date: '2000-01-01', owners: [] },
+    ], isLoading: false });
+    render(<MemberDetail memberId="ransomed" onBack={vi.fn()} onSelectAction={vi.fn()} />);
+    expect(within(screen.getByText('Active').closest('.card')).getByText('1')).toBeTruthy();
+    expect(within(screen.getByText('Overdue').closest('.card')).getByText('1')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Needs triage (1)' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Canceled (1)' }));
+    expect(screen.getByRole('button', { name: 'Open action: Canceled task' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Open action: Unclassified intake' })).toBeNull();
+  });
+});

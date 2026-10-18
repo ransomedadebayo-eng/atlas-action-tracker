@@ -16,11 +16,11 @@ import {
   useResolveProjectDependency, useRestoreProject, useUpdateProject, useReorderProject, useMoveProjectTimeline,
 } from '../hooks/useProjects.js';
 import { useArchiveView, useCreateView, useUpdateView, useViews } from '../hooks/useViews.js';
-import { useInitiatives } from '../hooks/useInitiatives.js';
-import { useInstantiateTemplate, useTemplates } from '../hooks/useTemplates.js';
 import ProjectViewLayouts from './ProjectViewLayouts.jsx';
 import DiscussionThread from './LazyDiscussionThread.jsx';
 import { addISODate } from '../utils/dateUtils.js';
+import { canonicalStatus } from '../utils/statuses.js';
+import { csvValues } from '../utils/actionFilters.js';
 
 const PROJECT_STATUSES = [
   ['backlog', 'Backlog'], ['planned', 'Planned'], ['in_progress', 'In progress'],
@@ -76,31 +76,6 @@ function ProjectForm({ selectedBusiness, members, onCancel, onCreated }) {
     lead_id: 'ransomed', members: ['ransomed'], start_date: '', target_date: '', update_frequency: 'weekly',
   });
   const [error, setError] = useState('');
-  const [templateId, setTemplateId] = useState('');
-  const { data: templates = [] } = useTemplates({ template_type: 'project', business: form.business || undefined });
-  const instantiate = useInstantiateTemplate();
-
-  useEffect(() => {
-    if (templateId || templates.length === 0) return;
-    const selected = templates.find(template => template.is_default && template.scope === 'business' && template.business === form.business)
-      || templates.find(template => template.is_default && template.scope === 'workspace');
-    if (selected) applyTemplate(selected);
-  }, [templates, form.business, templateId]);
-
-  function applyTemplate(template) {
-    setTemplateId(template?.id || '');
-    if (!template) return;
-    const blueprint = template.blueprint || {};
-    setForm(current => ({
-      ...current, name: blueprint.name || current.name, summary: blueprint.summary || '',
-      business: blueprint.business || current.business, status: blueprint.status || 'planned',
-      priority: blueprint.priority || '', lead_id: blueprint.lead_id || 'ransomed',
-      members: Array.isArray(blueprint.members) ? blueprint.members : ['ransomed'],
-      start_date: blueprint.start_date || '', target_date: blueprint.target_date || '',
-      update_frequency: blueprint.update_frequency || 'weekly',
-    }));
-  }
-
   function patch(key, value) {
     setForm(current => ({ ...current, [key]: value }));
     setError('');
@@ -117,13 +92,8 @@ function ProjectForm({ selectedBusiness, members, onCancel, onCreated }) {
         start_date: form.start_date || null,
         target_date: form.target_date || null,
       };
-      if (templateId) {
-        const result = await instantiate.mutateAsync({ id: templateId, title_override: form.name, business: form.business || null, form_values: {}, overrides: payload });
-        onCreated({ id: result.result_entity_id });
-      } else {
-        const project = await mutation.mutateAsync(payload);
-        onCreated(project);
-      }
+      const project = await mutation.mutateAsync(payload);
+      onCreated(project);
     } catch (mutationError) {
       setError(mutationError.message || 'Unable to create the project.');
     }
@@ -136,7 +106,6 @@ function ProjectForm({ selectedBusiness, members, onCancel, onCreated }) {
         <button type="button" className="btn-ghost min-h-11" onClick={onCancel} aria-label="Cancel project creation"><X className="h-4 w-4" /></button>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {templates.length > 0 && <label className="md:col-span-2"><span className="label mb-1 block">Project template</span><select aria-label="Project template" className="input-field min-h-11 w-full" value={templateId} onChange={event => applyTemplate(templates.find(template => template.id === event.target.value) || null)}><option value="">No template</option>{templates.map(template => <option key={template.id} value={template.id}>{template.is_default ? 'Default · ' : ''}{template.name}</option>)}</select></label>}
         <label className="md:col-span-2"><span className="label mb-1 block">Name</span><input autoFocus className="input-field min-h-11 w-full" value={form.name} onChange={event => patch('name', event.target.value)} /></label>
         <label className="md:col-span-2"><span className="label mb-1 block">Summary</span><textarea className="input-field min-h-24 w-full" value={form.summary} onChange={event => patch('summary', event.target.value)} placeholder="What outcome will this project produce?" /></label>
         <label><span className="label mb-1 block">Business</span><select className="input-field min-h-11 w-full" value={form.business} onChange={event => patch('business', event.target.value)}><option value="">No business lane</option>{BUSINESS_LIST.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
@@ -162,13 +131,12 @@ function ProjectPortfolio({ selectedBusiness, searchQuery, onOpenProject }) {
   const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [selectedViewId, setSelectedViewId] = useState(initialParams.get('project_view') || '');
   const [config, setConfig] = useState({
-    layout: initialParams.get('layout') || 'list', group_by: initialParams.get('group') || 'status',
+    layout: initialParams.get('layout') || 'list', group_by: initialParams.get('group') === 'initiative' ? 'business' : (initialParams.get('group') || 'business'),
     sort_by: initialParams.get('order') || 'priority', sort_dir: initialParams.get('dir') || 'asc',
     zoom: initialParams.get('zoom') || 'quarter', completed_window: initialParams.get('completed') || 'month',
-    status: '', health: '', lead_id: '', initiative: '', dependency: '', shift_chain: true,
+    status: '', health: '', lead_id: '', dependency: '', shift_chain: true,
   });
   const { data: savedViews = [] } = useViews({ entity_type: 'project', context_project_id: '__null__' });
-  const { data: initiatives = [] } = useInitiatives({ limit: 200, sort_by: 'name', sort_dir: 'asc' });
   const createView = useCreateView();
   const updateView = useUpdateView();
   const archiveView = useArchiveView();
@@ -182,7 +150,7 @@ function ProjectPortfolio({ selectedBusiness, searchQuery, onOpenProject }) {
     const filters = selectedView.filters && typeof selectedView.filters === 'object' ? selectedView.filters : {};
     const display = selectedView.display_options && typeof selectedView.display_options === 'object' ? selectedView.display_options : {};
     setConfig(current => ({
-      ...current, ...filters, layout: selectedView.layout || 'list', group_by: selectedView.group_by || 'none',
+      ...current, ...filters, layout: selectedView.layout || 'list', group_by: selectedView.group_by === 'initiative' ? 'business' : (selectedView.group_by || 'business'),
       sort_by: selectedView.sort_by || 'priority', sort_dir: selectedView.sort_dir || 'asc',
       zoom: display.zoom || 'quarter', completed_window: display.completed_window || 'month',
     }));
@@ -199,7 +167,7 @@ function ProjectPortfolio({ selectedBusiness, searchQuery, onOpenProject }) {
     business: selectedBusiness || undefined,
     search: searchQuery || undefined,
     status: config.status || undefined, health: config.health || undefined, lead_id: config.lead_id || undefined,
-    dependency: config.dependency || undefined, initiative: config.initiative || undefined, completed_window: config.completed_window,
+    dependency: config.dependency || undefined, completed_window: config.completed_window,
     sort_by: config.sort_by, sort_dir: config.sort_dir,
     limit: 200,
   });
@@ -209,7 +177,7 @@ function ProjectPortfolio({ selectedBusiness, searchQuery, onOpenProject }) {
   function viewPayload() {
     return {
       entity_type: 'project', context_project_id: null,
-      filters: { status: config.status || undefined, health: config.health || undefined, lead_id: config.lead_id || undefined, initiative: config.initiative || undefined, dependency: config.dependency || undefined },
+      filters: { status: config.status || undefined, health: config.health || undefined, lead_id: config.lead_id || undefined, dependency: config.dependency || undefined },
       layout: config.layout, group_by: config.group_by === 'none' ? null : config.group_by,
       sort_by: config.sort_by, sort_dir: config.sort_dir,
       display_options: { zoom: config.zoom, completed_window: config.completed_window },
@@ -246,8 +214,8 @@ function ProjectPortfolio({ selectedBusiness, searchQuery, onOpenProject }) {
       {showSave && <form className="card flex flex-col gap-2 p-3 sm:flex-row" onSubmit={saveNewView}><input autoFocus aria-label="Saved project view name" className="input-field min-h-11 flex-1" placeholder="View name" value={saveName} onChange={event => setSaveName(event.target.value)} /><button type="button" className="btn-secondary min-h-11" onClick={() => setShowSave(false)}>Cancel</button><button type="submit" className="btn-primary min-h-11" disabled={createView.isPending}>Save project view</button></form>}
       <div className="card space-y-3 p-3 sm:p-4">
         <div className="flex flex-wrap items-center gap-2"><select aria-label="Saved project view" className="input-field min-h-11 min-w-[180px]" value={selectedViewId} onChange={event => setSelectedViewId(event.target.value)}><option value="">Unsaved view</option>{savedViews.map(view => <option key={view.id} value={view.id}>{view.is_favorite ? '★ ' : ''}{view.name}</option>)}</select>{selectedView && <><button type="button" className="btn-ghost min-h-11" onClick={() => updateView.mutate({ id: selectedView.id, expected_revision: selectedView.revision, ...viewPayload() })}>Update view</button><button type="button" className="btn-ghost min-h-11" aria-label={selectedView.is_favorite ? 'Unfavorite view' : 'Favorite view'} onClick={() => updateView.mutate({ id: selectedView.id, expected_revision: selectedView.revision, is_favorite: !selectedView.is_favorite })}><Star className={`h-4 w-4 ${selectedView.is_favorite ? 'fill-accent text-accent' : ''}`} /></button><button type="button" className="btn-ghost min-h-11 text-red-400" onClick={() => archiveView.mutate({ id: selectedView.id, expected_revision: selectedView.revision }, { onSuccess: () => setSelectedViewId('') })}>Archive view</button></>}<span className="ml-auto text-sm text-text-muted">{projects.length} project{projects.length === 1 ? '' : 's'}</span></div>
-        <div className="flex flex-wrap gap-2"><div className="flex rounded-lg border border-border p-1" aria-label="Project layout"><button type="button" className={`btn-ghost min-h-9 px-2 ${config.layout === 'list' ? 'bg-accent-muted text-accent' : ''}`} aria-label="List layout" onClick={() => patchConfig('layout','list')}><LayoutList className="h-4 w-4" /></button><button type="button" className={`btn-ghost min-h-9 px-2 ${config.layout === 'board' ? 'bg-accent-muted text-accent' : ''}`} aria-label="Board layout" onClick={() => patchConfig('layout','board')}><Columns3 className="h-4 w-4" /></button><button type="button" className={`btn-ghost min-h-9 px-2 ${config.layout === 'timeline' ? 'bg-accent-muted text-accent' : ''}`} aria-label="Timeline layout" onClick={() => patchConfig('layout','timeline')}><GanttChart className="h-4 w-4" /></button></div><select aria-label="Group projects by" className="input-field min-h-11" value={config.group_by} onChange={event => patchConfig('group_by', event.target.value)}><option value="none">No grouping</option><option value="status">Status</option><option value="health">Health</option><option value="lead">Lead</option><option value="member">Members</option><option value="business">Business</option><option value="initiative">Initiative</option><option value="priority">Priority</option><option value="start_date">Start month</option><option value="target_date">Target month</option></select><select aria-label="Order projects by" className="input-field min-h-11" value={config.sort_by} onChange={event => patchConfig('sort_by', event.target.value)}><option value="priority">Priority</option><option value="manual">Manual</option><option value="status">Status</option><option value="target_date">Target date</option><option value="start_date">Start date</option><option value="updated_at">Updated</option><option value="created_at">Created</option><option value="name">Name</option></select><select aria-label="Project sort direction" className="input-field min-h-11" value={config.sort_dir} onChange={event => patchConfig('sort_dir', event.target.value)} disabled={config.sort_by === 'manual'}><option value="asc">Ascending</option><option value="desc">Descending</option></select><select aria-label="Completed projects window" className="input-field min-h-11" value={config.completed_window} onChange={event => patchConfig('completed_window', event.target.value)}><option value="none">No completed</option><option value="week">Completed last week</option><option value="month">Completed last month</option><option value="year">Completed last year</option><option value="all">All completed</option></select>{config.layout === 'timeline' && <><select aria-label="Timeline zoom" className="input-field min-h-11" value={config.zoom} onChange={event => patchConfig('zoom', event.target.value)}><option value="week">Week</option><option value="month">Month</option><option value="quarter">Quarter</option><option value="year">Year</option></select><label className="flex min-h-11 items-center gap-2 text-sm text-text-secondary"><input type="checkbox" className="h-5 w-5" checked={config.shift_chain} onChange={event => patchConfig('shift_chain', event.target.checked)} />Shift planned dependency chain</label></>}</div>
-        <div className="flex flex-wrap gap-2"><select aria-label="Filter projects by status" className="input-field min-h-11" value={config.status} onChange={event => patchConfig('status', event.target.value)}><option value="">All active statuses</option>{PROJECT_STATUSES.filter(([id]) => id !== 'archived').map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select><select aria-label="Filter projects by health" className="input-field min-h-11" value={config.health} onChange={event => patchConfig('health', event.target.value)}><option value="">All health</option>{HEALTH.map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select><select aria-label="Filter projects by lead" className="input-field min-h-11" value={config.lead_id} onChange={event => patchConfig('lead_id', event.target.value)}><option value="">All leads</option>{members.map(member => <option key={member.id} value={member.id}>{member.name || member.id}</option>)}</select><select aria-label="Filter projects by initiative" className="input-field min-h-11" value={config.initiative} onChange={event => patchConfig('initiative', event.target.value)}><option value="">All initiatives</option>{initiatives.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><select aria-label="Filter projects by dependency" className="input-field min-h-11" value={config.dependency} onChange={event => patchConfig('dependency', event.target.value)}><option value="">All dependencies</option><option value="any">Has dependencies</option><option value="blocking">Blocking</option><option value="blocked_by">Blocked by</option><option value="violated">Violated</option><option value="none">No dependencies</option></select></div>
+        <div className="flex flex-wrap gap-2"><div className="flex rounded-lg border border-border p-1" aria-label="Project layout"><button type="button" className={`btn-ghost min-h-9 px-2 ${config.layout === 'list' ? 'bg-accent-muted text-accent' : ''}`} aria-label="List layout" onClick={() => patchConfig('layout','list')}><LayoutList className="h-4 w-4" /></button><button type="button" className={`btn-ghost min-h-9 px-2 ${config.layout === 'board' ? 'bg-accent-muted text-accent' : ''}`} aria-label="Board layout" onClick={() => patchConfig('layout','board')}><Columns3 className="h-4 w-4" /></button><button type="button" className={`btn-ghost min-h-9 px-2 ${config.layout === 'timeline' ? 'bg-accent-muted text-accent' : ''}`} aria-label="Timeline layout" onClick={() => patchConfig('layout','timeline')}><GanttChart className="h-4 w-4" /></button></div><select aria-label="Group projects by" className="input-field min-h-11" value={config.group_by} onChange={event => patchConfig('group_by', event.target.value)}><option value="none">No grouping</option><option value="status">Status</option><option value="health">Health</option><option value="lead">Lead</option><option value="member">Members</option><option value="business">Business</option><option value="priority">Priority</option><option value="start_date">Start month</option><option value="target_date">Target month</option></select><select aria-label="Order projects by" className="input-field min-h-11" value={config.sort_by} onChange={event => patchConfig('sort_by', event.target.value)}><option value="priority">Priority</option><option value="manual">Manual</option><option value="status">Status</option><option value="target_date">Target date</option><option value="start_date">Start date</option><option value="updated_at">Updated</option><option value="created_at">Created</option><option value="name">Name</option></select><select aria-label="Project sort direction" className="input-field min-h-11" value={config.sort_dir} onChange={event => patchConfig('sort_dir', event.target.value)} disabled={config.sort_by === 'manual'}><option value="asc">Ascending</option><option value="desc">Descending</option></select><select aria-label="Completed projects window" className="input-field min-h-11" value={config.completed_window} onChange={event => patchConfig('completed_window', event.target.value)}><option value="none">No completed</option><option value="week">Completed last week</option><option value="month">Completed last month</option><option value="year">Completed last year</option><option value="all">All completed</option></select>{config.layout === 'timeline' && <><select aria-label="Timeline zoom" className="input-field min-h-11" value={config.zoom} onChange={event => patchConfig('zoom', event.target.value)}><option value="week">Week</option><option value="month">Month</option><option value="quarter">Quarter</option><option value="year">Year</option></select><label className="flex min-h-11 items-center gap-2 text-sm text-text-secondary"><input type="checkbox" className="h-5 w-5" checked={config.shift_chain} onChange={event => patchConfig('shift_chain', event.target.checked)} />Shift planned dependency chain</label></>}</div>
+        <div className="flex flex-wrap gap-2"><select aria-label="Filter projects by status" className="input-field min-h-11" value={config.status} onChange={event => patchConfig('status', event.target.value)}><option value="">All active statuses</option>{PROJECT_STATUSES.filter(([id]) => id !== 'archived').map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select><select aria-label="Filter projects by health" className="input-field min-h-11" value={config.health} onChange={event => patchConfig('health', event.target.value)}><option value="">All health</option>{HEALTH.map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select><select aria-label="Filter projects by lead" className="input-field min-h-11" value={config.lead_id} onChange={event => patchConfig('lead_id', event.target.value)}><option value="">All leads</option>{members.map(member => <option key={member.id} value={member.id}>{member.name || member.id}</option>)}</select><select aria-label="Filter projects by dependency" className="input-field min-h-11" value={config.dependency} onChange={event => patchConfig('dependency', event.target.value)}><option value="">All dependencies</option><option value="any">Has dependencies</option><option value="blocking">Blocking</option><option value="blocked_by">Blocked by</option><option value="violated">Violated</option><option value="none">No dependencies</option></select></div>
       </div>
       {projects.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-bg-surface p-10 text-center"><FolderKanban className="mx-auto h-8 w-8 text-text-muted" /><h2 className="mt-3 text-lg font-semibold text-text-primary">No projects in this view</h2><p className="mt-2 text-sm text-text-secondary">Create a bounded outcome or change the status and business filters.</p></div>
@@ -258,7 +226,7 @@ function ProjectPortfolio({ selectedBusiness, searchQuery, onOpenProject }) {
   );
 }
 
-function ProjectDetail({ projectId, onBack, onOpenProject, onOpenInitiative, onSelectAction }) {
+function ProjectDetail({ projectId, onBack, onOpenProject, onSelectAction }) {
   const { BUSINESS_LIST } = useBusinessContext();
   const { data: members = [] } = useMembers();
   const { data: project, isLoading, isError, error } = useProject(projectId);
@@ -306,8 +274,8 @@ function ProjectDetail({ projectId, onBack, onOpenProject, onOpenInitiative, onS
   const selectedActionView = actionViews.find(view => view.id === selectedActionViewId) || null;
   const contextualActions = useMemo(() => {
     const filters = selectedActionView?.filters || {};
-    const statusSet = new Set(String(filters.status || '').split(',').filter(Boolean));
-    const rows = (project?.actions || []).filter(action => (!statusSet.size || statusSet.has(action.status)) && (!filters.priority || action.priority === filters.priority));
+    const statusSet = new Set(csvValues(filters.status).map(canonicalStatus));
+    const rows = (project?.actions || []).filter(action => (!statusSet.size || statusSet.has(canonicalStatus(action.status))) && (!filters.priority || action.priority === filters.priority));
     return [...rows].sort((a, b) => selectedActionView?.sort_by === 'title' ? String(a.title).localeCompare(String(b.title)) : String(a.priority || 'p9').localeCompare(String(b.priority || 'p9')));
   }, [project?.actions, selectedActionView]);
 
@@ -389,7 +357,7 @@ function ProjectDetail({ projectId, onBack, onOpenProject, onOpenInitiative, onS
         <div className="card p-4"><div className="flex items-center gap-2 text-text-muted"><ListChecks className="h-4 w-4" /><span className="label">Progress</span></div><div className="mt-4"><ProjectProgress progress={project.progress} /></div><p className="mt-2 text-xs text-text-muted">{project.progress?.completed_effort || 0}/{project.progress?.total_effort || 0} effort points</p></div>
         <div className="card p-4"><div className="flex items-center gap-2 text-text-muted"><CircleDot className="h-4 w-4" /><span className="label">Status</span></div><p className="mt-3 text-lg font-semibold text-text-primary">{labelFor(PROJECT_STATUSES, project.status)}</p><p className="mt-1 text-xs text-text-muted">{project.progress?.blocked_issues || 0} blocked action{project.progress?.blocked_issues === 1 ? '' : 's'}</p></div>
         <div className="card p-4"><div className="flex items-center gap-2 text-text-muted"><CalendarDays className="h-4 w-4" /><span className="label">Target</span></div><p className="mt-3 text-lg font-semibold text-text-primary">{formatDate(project.target_date)}</p><p className="mt-1 text-xs text-text-muted">Starts {formatDate(project.start_date)}</p></div>
-        <div className="card p-4"><div className="flex items-center gap-2 text-text-muted"><HeartPulse className="h-4 w-4" /><span className="label">Health</span></div><p className="mt-3 text-lg font-semibold text-text-primary">{labelFor(HEALTH, project.health)}</p><p className="mt-1 text-xs text-text-muted">Updates {project.update_frequency || 'weekly'}{project.template_id ? ' · from template' : ''}</p></div>
+        <div className="card p-4"><div className="flex items-center gap-2 text-text-muted"><HeartPulse className="h-4 w-4" /><span className="label">Health</span></div><p className="mt-3 text-lg font-semibold text-text-primary">{labelFor(HEALTH, project.health)}</p><p className="mt-1 text-xs text-text-muted">Updates {project.update_frequency || 'weekly'}</p></div>
       </section>
 
       {editing && form && (
@@ -441,11 +409,6 @@ function ProjectDetail({ projectId, onBack, onOpenProject, onOpenInitiative, onS
             <div className="mt-4 space-y-2">{(project.dependencies || []).map(dependency => <div key={dependency.id} className="rounded-xl border border-border bg-bg-surface p-3"><div className="flex items-start gap-2"><Link2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-text-muted" /><button type="button" className="min-w-0 flex-1 text-left" onClick={() => dependency.related_project && onOpenProject(dependency.related_project.id)}><p className="text-sm font-semibold text-text-primary">{dependency.direction === 'blocked_by' ? 'Blocked by' : 'Blocking'} {dependency.related_project?.name || 'Unknown project'}</p><p className="mt-1 text-xs text-text-muted">{dependency.note || 'End-to-start dependency'}</p></button>{dependency.direction === 'blocked_by' && !isArchived && <button type="button" className="btn-ghost min-h-11" aria-label={`Resolve dependency on ${dependency.related_project?.name || 'project'}`} onClick={() => mutationNotice(resolveDependency.mutateAsync({ id: project.id, dependencyId: dependency.id }), 'Dependency resolved.')}><CheckCircle2 className="h-4 w-4" /></button>}</div></div>)}{(project.dependencies || []).length === 0 && <p className="py-6 text-center text-sm text-text-muted">No active project dependencies.</p>}</div>
           </section>
 
-          <section className="card p-4 sm:p-5" aria-labelledby="project-initiatives-heading">
-            <div className="flex items-center gap-2"><Flag className="h-5 w-5 text-accent" /><h2 id="project-initiatives-heading" className="text-lg font-semibold text-text-primary">Initiatives</h2></div>
-            <div className="mt-4 space-y-2">{(project.initiatives || []).map(initiative => <button type="button" key={initiative.id} className="block min-h-11 w-full rounded-xl border border-border bg-bg-surface p-3 text-left" onClick={() => onOpenInitiative?.(initiative.id)}><p className="text-sm font-semibold text-text-primary">{initiative.name}</p><p className="mt-1 text-xs text-text-muted">{labelFor(HEALTH, initiative.health)} · {initiative.priority?.toUpperCase() || 'No priority'}</p></button>)}{(project.initiatives || []).length === 0 && <p className="py-5 text-center text-sm text-text-muted">This project is not attached to an initiative.</p>}</div>
-          </section>
-
           {project.description && <section className="card p-4 sm:p-5"><p className="label">Description</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-text-secondary">{project.description}</p></section>}
         </div>
       </div>
@@ -454,7 +417,7 @@ function ProjectDetail({ projectId, onBack, onOpenProject, onOpenInitiative, onS
   );
 }
 
-export default function ProjectsPage({ projectId, selectedBusiness, searchQuery, onOpenProject, onOpenInitiative, onBack, onSelectAction }) {
-  if (projectId) return <ProjectDetail projectId={projectId} onBack={onBack} onOpenProject={onOpenProject} onOpenInitiative={onOpenInitiative} onSelectAction={onSelectAction} />;
+export default function ProjectsPage({ projectId, selectedBusiness, searchQuery, onOpenProject, onBack, onSelectAction }) {
+  if (projectId) return <ProjectDetail projectId={projectId} onBack={onBack} onOpenProject={onOpenProject} onSelectAction={onSelectAction} />;
   return <ProjectPortfolio selectedBusiness={selectedBusiness} searchQuery={searchQuery} onOpenProject={onOpenProject} />;
 }

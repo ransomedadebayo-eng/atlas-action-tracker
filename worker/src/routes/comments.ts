@@ -6,7 +6,7 @@ import { serializeJsonArray, serializeJsonObject } from '../utils/json';
 
 const router = new Hono<{ Bindings: Env }>();
 type Row = Record<string, any>;
-const TARGETS = new Set(['action','project','initiative','document','project_update','initiative_update']);
+const TARGETS = new Set(['action','project','document','project_update']);
 const REACTION_TARGETS = new Set([...TARGETS, 'comment']);
 const PRINCIPALS = new Set(['ransomed','codex','claude']);
 

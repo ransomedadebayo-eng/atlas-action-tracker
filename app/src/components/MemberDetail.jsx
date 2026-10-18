@@ -27,8 +27,8 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
     let overdueCount = 0
     for (const a of allActions) {
       const status = canonicalStatus(a.status)
-      counts[status]++
-      if (isOverdue(a.due_date) && !['done', 'cancelled'].includes(status)) {
+      counts[status] = (counts[status] || 0) + 1
+      if (isOverdue(a.due_date) && !['done', 'canceled', 'archived'].includes(status)) {
         overdueCount++
       }
     }
@@ -62,7 +62,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
   }
 
   const statCards = [
-    { label: 'Active', value: stats.not_started + stats.in_progress + stats.waiting + stats.blocked, color: '#3b82f6', icon: Clock },
+    { label: 'Active', value: stats.open + stats.not_started + stats.in_progress + stats.waiting + stats.blocked, color: '#3b82f6', icon: Clock },
     { label: 'Overdue', value: stats.overdue, color: '#ef4444', icon: AlertTriangle, alert: stats.overdue > 0 },
     { label: 'Done', value: stats.done, color: '#f4b860', icon: CheckCircle2 },
     { label: 'Total', value: stats.total, color: '#71717a', icon: Circle },
@@ -213,8 +213,9 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
       ) : (
         <div className="space-y-1.5">
           {actions.map(action => {
-            const overdue = isOverdue(action.due_date) && action.status !== 'done'
-            const done = action.status === 'done'
+            const status = canonicalStatus(action.status)
+            const overdue = isOverdue(action.due_date) && !['done', 'canceled', 'archived'].includes(status)
+            const done = status === 'done'
             const owners = Array.isArray(action.owners)
               ? action.owners
               : JSON.parse(action.owners || '[]')
@@ -231,7 +232,7 @@ export default function MemberDetail({ memberId, onBack, onSelectAction }) {
                 aria-label={`Open action: ${action.title}`}
               >
                 <PriorityBadge priority={action.priority} />
-                <StatusBadge status={action.status} workflowStatus={action.workflow_status} />
+                <StatusBadge status={action.status} />
                 <span className={`flex-1 text-sm font-medium min-w-0 truncate ${
                   done ? 'line-through text-text-muted' : 'text-text-primary'
                 }`}>
