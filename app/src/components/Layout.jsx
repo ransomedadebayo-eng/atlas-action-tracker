@@ -20,6 +20,7 @@ import {
   Eye,
   Bell,
   Building2,
+  Timer,
 } from 'lucide-react'
 import TopBar from './TopBar.jsx'
 import { useBusinessContext } from '../hooks/useBusinesses.js'
@@ -28,6 +29,7 @@ import { trapTabKey } from '../utils/focusUtils.js'
 const NAV_LINKS = [
   { id: 'today', label: 'Today', Icon: Sun },
   { id: 'week', label: 'Week', Icon: CalendarRange },
+  { id: 'focus', label: 'Focus', Icon: Timer },
   { id: 'projects', label: 'Projects', Icon: FolderKanban },
   { id: 'dashboard', label: 'All Tasks', Icon: LayoutDashboard },
   { id: 'kanban', label: 'Kanban', Icon: Columns },
@@ -259,8 +261,8 @@ export default function Layout({
           onViewTranscripts={() => setCurrentView('transcripts')}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
           menuButtonRef={menuButtonRef}
-          crossBusiness={currentView === 'week'}
-          hideSearch={currentView === 'week'}
+          crossBusiness={['week', 'focus'].includes(currentView)}
+          hideSearch={['week', 'focus'].includes(currentView)}
         />
         <main id="main-content" className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 bg-bg-primary">
           {children}

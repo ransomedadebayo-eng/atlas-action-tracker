@@ -1,0 +1,16 @@
+{
+  "actions": {
+    "count": 738,
+    "row_hash": "79f0b91969c90029c12189aa22e47492"
+  },
+  "projects": {
+    "count": 30,
+    "row_hash": "48bcf0a1925c53f6a2351ff396442d22"
+  },
+  "documents": {
+    "count": 29,
+    "row_hash": "0f1fc9c91c66ecde5adedf5416df5eb3"
+  },
+  "captured_at": "2026-10-19T03:44:06.280473+00:00",
+  "focus_tables": []
+}

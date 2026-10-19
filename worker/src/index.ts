@@ -23,6 +23,7 @@ import commentsRouter from './routes/comments';
 import notificationsRouter from './routes/notifications';
 import { integrationsRouter, hooksRouter } from './routes/integrations';
 import updatesRouter from './routes/updates';
+import focusRouter from './routes/focus';
 import { dispatchPendingDeliveries } from './services/integrations';
 export { DocumentRoom } from './durable/DocumentRoom';
 
@@ -94,6 +95,7 @@ app.route('/api/comments', commentsRouter);
 app.route('/api/notifications', notificationsRouter);
 app.route('/api/integrations', integrationsRouter);
 app.route('/api/updates', updatesRouter);
+app.route('/api/focus', focusRouter);
 
 // 404 fallback for unmatched /api routes
 app.notFound((c) => {
