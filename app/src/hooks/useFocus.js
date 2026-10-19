@@ -84,10 +84,10 @@ export function useFocus(onCompleted) {
 
   useEffect(() => {
     setNow(Date.now());
-    if (query.data?.status !== 'running') return;
+    if (query.data?.status !== 'running' && !(failure?.kind === 'uncertain' && failure.automatic)) return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, [query.data]);
+  }, [query.data, failure?.kind, failure?.automatic]);
 
   const execute = useCallback(async (command, payload = {}, { retry = false, automatic = false } = {}) => {
     if (inFlight.current) return null;
@@ -139,7 +139,9 @@ export function useFocus(onCompleted) {
       };
       let fresh;
       try { fresh = await refreshState(); } catch { /* Keep the query error visible. */ }
-      if (operation.automatic && fresh && fresh.status !== 'running') {
+      // Ready/paused readback alone cannot distinguish completion from another
+      // tab's reset/skip. Keep an uncertain operation for exact receipt replay.
+      if (operation.automatic && !uncertain && fresh && fresh.status !== 'running') {
         outstanding.current = null;
         setFailure(null);
       } else {
@@ -164,7 +166,8 @@ export function useFocus(onCompleted) {
 
   const remainingMs = focusRemainingMs(query.data, now);
   useEffect(() => {
-    if (query.data?.status !== 'running' || remainingMs > 0 || busy || query.isFetching) return;
+    const retrying = failure?.kind === 'uncertain' && failure.automatic && outstanding.current?.automatic;
+    if ((!retrying && (query.data?.status !== 'running' || remainingMs > 0)) || busy || query.isFetching) return;
     if (failure && !failure.automatic) return;
     if (Date.now() < retryClock.current.at) return;
     void execute('reconcile', {}, { automatic: true });

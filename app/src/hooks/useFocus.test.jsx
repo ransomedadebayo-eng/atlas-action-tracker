@@ -11,11 +11,19 @@ const settings = { focus_minutes: 25, short_break_minutes: 5, long_break_minutes
 function ready(overrides = {}) { return { revision: 0, phase: 'focus', status: 'ready', settings, session: null, deadline_at: null, remaining_ms: 1500000, completed_focus_count: 0, ...overrides }; }
 function running(revision = 1) { return ready({ revision, status: 'running', deadline_at: new Date(Date.now() + 1500000).toISOString(), session: { id: 'session-1', project_id: 'real-project', project_name: 'Original project name', business: 'personal', duration_ms: 1500000, started_at: new Date().toISOString() } }); }
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { resolve, promise }; }
+async function advanceClock(milliseconds) {
+  // Flush React between clock ticks, as the real browser event loop does.
+  for (let remaining = milliseconds; remaining > 0; remaining -= 1000) {
+    await act(async () => { await vi.advanceTimersByTimeAsync(Math.min(remaining, 1000)); });
+  }
+}
 
 describe('useFocus durable commands', () => {
   let server, client;
   beforeEach(() => {
     vi.clearAllMocks();
+    focusApi.command.mockReset();
+    focusApi.get.mockReset();
     server = ready();
     focusApi.get.mockImplementation(async () => ({ ...server, server_now: new Date(Date.now()).toISOString() }));
     client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
@@ -234,6 +242,109 @@ describe('useFocus durable commands', () => {
     expect(result.current.needsReadback).toBe(false);
     expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({ revision: 3, phase: 'short_break' }));
     expect(focusApi.command).toHaveBeenCalledTimes(2);
+  });
+
+  it('confirms an uncertain committed reconcile by replaying its receipt after ready readback', async () => {
+    vi.useFakeTimers();
+    server = { ...running(9), deadline_at: new Date(Date.now() - 10000).toISOString(), completed_focus_count: 3 };
+    const onCompleted = vi.fn();
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 10, phase: 'long_break', remaining_ms: 900000, completed_focus_count: 4 });
+      throw new TypeError('Response lost after commit');
+    });
+    focusApi.command.mockImplementationOnce(async () => server);
+    const { result } = mount(onCompleted);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    expect(result.current.data.phase).toBe('long_break');
+    expect(result.current.uncertain).toBe(true);
+    expect(onCompleted).not.toHaveBeenCalled();
+    await act(async () => { await result.current.command('start'); });
+    expect(focusApi.command).toHaveBeenCalledOnce();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(focusApi.command).toHaveBeenCalledTimes(2);
+    expect(focusApi.command.mock.calls[1][0]).toEqual(focusApi.command.mock.calls[0][0]);
+    expect(result.current.failure).toBeNull();
+    expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({ revision: 10, phase: 'long_break' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(60000); await result.current.refresh(); });
+    expect(focusApi.command).toHaveBeenCalledTimes(2);
+    expect(onCompleted).toHaveBeenCalledOnce();
+  });
+
+  it.each(['window focus', 'polling'])('confirms an uncertain completion after the immediate GET fails and %s restores ready state', async recovery => {
+    vi.useFakeTimers();
+    const startTime = Date.now();
+    let online = false;
+    server = { ...running(9), deadline_at: new Date(startTime - 10000).toISOString(), completed_focus_count: 3 };
+    const initial = { ...server, server_now: new Date(startTime).toISOString() };
+    focusApi.get.mockResolvedValueOnce(initial).mockImplementation(async () => {
+      if (!online) throw new TypeError('Offline');
+      return { ...server, server_now: new Date(Date.now()).toISOString() };
+    });
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 10, phase: 'long_break', remaining_ms: 900000, completed_focus_count: 4 });
+      throw new TypeError('Response lost after commit');
+    }).mockImplementationOnce(async () => server);
+    const onCompleted = vi.fn();
+    const { result } = mount(onCompleted);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    expect(result.current.uncertain).toBe(true);
+    expect(onCompleted).not.toHaveBeenCalled();
+    if (recovery === 'polling') {
+      // Failed preflights back off at 2/6/14 seconds; the next poll happens
+      // 15 seconds after the last failed read, before the 30-second retry.
+      await advanceClock(28000);
+      online = true;
+      await advanceClock(1500);
+      expect(result.current.data.phase).toBe('long_break');
+      expect(onCompleted).not.toHaveBeenCalled();
+      await advanceClock(2500);
+    } else {
+      online = true;
+      act(() => { window.dispatchEvent(new Event('focus')); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    }
+    expect(result.current.failure).toBeNull();
+    expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({ revision: 10 }));
+    expect(focusApi.command).toHaveBeenCalledTimes(2);
+    expect(focusApi.command.mock.calls[1][0]).toEqual(focusApi.command.mock.calls[0][0]);
+  });
+
+  it.each([
+    ['focus reset', 'focus', 'focus'],
+    ['focus skip', 'focus', 'short_break'],
+    ['break skip', 'short_break', 'focus'],
+  ])('does not chime when an uncommitted reconcile was superseded by another tab’s %s', async (_case, phase, nextPhase) => {
+    vi.useFakeTimers();
+    server = { ...running(9), phase, deadline_at: new Date(Date.now() - 10000).toISOString() };
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 10, phase: nextPhase });
+      throw new TypeError('Response unavailable, command not committed');
+    }).mockRejectedValueOnce(Object.assign(new Error('Another tab changed the timer'), { status: 409, code: 'REVISION_CONFLICT' }));
+    const onCompleted = vi.fn();
+    const { result } = mount(onCompleted);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(2500); });
+    expect(focusApi.command).toHaveBeenCalledTimes(2);
+    expect(focusApi.command.mock.calls[1][0]).toEqual(focusApi.command.mock.calls[0][0]);
+    expect(result.current.failure).toBeNull();
+    expect(onCompleted).not.toHaveBeenCalled();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+    expect(focusApi.command).toHaveBeenCalledTimes(2);
+    expect(onCompleted).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 409])('does not invent a completion or repeat a definitively rejected %i reconcile with ready readback', async status => {
+    vi.useFakeTimers();
+    server = { ...running(9), deadline_at: new Date(Date.now() - 10000).toISOString() };
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 10 });
+      throw Object.assign(new Error('Rejected'), { status });
+    });
+    const onCompleted = vi.fn();
+    mount(onCompleted);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+    expect(focusApi.command).toHaveBeenCalledOnce();
+    expect(onCompleted).not.toHaveBeenCalled();
   });
 
   it('backs off an uncertain reconcile and retains its operation ID for the next attempt', async () => {
