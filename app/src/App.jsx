@@ -23,10 +23,12 @@ import { getPacificWeekStart } from './utils/dateUtils.js'
 const ProjectsPage = React.lazy(() => import('./components/ProjectsPage.jsx'))
 const DocumentsPage = React.lazy(() => import('./components/DocumentsPage.jsx'))
 const NotificationsPage = React.lazy(() => import('./components/NotificationsPage.jsx'))
+const FocusPage = React.lazy(() => import('./components/FocusPage.jsx'))
 
 const VIEW_PATHS = {
   today: '/today',
   week: '/week',
+  focus: '/focus',
   projects: '/projects',
   documents: '/documents',
   notifications: '/notifications',
@@ -239,6 +241,8 @@ export default function App() {
         )
       case 'week':
         return <WeekPage weekStart={weekStart} onNavigateWeek={navigateWeek} onSelectAction={openAction} />
+      case 'focus':
+        return <FocusPage />
       case 'projects':
         return <ProjectsPage projectId={projectId} selectedBusiness={selectedBusiness} searchQuery={searchQuery} onOpenProject={navigateProject} onBack={() => navigateProject(null)} onSelectAction={openAction} />
       case 'documents':

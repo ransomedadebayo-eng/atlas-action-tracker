@@ -30,11 +30,26 @@ async function request(path, options = {}) {
       || (typeof data?.error === 'string' ? data.error : null)
       || (cloudflareLimit ? 'Cloudflare Workers request limit reached. Check the Workers plan or wait for the daily reset.' : res.statusText)
       || `Request failed: ${res.status}`;
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = res.status;
+    error.code = data?.error?.code || data?.code;
+    throw error;
   }
 
   return data;
 }
+
+export const focusApi = {
+  get: (options = {}) => request('/focus', options),
+  command: (data) => request('/focus/commands', { method: 'POST', body: data }),
+  history: (params = {}, options = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') query.set(key, value);
+    });
+    return request(`/focus/history?${query}`, options);
+  },
+};
 
 // Actions
 export const actionsApi = {

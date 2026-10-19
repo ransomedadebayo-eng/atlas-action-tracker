@@ -1,0 +1,13 @@
+# Independent review
+
+Reviewed against `0500a245` by the separate Atlas reviewer agent. Scope: Worker/API validation and owner authorization, transaction/receipt/revision semantics, history cursors and totals, new-object RLS/grants, app timing/retry recovery, project picker, settings, chime, route/navigation and tests.
+
+Resolved P2: an existing project edit could hold a project-row lock after the command had sampled its start time, shortening a fresh session. The command now samples database time again immediately after locking the project snapshot and before creating the session. The exact SQL passed an added real project-lock contention regression.
+
+Final conclusion: no remaining P1/P2 findings. Independent checks passed 53 app focus/API/navigation tests, 64 Worker focus tests, Worker typecheck and whitespace validation. Reviewer performed static SQL review, not production or browser writes. Root separately ran the real PostgreSQL checks and desktop/mobile browser workflows.
+
+PR review also identified a lost completion notice/chime when the command succeeded but GET readback failed. The confirmed session cue is now retained separately from the acknowledged operation receipt. Every explicit and automatic read shares one acceptance path; GET sequence barriers reject pre-acknowledgement, aborted and older reads. Successful post-acknowledgement reads clear the command guard and consume the cue exactly once before invoking the callback. Manual refresh, window focus, 15-second polling, query refetch and reconnect have regressions. A separate review of the final hook/test patch found no remaining P1/P2; all 28 focused hook/page/chime tests passed independently, including 14 hook tests. The full app suite now passes 217 tests. API and approved SQL are unchanged.
+
+Reviewed SQL SHA256: `119965d41dd5c9a393a0828cc0aef482ddc2de889fa6a0978819792881bff3b7`.
+
+A second fresh PR review identified the inverse case: an automatic reconcile committed but its POST response was lost. The client now retains that exact operation and continues bounded receipt retries even after a ready/paused readback. Only an acknowledged receipt can queue the completion cue; the existing authoritative GET and once-only delivery path then handles it. A different tab's reset/skip or a definitive rejection cannot invent a completion. Independent review of frozen hook blob `92dd63d92c9f459df87aa5c2b5c109ca8fbaeb38` and test blob `b7e9a610837183ea079205e4f0f574f9c141e49a` found no remaining P1/P2; all 36 hook/page/chime tests passed, including 22 hook tests. The first timing failures occurred while tests were being edited and were corrected before this frozen verification. API and approved SQL remain unchanged.

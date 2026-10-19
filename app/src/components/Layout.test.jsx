@@ -19,12 +19,12 @@ describe('Atlas navigation', () => {
   beforeEach(() => {
     window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   });
-  it('shows exactly the fifteen supported surfaces in order and keeps the mobile bar', () => {
+  it('shows the supported surfaces with Focus after Week and keeps the mobile bar', () => {
     render(<Layout {...props}><div>Content</div></Layout>);
     const sidebarNav = within(screen.getByLabelText('Sidebar')).getByRole('navigation');
     const links = within(sidebarNav).getAllByRole('button').map(button => button.textContent.trim());
     expect(links.slice(0, -1)).toEqual([
-      'Today', 'Week', 'Projects', 'All Tasks', 'Kanban', 'Documents', 'Notifications', 'Office Digest',
+      'Today', 'Week', 'Focus', 'Projects', 'All Tasks', 'Kanban', 'Documents', 'Notifications', 'Office Digest',
       'Review', 'Decide', 'Journal', 'Calendar', 'Principals', 'Transcripts', 'Automations',
     ]);
     expect(links.at(-1)).toBe('All');

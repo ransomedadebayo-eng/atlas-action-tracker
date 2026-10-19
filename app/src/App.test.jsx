@@ -28,4 +28,9 @@ describe('legacy surface links', () => {
     window.history.replaceState(null, '', '/updates/office-digest');
     expect(routeFromLocation()).toMatchObject({ view: 'officeDigest' });
   });
+  it('opens Focus directly without rewriting its URL', () => {
+    window.history.replaceState(null, '', '/focus');
+    expect(routeFromLocation()).toMatchObject({ view: 'focus', actionId: null });
+    expect(window.location.pathname).toBe('/focus');
+  });
 });

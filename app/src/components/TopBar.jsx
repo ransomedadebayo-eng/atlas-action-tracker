@@ -6,6 +6,7 @@ import { useTheme } from '../hooks/useTheme.js'
 const VIEW_TITLES = {
   today: 'Today',
   week: 'Week',
+  focus: 'Focus',
   projects: 'Projects',
   documents: 'Documents',
   notifications: 'Notifications',
