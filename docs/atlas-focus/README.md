@@ -2,9 +2,9 @@
 
 `/focus` adds an owner-only Pomodoro timer associated with actual Atlas project IDs. Default durations are 25/5/15 minutes, with a long break after four completed focuses. It supports pause/resume/reset/skip, opt-in sound, project snapshots, session history and all-history project totals. It never completes an Atlas action or project.
 
-## Database decision pending
+## Database approved and applied
 
-The code is ready for review; production storage is **not applied**. [schema-proposal.sql](schema-proposal.sql) is an additive proposal, deliberately outside the automatically applied migration directory. The API returns `503 FOCUS_STORAGE_UNAVAILABLE` until the reviewed objects and new-object-only access exist. See [SCHEMA-APPROVAL.md](SCHEMA-APPROVAL.md) for the exact owner decision. No existing rows, scopes, credentials, grants or policies change in this feature.
+The owner approved the bundled GitHub release and exact additive schema on 2026-10-19. Migration `20261019040756` was applied through the supported Supabase migration connector and verified by authoritative metadata/readback. [schema-proposal.sql](schema-proposal.sql) preserves the exact reviewed payload and its historical proposal comments; the byte-identical [canonical migration](../../migrations/20261019040756_atlas_project_focus.sql) uses the version returned by the remote ledger, rather than an invented timestamp. [schema-application.json](schema-application.json) records RLS, invoker functions, restricted new-object access and zero initial session/state/receipt rows. The API retains `503 FOCUS_STORAGE_UNAVAILABLE` for unavailable storage. No existing rows, scopes, credentials, grants or policies change in this feature.
 
 [contract.md](contract.md) records the API, data semantics and design choice. The original [Pomodoro · Focus Room](https://pomodoro-focus-room.ransomed.chatgpt.site) remains private and unchanged; browser-local tasks/history have not been migrated.
 
@@ -33,4 +33,4 @@ python3 docs/atlas-focus/browser-fixture.py --cluster /path/to/marked/disposable
 
 Other Atlas endpoints use the existing synthetic fixture. Focus endpoints execute the real SQL RPCs as the existing service-role shape. `/__qa/focus` exposes explicit local expiry/rename/archive/storage-unavailable controls. Those controls are not shipped in app/Worker code, and no request is forwarded to production. HTTP authentication/validation is tested separately in the Worker suite. Screenshots and browser history here contain synthetic projects only.
 
-GitHub quality checks, automatic PR review and the established main-branch deployment workflow remain the release path. Production deployment/live verification are pending the database owner decision; local verification does not establish a live release.
+GitHub quality checks, automatic PR review and the established main-branch deployment workflow remain the release path. Schema application is complete; production deployment and live verification are the remaining release steps. Local verification alone does not establish a live release.

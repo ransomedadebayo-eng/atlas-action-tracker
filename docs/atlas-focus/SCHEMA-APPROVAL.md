@@ -1,6 +1,6 @@
-# Owner decision: enable durable project focus
+# Approved owner decision: enable durable project focus
 
-Recommendation: approve the exact reviewed additive schema below so Atlas can persist timer state and session history. This decision is required by the owner's instruction to report gated schema work and avoid permission changes without approval.
+The owner approved the bundled GitHub release and exact reviewed additive schema on 2026-10-19 at 04:05 UTC. Migration `20261019040756` was applied successfully through the supported Supabase migration connector. Authoritative readback verifies all described access, RLS and invoker properties, with zero initial state/session/receipt rows. See [schema-application.json](schema-application.json). The decision below is retained as the approved scope; future schema or access changes require fresh authorization.
 
 Target: apply [schema-proposal.sql](schema-proposal.sql) once to canonical AEGIS Supabase project `vdezxdeushxaacyfjeeh`, then verify metadata and use the established tested GitHub release workflow. Exact SQL SHA256:
 
@@ -20,6 +20,6 @@ Decision options:
 
 Consequence if deferred: existing Atlas continues normally, but the new timer cannot save sessions or run durably. No browser-only fallback will pretend persistence succeeded.
 
-Verified source: current Atlas repository/backend contract, read-only production metadata confirming the existing Worker role's project SELECT/UPDATE/BYPASSRLS privileges, 56 local PostgreSQL assertions against this exact SQL, independent code/SQL review, and synthetic desktop/mobile browser screenshots. No production migration has been attempted. This is **pending**, not denied and not an uncertain prior application.
+Verified source: current Atlas repository/backend contract, read-only production metadata confirming the existing Worker role's project SELECT/UPDATE/BYPASSRLS privileges, 56 local PostgreSQL assertions against this exact SQL, independent code/SQL review, synthetic desktop/mobile browser screenshots, and successful migration/metadata readback. Application is **confirmed**, with no uncertain prior attempt.
 
 Effort to apply after approval: one additive migration, metadata/readback verification and the existing GitHub deployment; live UI smoke and integrity checks follow. No destructive rollback is proposed.

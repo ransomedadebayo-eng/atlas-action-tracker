@@ -1,6 +1,6 @@
 # Atlas project focus — implementation contract
 
-Status: implementation authorized; database proposal **not authorized/applied**.
+Status: implementation and exact database proposal authorized; migration `20261019040756` applied and verified on 2026-10-19. Deployment/live verification remain separate release steps.
 Baseline: `0500a24511301eb8a69f58202198d1a062dcc68b`.
 Owner request: “Build this into atlas instead and I can select the project I’m working on” (2026-10-19).
 Reference: [Pomodoro · Focus Room](https://pomodoro-focus-room.ransomed.chatgpt.site), private version 1, source commit `18c7fae6110e45404ade7666765d79fc592fec91`. The original remains intact; its browser-local tasks/history are not migrated. Its delivery records 41 automated tests and unverified browser visual/mobile QA; Atlas needs its own verification.

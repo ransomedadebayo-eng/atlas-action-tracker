@@ -1,0 +1,150 @@
+{
+  "migration": {
+    "name": "atlas_project_focus",
+    "version": "20261019040756"
+  },
+  "approved_sql_sha256": "119965d41dd5c9a393a0828cc0aef482ddc2de889fa6a0978819792881bff3b7",
+  "implemented_source_commit": "030afa0f41ee9a2cadcb794f57c059d62a332d3e",
+  "tables": [
+    {
+      "rls": true,
+      "name": "atlas_focus_operations",
+      "anon_select": false,
+      "worker_delete": false,
+      "worker_insert": true,
+      "worker_select": true,
+      "worker_update": false,
+      "worker_truncate": false,
+      "authenticated_select": false
+    },
+    {
+      "rls": true,
+      "name": "atlas_focus_sessions",
+      "anon_select": false,
+      "worker_delete": false,
+      "worker_insert": true,
+      "worker_select": true,
+      "worker_update": false,
+      "worker_truncate": false,
+      "authenticated_select": false
+    },
+    {
+      "rls": true,
+      "name": "atlas_focus_state",
+      "anon_select": false,
+      "worker_delete": false,
+      "worker_insert": true,
+      "worker_select": true,
+      "worker_update": true,
+      "worker_truncate": false,
+      "authenticated_select": false
+    }
+  ],
+  "functions": [
+    {
+      "name": "atlas_focus_command",
+      "settings": [
+        "search_path=\"\"",
+        "TimeZone=UTC"
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_duration_ms",
+      "settings": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_get_state",
+      "settings": [
+        "search_path=\"\"",
+        "TimeZone=UTC"
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_history",
+      "settings": [
+        "search_path=\"\"",
+        "TimeZone=UTC"
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_reject_history_mutation",
+      "settings": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_state_json",
+      "settings": [
+        "search_path=\"\"",
+        "TimeZone=UTC"
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_valid_settings",
+      "settings": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    },
+    {
+      "name": "atlas_focus_validate_command",
+      "settings": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "worker_execute": true,
+      "security_definer": false,
+      "authenticated_execute": false
+    }
+  ],
+  "counts_after_migration": {
+    "state": 0,
+    "sessions": 0,
+    "operations": 0
+  },
+  "default_state": {
+    "phase": "focus",
+    "status": "ready",
+    "session": null,
+    "revision": 0,
+    "settings": {
+      "chime_enabled": false,
+      "focus_minutes": 25,
+      "long_break_minutes": 15,
+      "short_break_minutes": 5
+    },
+    "server_now": "2026-10-19T04:08:20.701428+00:00",
+    "deadline_at": null,
+    "remaining_ms": 1500000,
+    "completed_focus_count": 0
+  }
+}
