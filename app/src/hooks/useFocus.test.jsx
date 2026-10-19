@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { focusApi } from '../api/client.js';
 import { useFocus } from './useFocus.js';
@@ -20,7 +20,7 @@ describe('useFocus durable commands', () => {
     focusApi.get.mockImplementation(async () => ({ ...server, server_now: new Date(Date.now()).toISOString() }));
     client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   });
-  afterEach(() => { client.clear(); vi.restoreAllMocks(); });
+  afterEach(() => { client.clear(); onlineManager.setOnline(true); vi.useRealTimers(); vi.restoreAllMocks(); });
   function mount(onCompleted = vi.fn()) {
     return renderHook(() => useFocus(onCompleted), { wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider> });
   }
@@ -125,6 +125,115 @@ describe('useFocus durable commands', () => {
     await act(async () => { await result.current.refresh(); await result.current.refresh(); });
     expect(focusApi.command).toHaveBeenCalledOnce();
     expect(onCompleted).toHaveBeenCalledOnce();
+  });
+
+  it.each(['manual refresh', 'window focus', 'query refetch', 'network reconnect'])('delivers an acknowledged completion once after failed readback recovers through %s', async recovery => {
+    server = { ...running(9), deadline_at: new Date(Date.now() - 10000).toISOString(), completed_focus_count: 3 };
+    const onCompleted = vi.fn();
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 10, phase: 'long_break', remaining_ms: 900000, completed_focus_count: 4, settings: { ...settings, chime_enabled: true } });
+      focusApi.get.mockRejectedValueOnce(new Error('Immediate readback failed'));
+      return { ...server, server_now: '2000-01-01T00:00:00Z' };
+    });
+    const { result } = mount(onCompleted);
+    await waitFor(() => expect(result.current.needsReadback).toBe(true));
+    expect(onCompleted).not.toHaveBeenCalled();
+    await act(async () => { await result.current.command('reset'); });
+    expect(focusApi.command).toHaveBeenCalledOnce();
+
+    // A second failed read must preserve both the completion and command guard.
+    focusApi.get.mockRejectedValueOnce(new Error('Still offline'));
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.needsReadback).toBe(true);
+    expect(onCompleted).not.toHaveBeenCalled();
+    if (recovery === 'manual refresh') await act(async () => { await result.current.refresh(); });
+    else if (recovery === 'window focus') act(() => { window.dispatchEvent(new Event('focus')); });
+    else if (recovery === 'query refetch') await act(async () => { await client.refetchQueries({ queryKey: ['focus'], exact: true }); });
+    else {
+      act(() => { onlineManager.setOnline(false); });
+      act(() => { onlineManager.setOnline(true); });
+    }
+    await waitFor(() => expect(result.current.needsReadback).toBe(false));
+    expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({
+      revision: 10, phase: 'long_break', status: 'ready', settings: { ...settings, chime_enabled: true },
+    }));
+    expect(Date.parse(onCompleted.mock.calls[0][1].server_now)).toBeGreaterThan(Date.parse('2000-01-01T00:00:00Z'));
+    await act(async () => { await result.current.refresh(); await result.current.refresh(); });
+    expect(onCompleted).toHaveBeenCalledOnce();
+    expect(focusApi.command).toHaveBeenCalledOnce();
+  });
+
+  it('accepts a scheduled polling GET after acknowledged completion readback failed, without requiring window focus', async () => {
+    vi.useFakeTimers();
+    server = { ...running(9), deadline_at: new Date(Date.now() - 10000).toISOString(), completed_focus_count: 3 };
+    const onCompleted = vi.fn();
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 10, phase: 'long_break', remaining_ms: 900000, completed_focus_count: 4 });
+      focusApi.get.mockRejectedValueOnce(new Error('Immediate readback failed'));
+      return server;
+    });
+    const { result } = mount(onCompleted);
+    await act(async () => { await vi.advanceTimersByTimeAsync(10); });
+    expect(result.current.needsReadback).toBe(true);
+    expect(onCompleted).not.toHaveBeenCalled();
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000); });
+    expect(result.current.needsReadback).toBe(false);
+    expect(result.current.data.phase).toBe('long_break');
+    expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({ revision: 10 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+    expect(onCompleted).toHaveBeenCalledOnce();
+    expect(focusApi.command).toHaveBeenCalledOnce();
+  });
+
+  it('cannot use a late pre-acknowledgement GET or cached state to unlock readback or deliver the completion', async () => {
+    server = { ...running(9), deadline_at: new Date(Date.now() - 10000).toISOString(), completed_focus_count: 3 };
+    const acknowledgement = deferred();
+    const preAckRead = deferred();
+    const onCompleted = vi.fn();
+    focusApi.command.mockReturnValueOnce(acknowledgement.promise);
+    const { result } = mount(onCompleted);
+    await waitFor(() => expect(focusApi.command).toHaveBeenCalledOnce());
+    focusApi.get.mockReturnValueOnce(preAckRead.promise);
+    let oldFetch;
+    act(() => { oldFetch = client.refetchQueries({ queryKey: ['focus'], exact: true }); });
+    await waitFor(() => expect(focusApi.get).toHaveBeenCalledTimes(2));
+    server = ready({ revision: 10, phase: 'long_break', remaining_ms: 900000, completed_focus_count: 4 });
+    focusApi.get.mockRejectedValueOnce(new Error('Post-acknowledgement GET failed'));
+    act(() => { acknowledgement.resolve(server); });
+    await waitFor(() => expect(result.current.needsReadback).toBe(true));
+    await act(async () => {
+      preAckRead.resolve({ ...server, server_now: new Date().toISOString() });
+      await oldFetch;
+    });
+    act(() => { client.setQueryData(['focus'], { ...server, server_now: new Date().toISOString(), clock_offset_ms: 0 }); });
+    expect(result.current.needsReadback).toBe(true);
+    expect(onCompleted).not.toHaveBeenCalled();
+    await act(async () => { await result.current.command('reset'); });
+    expect(focusApi.command).toHaveBeenCalledOnce();
+    await act(async () => { await client.refetchQueries({ queryKey: ['focus'], exact: true }); });
+    expect(result.current.needsReadback).toBe(false);
+    expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({ revision: 10 }));
+  });
+
+  it('retains completion when an uncertain operation retry is acknowledged but its readback fails', async () => {
+    server = { ...running(2), deadline_at: new Date(Date.now() - 10000).toISOString() };
+    const onCompleted = vi.fn();
+    focusApi.command.mockRejectedValueOnce(new TypeError('Response interrupted'));
+    const { result } = mount(onCompleted);
+    await waitFor(() => expect(result.current.failure?.kind).toBe('uncertain'));
+    focusApi.command.mockImplementationOnce(async () => {
+      server = ready({ revision: 3, phase: 'short_break', remaining_ms: 300000, completed_focus_count: 1 });
+      focusApi.get.mockRejectedValueOnce(new Error('Readback failed after retry'));
+      return server;
+    });
+    await act(async () => { await result.current.retryCommand(); });
+    expect(focusApi.command.mock.calls[1][0]).toEqual(focusApi.command.mock.calls[0][0]);
+    expect(result.current.needsReadback).toBe(true);
+    expect(onCompleted).not.toHaveBeenCalled();
+    await act(async () => { await result.current.refresh(); await result.current.refresh(); });
+    expect(result.current.needsReadback).toBe(false);
+    expect(onCompleted).toHaveBeenCalledExactlyOnceWith('session-1', expect.objectContaining({ revision: 3, phase: 'short_break' }));
+    expect(focusApi.command).toHaveBeenCalledTimes(2);
   });
 
   it('backs off an uncertain reconcile and retains its operation ID for the next attempt', async () => {

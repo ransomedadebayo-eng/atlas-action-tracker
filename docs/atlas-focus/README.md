@@ -10,7 +10,7 @@ The owner approved the bundled GitHub release and exact additive schema on 2026-
 
 ## Verification
 
-- App: 210 tests passed; Worker: 255 tests passed; contract, build, typecheck and whitespace checks passed.
+- App: 217 tests passed; Worker: 255 tests passed; contract, build, typecheck and whitespace checks passed. Recovery regressions cover acknowledged completion followed by failed readback, then manual refresh, window focus, polling, reconnect and query refetch; pre-acknowledgement reads cannot unlock controls or consume the pending cue.
 - Exact proposal: 56 assertions on disposable PostgreSQL 17.11, including concurrent commands/retries, owner/project lock timing, paused time, immutable receipts/history, archived/renamed labels, timestamp ties and all-page totals. [Recorded result](storage-verification.json).
 - Independent review: no remaining P1/P2; the project-lock timing finding was corrected and verified. [Review](REVIEW.md).
 - Desktop (1496px), mobile (390px) and narrow mobile (320px): actual project selection and locked context, pause/reload/resume, settings without rebasing, natural timed completion, reset/skip without adding totals, four-focus long break, archived labels, history filters and two-way cursor pages. No horizontal overflow at 390/320px. Missing-storage responses block the timer and recover after retry. [Screenshots](evidence/).

@@ -20,33 +20,54 @@ export function useFocusHistory(projectId, cursor) {
 
 export function useFocus(onCompleted) {
   const client = useQueryClient();
-  const query = useQuery({
-    queryKey: ['focus'], queryFn: readFocusState, retry: false, staleTime: 0,
-    refetchOnWindowFocus: 'always', refetchOnReconnect: 'always',
-    refetchInterval: current => current.state.data?.status === 'running' ? 15000 : false,
-    refetchIntervalInBackground: false,
-  });
   const [now, setNow] = useState(Date.now);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState(null);
-  const stateRef = useRef(query.data);
-  stateRef.current = query.data;
+  const stateRef = useRef(client.getQueryData(['focus']));
   const inFlight = useRef(false);
   const readbackRequired = useRef(false);
   const outstanding = useRef(null);
   const retryClock = useRef({ attempts: 0, at: 0 });
   const completed = useRef(new Set());
+  const pendingCompletion = useRef(null);
+  const readSequence = useRef(0);
+  const minimumReadSequence = useRef(0);
+  const acceptedReadSequence = useRef(0);
   const completionCallback = useRef(onCompleted);
   completionCallback.current = onCompleted;
 
-  const refreshState = useCallback(async () => {
-    await client.cancelQueries({ queryKey: ['focus'], exact: true });
-    const fresh = await client.fetchQuery({ queryKey: ['focus'], queryFn: readFocusState, staleTime: 0, retry: false });
+  // All reads, including polling/reconnect, pass through this acceptance path.
+  // A GET begun before command acknowledgement cannot satisfy its readback.
+  const fetchState = useCallback(async ({ signal } = {}) => {
+    const sequence = ++readSequence.current;
+    const fresh = await readFocusState({ signal });
+    if (signal?.aborted || sequence < minimumReadSequence.current || sequence <= acceptedReadSequence.current) return fresh;
+    acceptedReadSequence.current = sequence;
     stateRef.current = fresh;
     readbackRequired.current = false;
     setFailure(previous => previous?.kind === 'readback' ? null : previous);
+    const sessionId = pendingCompletion.current;
+    if (sessionId) {
+      pendingCompletion.current = null;
+      if (!completed.current.has(sessionId)) {
+        completed.current.add(sessionId);
+        completionCallback.current?.(sessionId, fresh);
+      }
+    }
     return fresh;
-  }, [client]);
+  }, []);
+
+  const query = useQuery({
+    queryKey: ['focus'], queryFn: fetchState, retry: false, staleTime: 0,
+    refetchOnWindowFocus: 'always', refetchOnReconnect: 'always',
+    refetchInterval: current => current.state.data?.status === 'running' ? 15000 : false,
+    refetchIntervalInBackground: false,
+  });
+
+  const refreshState = useCallback(async () => {
+    await client.cancelQueries({ queryKey: ['focus'], exact: true });
+    return client.fetchQuery({ queryKey: ['focus'], queryFn: fetchState, staleTime: 0, retry: false });
+  }, [client, fetchState]);
 
   // React Query handles visibility/reconnect; also refresh on a window returning
   // focus. Deduplicate rapid focus events and let the query cancel stale reads.
@@ -88,7 +109,14 @@ export function useFocus(onCompleted) {
       if (retry || (automatic && retryClock.current.attempts)) await refreshState();
       await client.cancelQueries({ queryKey: ['focus'], exact: true });
       const acknowledged = await focusApi.command(operation.body);
+      // Preserve a confirmed completion independently of its operation receipt:
+      // GET may fail now and recover through a later refresh or window focus.
+      if (operation.expiredSession && acknowledged.status === 'ready' && !acknowledged.session
+        && !completed.current.has(operation.expiredSession)) {
+        pendingCompletion.current = operation.expiredSession;
+      }
       readbackRequired.current = true;
+      minimumReadSequence.current = readSequence.current + 1;
       outstanding.current = null;
       retryClock.current = { attempts: 0, at: Date.now() + 2000 };
       void client.invalidateQueries({ queryKey: ['focusHistory'] });
@@ -99,11 +127,6 @@ export function useFocus(onCompleted) {
       catch {
         setFailure({ kind: 'readback', message: 'Your command was saved, but the timer could not refresh. Refresh before continuing.' });
         return null;
-      }
-      if (operation.expiredSession && acknowledged.status === 'ready' && !acknowledged.session
-        && !completed.current.has(operation.expiredSession)) {
-        completed.current.add(operation.expiredSession);
-        completionCallback.current?.(operation.expiredSession, fresh);
       }
       return fresh;
     } catch (error) {
